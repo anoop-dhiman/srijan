@@ -25,9 +25,12 @@ interface User {
 type SettingsSection = 'ai-provider' | 'agent' | 'security' | 'secrets' | 'users';
 
 export function Settings({ open, onClose, isAdmin = false }: SettingsProps) {
-  const [provider, setProvider] = useState<'anthropic' | 'vertex'>('anthropic');
+  const [provider, setProvider] = useState<'anthropic' | 'vertex' | 'litellm'>('anthropic');
   const [apiKey, setApiKey] = useState('');
   const [model, setModel] = useState('claude-sonnet-4-6');
+  const [litellmBaseUrl, setLitellmBaseUrl] = useState('');
+  const [litellmApiKey, setLitellmApiKey] = useState('');
+  const [litellmModel, setLitellmModel] = useState('');
   const [showKey, setShowKey] = useState(false);
   const [vertexProjectId, setVertexProjectId] = useState('');
   const [vertexRegion, setVertexRegion] = useState('global');
@@ -46,6 +49,11 @@ export function Settings({ open, onClose, isAdmin = false }: SettingsProps) {
   const [savingPrompt, setSavingPrompt] = useState(false);
   const [message, setMessage] = useState('');
   const [promptMessage, setPromptMessage] = useState('');
+
+  // Agent SDK state
+  const [agentSdk, setAgentSdk] = useState<'claude-code' | 'opencode'>('claude-code');
+  const [savingSdk, setSavingSdk] = useState(false);
+  const [sdkMessage, setSdkMessage] = useState('');
 
   // TOTP state
   const [totpEnabled, setTotpEnabled] = useState(false);
@@ -83,10 +91,14 @@ export function Settings({ open, onClose, isAdmin = false }: SettingsProps) {
         setVertexProjectId(config.llm.vertexProjectId || '');
         setVertexRegion(config.llm.vertexRegion || 'global');
         setVertexCredentials(config.llm.vertexCredentials || '');
+        setLitellmBaseUrl(config.llm.litellmBaseUrl || '');
+        setLitellmApiKey(config.llm.litellmApiKey || '');
+        setLitellmModel(config.llm.litellmModel || '');
       }
       setSystemPrompt(config.system_prompt || '');
       setDefaultSystemPrompt(config.default_system_prompt || '');
       if (config.agentMode) setAgentMode(config.agentMode === 'confirm' ? 'confirm' : 'auto');
+      if (config.agentSdk) setAgentSdk(config.agentSdk === 'opencode' ? 'opencode' : 'claude-code');
       if (config.agent_boundaries) {
         try { setBlocklist(JSON.parse(config.agent_boundaries).join('\n')); } catch {}
       }
@@ -149,7 +161,7 @@ export function Settings({ open, onClose, isAdmin = false }: SettingsProps) {
     try {
       await apiFetch('/config/llm', {
         method: 'PUT',
-        body: JSON.stringify({ value: { provider, apiKey, model, vertexProjectId, vertexRegion, vertexCredentials } }),
+        body: JSON.stringify({ value: { provider, apiKey, model, vertexProjectId, vertexRegion, vertexCredentials, litellmBaseUrl, litellmApiKey, litellmModel } }),
       });
       setMessage('Settings saved');
       setTimeout(() => setMessage(''), 2000);
@@ -157,6 +169,23 @@ export function Settings({ open, onClose, isAdmin = false }: SettingsProps) {
       setMessage(err.message);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const saveSdkSettings = async () => {
+    setSavingSdk(true);
+    setSdkMessage('');
+    try {
+      await apiFetch('/config/agentSdk', {
+        method: 'PUT',
+        body: JSON.stringify({ value: agentSdk }),
+      });
+      setSdkMessage('SDK saved');
+      setTimeout(() => setSdkMessage(''), 2000);
+    } catch (err: any) {
+      setSdkMessage(err.message);
+    } finally {
+      setSavingSdk(false);
     }
   };
 
@@ -363,6 +392,17 @@ export function Settings({ open, onClose, isAdmin = false }: SettingsProps) {
               >
                 Vertex AI (GCP)
               </button>
+              <button
+                type="button"
+                onClick={() => setProvider('litellm')}
+                className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                  provider === 'litellm'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:bg-background hover:text-foreground'
+                }`}
+              >
+                LiteLLM Proxy
+              </button>
             </div>
 
             {provider === 'anthropic' && (
@@ -437,6 +477,45 @@ export function Settings({ open, onClose, isAdmin = false }: SettingsProps) {
               </div>
             )}
 
+            {provider === 'litellm' && (
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Proxy Base URL</label>
+                  <input
+                    type="text"
+                    value={litellmBaseUrl}
+                    onChange={(e) => setLitellmBaseUrl(e.target.value)}
+                    placeholder="http://localhost:4000"
+                    className="w-full rounded-xl border border-border bg-muted px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">API Key <span className="text-muted-foreground font-normal">(optional)</span></label>
+                  <input
+                    type="password"
+                    value={litellmApiKey}
+                    onChange={(e) => setLitellmApiKey(e.target.value)}
+                    placeholder="Proxy master key"
+                    className="w-full rounded-xl border border-border bg-muted px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Model Name</label>
+                  <input
+                    type="text"
+                    value={litellmModel}
+                    onChange={(e) => setLitellmModel(e.target.value)}
+                    placeholder="gpt-4o, ollama/llama3, bedrock/claude-3-5-sonnet"
+                    className="w-full rounded-xl border border-border bg-muted px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+                <div className="rounded-xl border border-border bg-muted/30 px-4 py-3 text-xs text-muted-foreground">
+                  Run your own LiteLLM proxy to route requests to any model provider. See the LiteLLM documentation for setup instructions.
+                </div>
+              </div>
+            )}
+
+            {provider !== 'litellm' && (
             <div className="space-y-1.5">
               <label className="text-sm font-medium">Model</label>
               <select
@@ -449,6 +528,7 @@ export function Settings({ open, onClose, isAdmin = false }: SettingsProps) {
                 <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5</option>
               </select>
             </div>
+            )}
 
             <button
               onClick={saveConfig}
@@ -557,6 +637,44 @@ export function Settings({ open, onClose, isAdmin = false }: SettingsProps) {
             </button>
 
             {modeMessage && <p className="text-sm text-secondary-foreground">{modeMessage}</p>}
+          </section>
+
+          <section className="space-y-4">
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Agent SDK</h3>
+            <div className="flex rounded-xl border border-border bg-muted p-1 gap-1">
+              <button
+                type="button"
+                onClick={() => setAgentSdk('claude-code')}
+                className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                  agentSdk === 'claude-code'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:bg-background hover:text-foreground'
+                }`}
+              >
+                Claude Code
+              </button>
+              <button
+                type="button"
+                onClick={() => setAgentSdk('opencode')}
+                className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                  agentSdk === 'opencode'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:bg-background hover:text-foreground'
+                }`}
+              >
+                OpenCode <span className="text-xs opacity-70">(experimental)</span>
+              </button>
+            </div>
+            <p className="text-xs text-muted-foreground">OpenCode support is experimental and not yet fully implemented.</p>
+            <button
+              onClick={saveSdkSettings}
+              disabled={savingSdk}
+              className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-base font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+            >
+              <Save size={16} />
+              {savingSdk ? 'Saving…' : 'Save SDK'}
+            </button>
+            {sdkMessage && <p className="text-sm text-secondary-foreground">{sdkMessage}</p>}
           </section>
         </>}
 

@@ -3,7 +3,7 @@ import { getDb } from '../db/store.js';
 import { encrypt, decrypt } from '../lib/crypto.js';
 import { v4 as uuidv4 } from 'uuid';
 
-describe('Secret Proxy (runner loadSecrets)', () => {
+describe('Secret Proxy (runner prepareSecrets)', () => {
   beforeAll(() => {
     getDb();
   });
@@ -31,17 +31,52 @@ describe('Secret Proxy (runner loadSecrets)', () => {
     const rows = db.prepare('SELECT name, encrypted_value FROM secrets').all() as
       { name: string; encrypted_value: string }[];
 
-    const result: Record<string, string> = {};
+    const envVars: Record<string, string> = {};
+    const secretMap: Record<string, string> = {};
     for (const row of rows) {
       try {
-        result[`SRIJAN_SECRET_${row.name}`] = decrypt(row.encrypted_value);
+        const realValue = decrypt(row.encrypted_value);
+        const placeholder = `SRIJAN_PLACEHOLDER_${row.name.toLowerCase()}`;
+        envVars[`SRIJAN_SECRET_${row.name}`] = placeholder;
+        secretMap[placeholder] = realValue;
       } catch { /* skip malformed rows */ }
     }
 
-    expect(typeof result).toBe('object');
+    expect(typeof envVars).toBe('object');
+    expect(typeof secretMap).toBe('object');
   });
 
-  it('should inject secret as SRIJAN_SECRET_<NAME>', () => {
+  it('prepareSecrets: env var should contain placeholder, not real value', () => {
+    const db = getDb();
+    const name = 'PLACEHOLDER_TEST_' + Date.now();
+    const value = 'actual-real-secret-' + Date.now();
+    db.prepare('INSERT INTO secrets (id, name, encrypted_value) VALUES (?, ?, ?)')
+      .run(uuidv4(), name, encrypt(value));
+
+    const rows = db.prepare('SELECT name, encrypted_value FROM secrets WHERE name = ?').all(name) as
+      { name: string; encrypted_value: string }[];
+
+    const envVars: Record<string, string> = {};
+    const secretMap: Record<string, string> = {};
+    for (const row of rows) {
+      try {
+        const realValue = decrypt(row.encrypted_value);
+        const placeholder = `SRIJAN_PLACEHOLDER_${row.name.toLowerCase()}`;
+        envVars[`SRIJAN_SECRET_${row.name}`] = placeholder;
+        secretMap[placeholder] = realValue;
+      } catch {}
+    }
+
+    // Env var should have the placeholder, NOT the real value
+    expect(envVars[`SRIJAN_SECRET_${name}`]).toBe(`SRIJAN_PLACEHOLDER_${name.toLowerCase()}`);
+    expect(envVars[`SRIJAN_SECRET_${name}`]).not.toBe(value);
+
+    // secretMap maps placeholder → real value
+    const placeholder = `SRIJAN_PLACEHOLDER_${name.toLowerCase()}`;
+    expect(secretMap[placeholder]).toBe(value);
+  });
+
+  it('secretMap correctly maps placeholder to real value', () => {
     const db = getDb();
     const name = 'INJECT_TEST_' + Date.now();
     const value = 'injected-value-123';
@@ -51,11 +86,16 @@ describe('Secret Proxy (runner loadSecrets)', () => {
     const rows = db.prepare('SELECT name, encrypted_value FROM secrets WHERE name = ?').all(name) as
       { name: string; encrypted_value: string }[];
 
-    const env: Record<string, string> = {};
+    const secretMap: Record<string, string> = {};
     for (const row of rows) {
-      try { env[`SRIJAN_SECRET_${row.name}`] = decrypt(row.encrypted_value); } catch {}
+      try {
+        const realValue = decrypt(row.encrypted_value);
+        const placeholder = `SRIJAN_PLACEHOLDER_${row.name.toLowerCase()}`;
+        secretMap[placeholder] = realValue;
+      } catch {}
     }
 
-    expect(env[`SRIJAN_SECRET_${name}`]).toBe(value);
+    const placeholder = `SRIJAN_PLACEHOLDER_${name.toLowerCase()}`;
+    expect(secretMap[placeholder]).toBe(value);
   });
 });

@@ -7,6 +7,17 @@ vi.mock('../lib/api', () => ({
   apiFetch: vi.fn(),
 }));
 
+vi.mock('@monaco-editor/react', () => ({
+  default: ({ value, onChange, options }: any) => (
+    <textarea
+      data-testid="monaco-editor"
+      value={value}
+      readOnly={options?.readOnly}
+      onChange={(e) => onChange?.(e.target.value)}
+    />
+  ),
+}));
+
 import { apiFetch } from '../lib/api';
 
 const mockWorkspaces = [
@@ -69,7 +80,7 @@ describe('FileBrowser', () => {
 
     await waitFor(() => {
       expect(apiFetch).toHaveBeenCalledWith(expect.stringContaining('/workspaces/my-app/file'));
-      expect(screen.getByText('# Hello World')).toBeInTheDocument();
+      expect(screen.getByTestId('monaco-editor')).toBeInTheDocument();
     });
   });
 
@@ -110,5 +121,82 @@ describe('FileBrowser', () => {
 
     await waitFor(() => screen.getByText('README.md'));
     expect(screen.getByText(/Select a file/i)).toBeInTheDocument();
+  });
+
+  it('shows Edit button after file is loaded', async () => {
+    vi.mocked(apiFetch)
+      .mockResolvedValueOnce({ entries: mockEntries })
+      .mockResolvedValueOnce({ content: 'some content' });
+
+    render(<FileBrowser workspaces={mockWorkspaces} currentWorkspace="my-app" />);
+    await waitFor(() => screen.getByText('README.md'));
+    await userEvent.click(screen.getByText('README.md'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Edit')).toBeInTheDocument();
+    });
+  });
+
+  it('shows Save and Cancel buttons after Edit is clicked', async () => {
+    vi.mocked(apiFetch)
+      .mockResolvedValueOnce({ entries: mockEntries })
+      .mockResolvedValueOnce({ content: 'some content' });
+
+    render(<FileBrowser workspaces={mockWorkspaces} currentWorkspace="my-app" />);
+    await waitFor(() => screen.getByText('README.md'));
+    await userEvent.click(screen.getByText('README.md'));
+
+    await waitFor(() => screen.getByText('Edit'));
+    await userEvent.click(screen.getByText('Edit'));
+
+    expect(screen.getByText('Save')).toBeInTheDocument();
+    expect(screen.getByText('Cancel')).toBeInTheDocument();
+  });
+
+  it('calls PUT endpoint when Save is clicked', async () => {
+    vi.mocked(apiFetch)
+      .mockResolvedValueOnce({ entries: mockEntries })
+      .mockResolvedValueOnce({ content: 'original' })
+      .mockResolvedValueOnce({ ok: true });
+
+    render(<FileBrowser workspaces={mockWorkspaces} currentWorkspace="my-app" />);
+    await waitFor(() => screen.getByText('README.md'));
+    await userEvent.click(screen.getByText('README.md'));
+
+    await waitFor(() => screen.getByText('Edit'));
+    await userEvent.click(screen.getByText('Edit'));
+
+    // Edit content in the textarea
+    const editor = screen.getByTestId('monaco-editor') as HTMLTextAreaElement;
+    fireEvent.change(editor, { target: { value: 'new content' } });
+
+    await userEvent.click(screen.getByText('Save'));
+
+    await waitFor(() => {
+      expect(apiFetch).toHaveBeenCalledWith(
+        expect.stringContaining('/workspaces/my-app/file'),
+        expect.objectContaining({
+          method: 'PUT',
+          body: JSON.stringify({ content: 'new content' }),
+        })
+      );
+    });
+  });
+
+  it('Cancel in edit mode (clean) reverts without confirm', async () => {
+    vi.mocked(apiFetch)
+      .mockResolvedValueOnce({ entries: mockEntries })
+      .mockResolvedValueOnce({ content: 'original' });
+
+    render(<FileBrowser workspaces={mockWorkspaces} currentWorkspace="my-app" />);
+    await waitFor(() => screen.getByText('README.md'));
+    await userEvent.click(screen.getByText('README.md'));
+
+    await waitFor(() => screen.getByText('Edit'));
+    await userEvent.click(screen.getByText('Edit'));
+    await userEvent.click(screen.getByText('Cancel'));
+
+    // Should be back to view mode
+    expect(screen.getByText('Edit')).toBeInTheDocument();
   });
 });

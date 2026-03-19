@@ -276,6 +276,92 @@ describe('Settings', () => {
     });
   });
 
+  // LiteLLM section tests
+  it('renders LiteLLM Proxy button in provider toggle', async () => {
+    render(<Settings open={true} onClose={mockOnClose} />);
+    await waitFor(() => screen.getByRole('heading', { name: 'Settings' }));
+    expect(screen.getByText('LiteLLM Proxy')).toBeInTheDocument();
+  });
+
+  it('switching to LiteLLM shows base URL and model fields', async () => {
+    render(<Settings open={true} onClose={mockOnClose} />);
+    await waitFor(() => screen.getByRole('heading', { name: 'Settings' }));
+
+    await userEvent.click(screen.getByText('LiteLLM Proxy'));
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText('http://localhost:4000')).toBeInTheDocument();
+      expect(screen.getByPlaceholderText(/gpt-4o/)).toBeInTheDocument();
+    });
+  });
+
+  it('save sends litellm fields when provider is LiteLLM', async () => {
+    vi.mocked(apiFetch).mockImplementation((path: string) => {
+      if (path === '/auth/totp/status') return Promise.resolve({ enabled: false });
+      return Promise.resolve([]);
+    });
+
+    render(<Settings open={true} onClose={mockOnClose} />);
+    await waitFor(() => screen.getByRole('heading', { name: 'Settings' }));
+
+    await userEvent.click(screen.getByText('LiteLLM Proxy'));
+
+    await waitFor(() => screen.getByPlaceholderText('http://localhost:4000'));
+    await userEvent.type(screen.getByPlaceholderText('http://localhost:4000'), 'http://localhost:4000');
+    await userEvent.type(screen.getByPlaceholderText(/gpt-4o/), 'gpt-4o');
+
+    await userEvent.click(screen.getByText('Save'));
+
+    await waitFor(() => {
+      expect(apiFetch).toHaveBeenCalledWith('/config/llm', expect.objectContaining({
+        method: 'PUT',
+        body: expect.stringContaining('litellm'),
+      }));
+    });
+  });
+
+  // SDK section tests
+  it('renders Agent SDK section in Agent tab', async () => {
+    render(<Settings open={true} onClose={mockOnClose} />);
+    await waitFor(() => screen.getByRole('heading', { name: 'Settings' }));
+
+    await userEvent.click(screen.getByRole('button', { name: 'Agent' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Claude Code')).toBeInTheDocument();
+    });
+  });
+
+  it('switching to OpenCode and saving calls agentSdk endpoint', async () => {
+    vi.mocked(apiFetch).mockImplementation((path: string) => {
+      if (path === '/auth/totp/status') return Promise.resolve({ enabled: false });
+      return Promise.resolve([]);
+    });
+
+    render(<Settings open={true} onClose={mockOnClose} />);
+    await waitFor(() => screen.getByRole('heading', { name: 'Settings' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Agent' }));
+
+    await waitFor(() => screen.getByText('Claude Code'));
+
+    // OpenCode button — use role query to find the button containing "OpenCode"
+    const sdkButtons = screen.getAllByRole('button').filter((btn) =>
+      btn.textContent?.includes('OpenCode') && !btn.textContent?.includes('Save')
+    );
+    expect(sdkButtons.length).toBeGreaterThan(0);
+    await userEvent.click(sdkButtons[0]);
+
+    // Click Save SDK button
+    await userEvent.click(screen.getByText('Save SDK'));
+
+    await waitFor(() => {
+      expect(apiFetch).toHaveBeenCalledWith('/config/agentSdk', expect.objectContaining({
+        method: 'PUT',
+        body: JSON.stringify({ value: 'opencode' }),
+      }));
+    });
+  });
+
   // Users section tests
   it('does not render Users section when not admin', async () => {
     render(<Settings open={true} onClose={mockOnClose} isAdmin={false} />);

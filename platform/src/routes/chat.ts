@@ -2,7 +2,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { IncomingMessage } from 'http';
 import { join } from 'path';
 import { createSession, getSession, listSessions, getSessionEvents, deleteSession } from '../agent/session.js';
-import { getOrCreateRunner, getRunner, getApiKey, getModel, getVertexConfig } from '../agent/runner.js';
+import { getOrCreateRunner, getRunner, getApiKey, getModel, getVertexConfig, getLiteLLMConfig } from '../agent/runner.js';
 import { getWorkspaceRoot } from '../git/manager.js';
 
 export const chatWss = new WebSocketServer({ noServer: true });
@@ -86,9 +86,10 @@ export function setupWebSocket(): void {
             }
 
             const vertexConfig = getVertexConfig();
-            const apiKey = vertexConfig.useVertex ? '' : getApiKey();
+            const litellmConfig = getLiteLLMConfig();
+            const apiKey = (vertexConfig.useVertex || litellmConfig.useLiteLLM) ? '' : getApiKey();
 
-            if (!vertexConfig.useVertex && !apiKey) {
+            if (!vertexConfig.useVertex && !litellmConfig.useLiteLLM && !apiKey) {
               ws.send(
                 JSON.stringify({
                   type: 'error',
@@ -107,6 +108,7 @@ export function setupWebSocket(): void {
               model: getModel(),
               sessionToken,
               vertexConfig,
+              litellmConfig,
             });
 
             // Attach persistent forwarder (idempotent — no-op if already attached)

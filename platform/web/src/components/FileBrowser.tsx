@@ -1,7 +1,9 @@
-import { useState, useEffect } from 'react';
-import { Folder, FolderOpen, FileText, ChevronRight, ChevronDown, Loader2 } from 'lucide-react';
+import { useState, useEffect, lazy, Suspense } from 'react';
+import { Folder, FolderOpen, FileText, ChevronRight, ChevronDown, Loader2, Pencil, Save, X } from 'lucide-react';
 import type { WorkspaceInfo } from '../hooks/useChat';
 import { apiFetch } from '../lib/api';
+
+const MonacoEditor = lazy(() => import('@monaco-editor/react'));
 
 interface Entry {
   name: string;
@@ -13,6 +15,7 @@ interface Entry {
 interface FileBrowserProps {
   workspaces: WorkspaceInfo[];
   currentWorkspace: string | null;
+  theme?: 'light' | 'dark';
 }
 
 interface TreeNode {
@@ -23,6 +26,18 @@ interface TreeNode {
   expanded?: boolean;
   children?: TreeNode[];
   loaded?: boolean;
+}
+
+function detectLanguage(filename: string): string {
+  const ext = filename.split('.').pop()?.toLowerCase() ?? '';
+  const map: Record<string, string> = {
+    ts: 'typescript', tsx: 'typescript', js: 'javascript', jsx: 'javascript',
+    py: 'python', rs: 'rust', go: 'go', java: 'java',
+    json: 'json', yaml: 'yaml', yml: 'yaml', md: 'markdown',
+    html: 'html', css: 'css', sh: 'shell', sql: 'sql',
+    dockerfile: 'dockerfile', toml: 'ini',
+  };
+  return map[ext] ?? 'plaintext';
 }
 
 function buildNodes(entries: Entry[], basePath: string): TreeNode[] {
@@ -124,7 +139,7 @@ function updateNodeInTree(
   });
 }
 
-export function FileBrowser({ workspaces, currentWorkspace }: FileBrowserProps) {
+export function FileBrowser({ workspaces, currentWorkspace, theme = 'dark' }: FileBrowserProps) {
   const [workspace, setWorkspace] = useState<string>(currentWorkspace || '');
   const [tree, setTree] = useState<TreeNode[]>([]);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
@@ -132,6 +147,13 @@ export function FileBrowser({ workspaces, currentWorkspace }: FileBrowserProps) 
   const [loadingTree, setLoadingTree] = useState(false);
   const [loadingFile, setLoadingFile] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Edit state
+  const [isEditing, setIsEditing] = useState(false);
+  const [editContent, setEditContent] = useState('');
+  const [isDirty, setIsDirty] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const loadDir = async (ws: string, path: string): Promise<TreeNode[]> => {
     const data = await apiFetch(`/workspaces/${encodeURIComponent(ws)}/files?path=${encodeURIComponent(path)}`);
@@ -152,7 +174,6 @@ export function FileBrowser({ workspaces, currentWorkspace }: FileBrowserProps) 
   }, [workspace]);
 
   const handleToggleDir = async (path: string) => {
-    // Find the node
     const findNode = (nodes: TreeNode[], p: string): TreeNode | null => {
       for (const n of nodes) {
         if (n.path === p) return n;
@@ -168,7 +189,6 @@ export function FileBrowser({ workspaces, currentWorkspace }: FileBrowserProps) 
     if (!node) return;
 
     if (!node.expanded && !node.loaded) {
-      // Load children
       try {
         const children = await loadDir(workspace, path);
         setTree((prev) =>
@@ -185,6 +205,11 @@ export function FileBrowser({ workspaces, currentWorkspace }: FileBrowserProps) 
   };
 
   const handleSelectFile = async (path: string) => {
+    // Reset edit state when switching files
+    setIsEditing(false);
+    setIsDirty(false);
+    setSaveError(null);
+
     setSelectedFile(path);
     setLoadingFile(true);
     setFileContent(null);
@@ -192,12 +217,50 @@ export function FileBrowser({ workspaces, currentWorkspace }: FileBrowserProps) 
     try {
       const data = await apiFetch(`/workspaces/${encodeURIComponent(workspace)}/file?path=${encodeURIComponent(path)}`);
       setFileContent(data.content);
+      setEditContent(data.content);
     } catch (err: any) {
       setError(err.message);
     } finally {
       setLoadingFile(false);
     }
   };
+
+  const handleEdit = () => {
+    setEditContent(fileContent ?? '');
+    setIsDirty(false);
+    setSaveError(null);
+    setIsEditing(true);
+  };
+
+  const handleSave = async () => {
+    if (!selectedFile) return;
+    setSaving(true);
+    setSaveError(null);
+    try {
+      await apiFetch(`/workspaces/${encodeURIComponent(workspace)}/file?path=${encodeURIComponent(selectedFile)}`, {
+        method: 'PUT',
+        body: JSON.stringify({ content: editContent }),
+      });
+      setFileContent(editContent);
+      setIsDirty(false);
+      setIsEditing(false);
+    } catch (err: any) {
+      setSaveError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    if (isDirty && !window.confirm('Discard unsaved changes?')) return;
+    setIsEditing(false);
+    setIsDirty(false);
+    setSaveError(null);
+    setEditContent(fileContent ?? '');
+  };
+
+  const monacoTheme = theme === 'dark' ? 'vs-dark' : 'vs';
+  const language = selectedFile ? detectLanguage(selectedFile.split('/').pop() ?? '') : 'plaintext';
 
   return (
     <div className="flex flex-1 min-h-0">
@@ -256,15 +319,52 @@ export function FileBrowser({ workspaces, currentWorkspace }: FileBrowserProps) 
 
         {selectedFile && (
           <>
-            {/* Breadcrumb */}
-            <div className="px-4 py-2 border-b border-border shrink-0 bg-muted">
+            {/* Breadcrumb + action buttons */}
+            <div className="px-4 py-2 border-b border-border shrink-0 bg-muted flex items-center justify-between gap-3">
               <p className="text-xs font-mono text-muted-foreground truncate">
                 {workspace} / {selectedFile}
               </p>
+              <div className="flex items-center gap-1.5 shrink-0">
+                {!isEditing ? (
+                  <button
+                    onClick={handleEdit}
+                    disabled={fileContent === null || loadingFile}
+                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border border-border hover:bg-background/60 disabled:opacity-40 transition-colors"
+                  >
+                    <Pencil size={12} />
+                    Edit
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      onClick={handleSave}
+                      disabled={saving}
+                      className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                    >
+                      <Save size={12} />
+                      {saving ? 'Saving…' : 'Save'}
+                    </button>
+                    <button
+                      onClick={handleCancelEdit}
+                      disabled={saving}
+                      className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border border-border hover:bg-background/60 disabled:opacity-40 transition-colors"
+                    >
+                      <X size={12} />
+                      Cancel
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
 
+            {saveError && (
+              <div className="px-4 py-1.5 text-xs text-destructive border-b border-border bg-destructive/5">
+                {saveError}
+              </div>
+            )}
+
             {/* Content */}
-            <div className="flex-1 overflow-auto">
+            <div className="flex-1 overflow-hidden">
               {loadingFile && (
                 <div className="flex items-center justify-center h-full gap-2 text-sm text-muted-foreground">
                   <Loader2 size={16} className="animate-spin" /> Loading…
@@ -274,16 +374,32 @@ export function FileBrowser({ workspaces, currentWorkspace }: FileBrowserProps) 
                 <div className="p-4 text-sm text-destructive">{error}</div>
               )}
               {fileContent !== null && !loadingFile && (
-                <pre className="p-4 text-xs font-mono whitespace-pre leading-relaxed text-foreground overflow-x-auto">
-                  {fileContent.split('\n').map((line, i) => (
-                    <div key={i} className="flex gap-4">
-                      <span className="select-none text-muted-foreground/50 text-right shrink-0" style={{ minWidth: '3ch' }}>
-                        {i + 1}
-                      </span>
-                      <span>{line}</span>
-                    </div>
-                  ))}
-                </pre>
+                <Suspense fallback={
+                  <div className="flex items-center justify-center h-full gap-2 text-sm text-muted-foreground">
+                    <Loader2 size={16} className="animate-spin" /> Loading editor…
+                  </div>
+                }>
+                  <MonacoEditor
+                    height="100%"
+                    language={language}
+                    theme={monacoTheme}
+                    value={isEditing ? editContent : fileContent}
+                    onChange={(val) => {
+                      if (isEditing) {
+                        setEditContent(val ?? '');
+                        setIsDirty(true);
+                      }
+                    }}
+                    options={{
+                      readOnly: !isEditing,
+                      minimap: { enabled: false },
+                      fontSize: 13,
+                      lineNumbers: 'on',
+                      scrollBeyondLastLine: false,
+                      wordWrap: 'on',
+                    }}
+                  />
+                </Suspense>
               )}
             </div>
           </>

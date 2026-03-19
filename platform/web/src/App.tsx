@@ -121,6 +121,7 @@ function App() {
           <FileBrowser
             workspaces={chat.workspaces}
             currentWorkspace={chat.currentWorkspace}
+            theme={theme}
           />
         );
       case 'terminal':

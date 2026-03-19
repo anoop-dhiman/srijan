@@ -151,4 +151,54 @@ describe('Files API', () => {
       expect(res.status).toBe(401);
     });
   });
+
+  describe('PUT /api/workspaces/:name/file', () => {
+    it('writes file content and returns ok', async () => {
+      const res = await request(app)
+        .put('/api/workspaces/myapp/file?path=hello.txt')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ content: 'Updated content' });
+      expect(res.status).toBe(200);
+      expect(res.body.ok).toBe(true);
+
+      // Verify the file was actually written
+      const readRes = await request(app)
+        .get('/api/workspaces/myapp/file?path=hello.txt')
+        .set('Authorization', `Bearer ${token}`);
+      expect(readRes.body.content).toBe('Updated content');
+    });
+
+    it('rejects path traversal attempts', async () => {
+      const res = await request(app)
+        .put('/api/workspaces/myapp/file?path=../../etc/passwd')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ content: 'evil' });
+      expect(res.status).toBe(403);
+      expect(res.body.error.code).toBe('PATH_TRAVERSAL');
+    });
+
+    it('returns 400 when path param is missing', async () => {
+      const res = await request(app)
+        .put('/api/workspaces/myapp/file')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ content: 'some content' });
+      expect(res.status).toBe(400);
+    });
+
+    it('returns 400 when content is not a string', async () => {
+      const res = await request(app)
+        .put('/api/workspaces/myapp/file?path=hello.txt')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ content: 12345 });
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe('BAD_REQUEST');
+    });
+
+    it('requires authentication', async () => {
+      const res = await request(app)
+        .put('/api/workspaces/myapp/file?path=hello.txt')
+        .send({ content: 'test' });
+      expect(res.status).toBe(401);
+    });
+  });
 });

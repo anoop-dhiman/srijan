@@ -8,6 +8,9 @@ import { createEvent } from './events.js';
 import { saveEvent } from './session.js';
 import { getDb } from '../db/store.js';
 import { decrypt } from '../lib/crypto.js';
+import { startSecretProxy, type SecretMap } from './secretProxy.js';
+import type { IAgentRunner } from './IAgentRunner.js';
+import { OpenCodeRunner } from './OpenCodeRunner.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -62,6 +65,13 @@ interface VertexConfig {
   credentialsJson: string;
 }
 
+interface LiteLLMConfig {
+  useLiteLLM: boolean;
+  baseUrl: string;
+  apiKey: string;
+  model: string;
+}
+
 interface RunnerOptions {
   sessionId: string;
   workspacePath: string;
@@ -69,15 +79,17 @@ interface RunnerOptions {
   model: string;
   sessionToken?: string;
   vertexConfig?: VertexConfig;
+  litellmConfig?: LiteLLMConfig;
 }
 
-export class AgentRunner extends EventEmitter {
-  private sessionId: string;
+export class AgentRunner extends EventEmitter implements IAgentRunner {
+  readonly sessionId: string;
   private workspacePath: string;
   private apiKey: string;
   private model: string;
   private sessionToken: string;
   private vertexConfig: VertexConfig | undefined;
+  private litellmConfig: LiteLLMConfig | undefined;
   private claudeSessionId: string | null = null;
   private subprocess: ReturnType<typeof spawn> | null = null;
 
@@ -89,6 +101,7 @@ export class AgentRunner extends EventEmitter {
     this.model = options.model;
     this.sessionToken = options.sessionToken || '';
     this.vertexConfig = options.vertexConfig;
+    this.litellmConfig = options.litellmConfig;
 
     if (!existsSync(this.workspacePath)) {
       mkdirSync(this.workspacePath, { recursive: true });
@@ -99,6 +112,10 @@ export class AgentRunner extends EventEmitter {
     const userEvent = createEvent(this.sessionId, 'user_message', { content: message });
     saveEvent(userEvent);
     this.emit('event', userEvent);
+
+    // Prepare secrets and start proxy before spawning subprocess
+    const { envVars, secretMap } = prepareSecrets();
+    const secretProxy = await startSecretProxy(secretMap);
 
     return new Promise((resolve, reject) => {
       const mode = getAgentMode();
@@ -120,11 +137,17 @@ export class AgentRunner extends EventEmitter {
 
       const env: Record<string, string> = { ...(process.env as any) };
 
-      // Inject decrypted secrets as env vars
-      Object.assign(env, loadSecrets());
+      // Inject placeholders + proxy
+      Object.assign(env, envVars);
+      env['HTTP_PROXY'] = `http://127.0.0.1:${secretProxy.port}`;
+      env['HTTPS_PROXY'] = `http://127.0.0.1:${secretProxy.port}`;
 
       const vertexCfg = this.vertexConfig;
-      if (vertexCfg?.useVertex) {
+      const litellmCfg = this.litellmConfig;
+      if (litellmCfg?.useLiteLLM) {
+        env['ANTHROPIC_BASE_URL'] = litellmCfg.baseUrl;
+        env['ANTHROPIC_API_KEY'] = litellmCfg.apiKey || 'no-key';
+      } else if (vertexCfg?.useVertex) {
         env['CLAUDE_CODE_USE_VERTEX'] = '1';
         env['ANTHROPIC_VERTEX_PROJECT_ID'] = vertexCfg.projectId;
         env['CLOUD_ML_REGION'] = vertexCfg.region;
@@ -170,13 +193,14 @@ export class AgentRunner extends EventEmitter {
         }
       });
 
-      proc.on('close', (code: number | null) => {
+      proc.on('close', async (code: number | null) => {
         if (buffer.trim()) {
           try {
             this.handleSdkMessage(JSON.parse(buffer.trim()));
           } catch {}
         }
         this.subprocess = null;
+        await secretProxy.close().catch(() => {});
         if (code !== 0 && code !== null) {
           const detail = stderrBuffer.trim();
           console.error(`[runner] process exited code=${code}${detail ? `\n${detail}` : ''}`);
@@ -191,8 +215,9 @@ export class AgentRunner extends EventEmitter {
         resolve();
       });
 
-      proc.on('error', (err: Error) => {
+      proc.on('error', async (err: Error) => {
         this.subprocess = null;
+        await secretProxy.close().catch(() => {});
         const errEvent = createEvent(this.sessionId, 'error', { message: err.message });
         saveEvent(errEvent);
         this.emit('event', errEvent);
@@ -333,18 +358,23 @@ export class AgentRunner extends EventEmitter {
 }
 
 // Active runners keyed by sessionId
-const runners = new Map<string, AgentRunner>();
+const runners = new Map<string, IAgentRunner>();
 
-export function getOrCreateRunner(options: RunnerOptions): AgentRunner {
+export function getOrCreateRunner(options: RunnerOptions): IAgentRunner {
   let runner = runners.get(options.sessionId);
   if (!runner) {
-    runner = new AgentRunner(options);
+    const sdk = getAgentSdk();
+    if (sdk === 'opencode') {
+      runner = new OpenCodeRunner(options.sessionId);
+    } else {
+      runner = new AgentRunner(options);
+    }
     runners.set(options.sessionId, runner);
   }
   return runner;
 }
 
-export function getRunner(sessionId: string): AgentRunner | undefined {
+export function getRunner(sessionId: string): IAgentRunner | undefined {
   return runners.get(sessionId);
 }
 
@@ -371,9 +401,27 @@ function getModel(): string {
   const row = db.prepare("SELECT value FROM config WHERE key = 'llm'").get() as { value: string } | undefined;
   if (row) {
     const config = JSON.parse(row.value);
+    if (config.provider === 'litellm' && config.litellmModel) return config.litellmModel;
     if (config.model) return config.model;
   }
   return process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-6';
+}
+
+function getLiteLLMConfig(): LiteLLMConfig {
+  const db = getDb();
+  const row = db.prepare("SELECT value FROM config WHERE key = 'llm'").get() as { value: string } | undefined;
+  if (row) {
+    const config = JSON.parse(row.value);
+    if (config.provider === 'litellm') {
+      return {
+        useLiteLLM: true,
+        baseUrl: config.litellmBaseUrl || '',
+        apiKey: config.litellmApiKey || '',
+        model: config.litellmModel || '',
+      };
+    }
+  }
+  return { useLiteLLM: false, baseUrl: '', apiKey: '', model: '' };
 }
 
 function getVertexConfig(): VertexConfig {
@@ -411,17 +459,26 @@ function getSystemPrompt(): string {
   return DEFAULT_SYSTEM_PROMPT;
 }
 
-function loadSecrets(): Record<string, string> {
+interface SecretsResult {
+  envVars: Record<string, string>;   // SRIJAN_SECRET_NAME → SRIJAN_PLACEHOLDER_name
+  secretMap: SecretMap;              // SRIJAN_PLACEHOLDER_name → realValue
+}
+
+function prepareSecrets(): SecretsResult {
   const db = getDb();
   const rows = db.prepare('SELECT name, encrypted_value FROM secrets').all() as
     { name: string; encrypted_value: string }[];
-  const result: Record<string, string> = {};
+  const envVars: Record<string, string> = {};
+  const secretMap: SecretMap = {};
   for (const row of rows) {
     try {
-      result[`SRIJAN_SECRET_${row.name}`] = decrypt(row.encrypted_value);
+      const realValue = decrypt(row.encrypted_value);
+      const placeholder = `SRIJAN_PLACEHOLDER_${row.name.toLowerCase()}`;
+      envVars[`SRIJAN_SECRET_${row.name}`] = placeholder;
+      secretMap[placeholder] = realValue;
     } catch { /* skip malformed rows */ }
   }
-  return result;
+  return { envVars, secretMap };
 }
 
 const DEFAULT_BLOCKLIST = [
@@ -452,4 +509,16 @@ function getAgentMode(): 'auto' | 'confirm' {
   return 'auto';
 }
 
-export { getApiKey, getModel, getVertexConfig, getSystemPrompt, DEFAULT_SYSTEM_PROMPT, getAgentMode };
+function getAgentSdk(): 'claude-code' | 'opencode' {
+  const row = getDb().prepare("SELECT value FROM config WHERE key='agentSdk'").get() as any;
+  if (row) {
+    try {
+      const v = JSON.parse(row.value);
+      if (v === 'opencode') return 'opencode';
+    } catch {}
+  }
+  return 'claude-code';
+}
+
+export { getApiKey, getModel, getVertexConfig, getLiteLLMConfig, getSystemPrompt, DEFAULT_SYSTEM_PROMPT, getAgentMode, getAgentSdk };
+export type { IAgentRunner };

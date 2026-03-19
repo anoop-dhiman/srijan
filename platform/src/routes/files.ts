@@ -1,13 +1,15 @@
 import { Router, Request, Response } from 'express';
 import { authMiddleware } from '../security/auth.js';
 import { getWorkspaceRoot } from '../git/manager.js';
-import { readdirSync, statSync, readFileSync } from 'fs';
+import { readdirSync, statSync, readFileSync, writeFileSync } from 'fs';
 import { join, resolve, sep } from 'path';
 
 const router = Router();
 router.use(authMiddleware);
 
 const MAX_FILE_SIZE = 1024 * 1024; // 1 MB
+
+const HIDDEN_ENTRIES = new Set(['.git', '.svn', '.hg']);
 
 function isBinary(buffer: Buffer): boolean {
   for (let i = 0; i < Math.min(buffer.length, 1024); i++) {
@@ -39,7 +41,7 @@ router.get('/:name/files', (req: Request, res: Response) => {
       return;
     }
 
-    const names = readdirSync(resolvedPath);
+    const names = readdirSync(resolvedPath).filter((n) => !HIDDEN_ENTRIES.has(n));
     const entries = names
       .map((n) => {
         try {
@@ -102,6 +104,41 @@ router.get('/:name/file', (req: Request, res: Response) => {
     }
 
     res.json({ content: buffer.toString('utf-8') });
+  } catch (err: any) {
+    if (err.code === 'ENOENT') {
+      res.status(404).json({ error: { code: 'NOT_FOUND', message: 'File not found' } });
+      return;
+    }
+    res.status(500).json({ error: { code: 'IO_ERROR', message: err.message } });
+  }
+});
+
+router.put('/:name/file', (req: Request, res: Response) => {
+  const { name } = req.params;
+  const requestedPath = (req.query.path as string) || '';
+
+  if (!requestedPath) {
+    res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'path query param required' } });
+    return;
+  }
+
+  const { content } = req.body;
+  if (typeof content !== 'string') {
+    res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'content must be a string' } });
+    return;
+  }
+
+  const workspaceBase = resolve(join(getWorkspaceRoot(), name));
+  const resolvedPath = resolve(workspaceBase, requestedPath);
+
+  if (!isUnderBase(resolvedPath, workspaceBase)) {
+    res.status(403).json({ error: { code: 'PATH_TRAVERSAL', message: 'Path traversal not allowed' } });
+    return;
+  }
+
+  try {
+    writeFileSync(resolvedPath, content, 'utf-8');
+    res.json({ ok: true });
   } catch (err: any) {
     if (err.code === 'ENOENT') {
       res.status(404).json({ error: { code: 'NOT_FOUND', message: 'File not found' } });
