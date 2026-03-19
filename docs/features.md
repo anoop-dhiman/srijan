@@ -9,18 +9,21 @@
 
 ### Must Have (MVP - Phase 1)
 
-| # | Feature | Description | Source Inspiration |
-|---|---------|-------------|-------------------|
-| 1 | Web Chat UI | Mobile-responsive chat interface for agent interaction | OpenHands |
-| 2 | Agent Backend | Claude Code as primary coding agent | Netclode |
-| 3 | Docker Access | Agent can build images, run/stop containers via mounted socket | All |
-| 4 | Caddy Route Management | Auto-configure routes via Caddy Admin API, provide live URLs | Daytona routing |
-| 5 | Secret Management | Encrypted storage, write-once display, env var injection | OpenHands |
-| 6 | LLM Config | Anthropic API key + model selection via UI | OpenHands |
-| 7 | Git Support | Clone, commit, push operations for a single repo | Netclode |
-| 8 | Shell Script Deploy | `curl | bash` to set up on any VM with domain + SSL | Netclode Ansible |
-| 9 | Auth | Password-based login with JWT session tokens | All |
-| 10 | HTTPS | Automatic TLS via Caddy (built-in ACME) | Standard |
+| # | Feature | Description | Status |
+|---|---------|-------------|--------|
+| 1 | Web Chat UI | Mobile-responsive chat with resizable sidebar, tool feedback, thinking indicator | **Done** |
+| 2 | Agent Backend | Claude Code CLI subprocess with stream-json output | **Done** |
+| 3 | Docker Access | Agent can build images, run/stop containers via mounted socket | **Done** |
+| 4 | Caddy Route Management | Auto-configure routes via Caddy Admin API, provide live URLs | **Done** |
+| 5 | Secret Management | Encrypted storage (AES-256), write-once display, CRUD via UI | **Done** |
+| 6 | LLM Config | Anthropic API + Vertex AI provider toggle, model selection via UI | **Done** |
+| 7 | Git Support | Clone, init, pull, status operations via REST API | **Done** |
+| 8 | Shell Script Deploy | `curl \| bash` to set up on any VM with domain + SSL | Planned |
+| 9 | Auth | Password-based login with JWT session tokens | **Done** |
+| 10 | HTTPS | Automatic TLS via Caddy (built-in ACME) | **Done** (Caddy config ready) |
+| 11 | System Prompt | Configurable agent instructions with security rules, editable from UI | **Done** |
+| 12 | Session Persistence | Sessions persist across reloads, delete support, event restoration | **Done** |
+| 13 | Real-time Feedback | Expandable tool activity pills, thinking indicator, live status | **Done** |
 
 ### Should Have (Phase 2-3)
 

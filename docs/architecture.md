@@ -293,7 +293,7 @@ Browser -> Caddy (HTTPS, auto-TLS) -> Platform API
 | # | Decision | Choice | Rationale |
 |---|----------|--------|-----------|
 | 1 | Backend language | Node.js + Express + TypeScript | Single language across stack, native Claude SDK, WebSocket support |
-| 2 | Agent execution | Claude Agent SDK (programmatic) | Structured events, action interception, session control |
+| 2 | Agent execution | Claude Code CLI subprocess | `@anthropic-ai/claude-code` is CLI-only — spawned via `spawn()` with `--output-format stream-json --verbose` |
 | 3 | Secret handling | Middle ground | Platform calls LLM directly; agent never holds API key. Full proxy in Phase 2 |
 | 4 | Agent ↔ Docker | Hybrid | Agent runs Docker CLI (natural workflow), platform tracks state via dockerode |
 | 5 | URL routing | Path-based | `/forge` for platform, `/app-name` for apps. Single DNS record, no wildcard needed |
@@ -310,10 +310,10 @@ Browser -> Caddy (HTTPS, auto-TLS) -> Platform API
 |-----------|-----------|-----------|
 | API Server | **Node.js + Express + TypeScript** | Single language across stack, native WebSocket support |
 | Web UI | **React + Vite + shadcn/ui** | Tailwind utilities for mobile-first, Radix for accessibility |
-| Agent SDK | **@anthropic-ai/claude-code** | Programmatic control, structured events, action interception |
-| LLM Calls | **Anthropic SDK (direct)** | Platform calls LLM on behalf of agent; LiteLLM in Phase 2 |
+| Agent | **@anthropic-ai/claude-code** (CLI subprocess) | Spawned via `spawn()`, stream-json output, `--verbose`, `--permission-mode bypassPermissions` |
+| LLM Providers | **Anthropic API** or **Google Cloud Vertex AI** | Configured via UI; Vertex supports ADC and Service Account Key auth |
 | State Store | **SQLite** (via better-sqlite3) | Zero-config, single-file DB |
-| Terminal | **node-pty + xterm.js** | PTY for agent, xterm.js for browser (Phase 2) |
+| Terminal | **node-pty + xterm.js** (Phase 2) | PTY for agent, xterm.js for browser |
 | Docker Client | **dockerode** | App state tracking, port management, Caddy route registration |
 | Git | **simple-git** | Git operations from API |
 
@@ -332,73 +332,68 @@ Browser -> Caddy (HTTPS, auto-TLS) -> Platform API
 ### Layout (Mobile-First)
 
 ```
-+------------------------------------------+
-|  Srijan                    [Settings] |
-+------------------------------------------+
-|                                           |
-|  +-------------------------------------+ |
-|  | Agent Output / Chat                  | |
-|  |                                      | |
-|  | > Build me a todo app with           | |
-|  |   postgres and multi-user auth       | |
-|  |                                      | |
-|  | [Agent] Setting up workspace...      | |
-|  | [Agent] Creating backend...          | |
-|  | [Agent] Building Docker image...     | |
-|  | [Agent] Deploying...                 | |
-|  | [Agent] App live at:                 | |
-|  |   https://dev.example.com/todo       | |
-|  +-------------------------------------+ |
-|                                           |
-|  +-------------------------------------+ |
-|  | [Terminal] [Apps] [Repos]            | |
-|  | (collapsible bottom panel)           | |
-|  +-------------------------------------+ |
-|                                           |
-|  +---------------------+ [clip] [send]   |
-|  | Type a message...   |                 |
-|  +---------------------+                 |
-+------------------------------------------+
++--------------------------------------------------+
+|  Srijan                   ● Connected  admin [Logout] |
++--------------------------------------------------+
+| [◀] | Chat / Settings area                        |
+|-----+                                             |
+| + New Chat  |                                      |
+|             |  > Build me a todo app               |
+| Session 1   |                                      |
+| 19/03/2026  |  ✓ Reading package.json              |
+|             |  ✓ Editing src/index.ts               |
+|             |  ● Running: npm install  (spinner)    |
+|             |                                      |
+| Session 2   |  ● ● ● Thinking...                  |
+| 18/03/2026  |                                      |
+|             |  Agent: Here's what I built...        |
+|             |  (markdown rendered)                  |
+|             |                                      |
+|             |  +--------------------------------+  |
+|  ⚙ Settings |  | Type a message...         [▶] |  |
+|             |  +--------------------------------+  |
++--------------------------------------------------+
 ```
 
-### Settings Panel
+- Sidebar: resizable (180–480px), collapsible via toggle button
+- Tool pills: expandable to show input/output details
+- Thinking indicator: animated dots + live status text
+- Settings opens inline (replaces chat area)
+
+### Settings Page (Inline — replaces chat area)
 
 ```
 +------------------------------------------+
 |  Settings                         [Close] |
 +------------------------------------------+
 |                                           |
-|  LLM Provider                             |
+|  LLM PROVIDER                             |
 |  +-------------------------------------+ |
-|  | Provider: [Anthropic v]              | |
-|  | API Key: ************               | |
-|  | Model:   [claude-sonnet-4.6 v]       | |
-|  +-------------------------------------+ |
-|                                           |
-|  Agent                                    |
-|  +-------------------------------------+ |
-|  | Backend: [Claude Code v]             | |
-|  | Mode:    [Auto / Confirm v]          | |
-|  +-------------------------------------+ |
-|                                           |
-|  Git Repositories                         |
-|  +-------------------------------------+ |
-|  | [+ Add Repository]                  | |
-|  | todo-app  github.com/user/todo      | |
-|  | api-svc   github.com/user/api       | |
+|  | [Anthropic API] [Vertex AI (GCP)]   | |  <- segmented toggle
+|  |                                      | |
+|  | IF Anthropic:                        | |
+|  |   API Key: [sk-ant-... 👁]           | |
+|  | IF Vertex:                           | |
+|  |   Project ID: [my-gcp-project]       | |
+|  |   Region: [global]                   | |
+|  |   SA Key (optional): [textarea 👁]   | |
+|  |   ℹ Leave blank to use gcloud ADC    | |
+|  |                                      | |
+|  | Model: [Claude Sonnet 4.6 v]         | |
+|  | [Save]                               | |
 |  +-------------------------------------+ |
 |                                           |
-|  Secrets                                  |
+|  AGENT SYSTEM PROMPT                      |
 |  +-------------------------------------+ |
-|  | [+ Add Secret]                       | |
-|  | AWS_ACCESS_KEY    ************       | |
-|  | DATABASE_URL      ************       | |
+|  | [editable textarea, monospaced]      | |
+|  | You are Srijan, an AI development... | |
 |  +-------------------------------------+ |
+|  | [Save Prompt]  [Reset to Default]    | |
 |                                           |
-|  Security                                 |
+|  SECRETS                                  |
 |  +-------------------------------------+ |
-|  | Change Password                      | |
-|  | Active Sessions: 2                   | |
+|  | MY_SECRET                     [trash]| |
+|  | [Name] [Value] [+]                   | |
 |  +-------------------------------------+ |
 +------------------------------------------+
 ```
@@ -579,47 +574,41 @@ Srijan/
 |   |   +-- server.ts            # Express API server
 |   |   +-- routes/
 |   |   |   +-- auth.ts
-|   |   |   +-- chat.ts          # WebSocket handler
-|   |   |   +-- config.ts
+|   |   |   +-- chat.ts          # WebSocket handler (sessions, agent events, delete)
+|   |   |   +-- config.ts        # GET/PUT config (exposes default_system_prompt)
 |   |   |   +-- secrets.ts
-|   |   |   +-- repos.ts
 |   |   |   +-- apps.ts
-|   |   |   +-- events.ts
+|   |   |   +-- git.ts
 |   |   +-- agent/
-|   |   |   +-- runner.ts        # Agent execution manager
-|   |   |   +-- sdk/
-|   |   |   |   +-- claude.ts    # Claude Code SDK adapter
-|   |   |   |   +-- opencode.ts  # OpenCode adapter
-|   |   |   |   +-- codex.ts     # Codex adapter
-|   |   |   +-- boundaries.ts    # Command filtering
-|   |   |   +-- events.ts        # Event stream types
-|   |   |   +-- session.ts       # Session management
+|   |   |   +-- runner.ts        # Claude Code CLI subprocess, Vertex AI, system prompt
+|   |   |   +-- events.ts        # Event type definitions
+|   |   |   +-- session.ts       # Session CRUD, event persistence, delete with cascade
 |   |   +-- security/
-|   |   |   +-- secret-proxy.ts  # Outbound HTTP key injection
-|   |   |   +-- vault.ts         # Encrypted secret storage
-|   |   |   +-- auth.ts          # JWT + password auth
+|   |   |   +-- auth.ts          # JWT + password auth + middleware
 |   |   +-- docker/
-|   |   |   +-- manager.ts       # Container lifecycle
+|   |   |   +-- manager.ts       # Container lifecycle (dockerode)
 |   |   |   +-- caddy.ts         # Caddy Admin API client
 |   |   +-- git/
-|   |   |   +-- manager.ts       # Git operations
+|   |   |   +-- manager.ts       # Git operations (simple-git)
 |   |   +-- db/
-|   |       +-- store.ts         # SQLite wrapper
-|   |       +-- schema.sql       # Database schema
-|   +-- web/                      # React frontend
+|   |   |   +-- store.ts         # SQLite singleton (WAL mode)
+|   |   |   +-- schema.sql       # Tables: users, sessions, events, secrets, apps, config
+|   |   +-- __tests__/           # 56 backend tests
+|   +-- web/                      # React frontend (separate package.json)
 |       +-- index.html
 |       +-- vite.config.ts
 |       +-- src/
-|           +-- App.tsx
+|           +-- App.tsx           # Auth gate → Chat + inline Settings
 |           +-- components/
-|           |   +-- Chat.tsx
-|           |   +-- Terminal.tsx
-|           |   +-- Settings.tsx
-|           |   +-- AppDashboard.tsx
-|           |   +-- RepoManager.tsx
+|           |   +-- Chat.tsx      # Resizable sidebar, tool messages, thinking indicator
+|           |   +-- Login.tsx     # Password login
+|           |   +-- Settings.tsx  # Inline: LLM provider, system prompt, secrets
 |           +-- hooks/
-|               +-- useWebSocket.ts
-|               +-- useAgent.ts
+|           |   +-- useChat.ts    # WebSocket hook (sessions, streaming, tool events)
+|           +-- lib/
+|           |   +-- api.ts        # HTTP client with JWT, WebSocket factory
+|           |   +-- utils.ts      # cn() — Tailwind class merge
+|           +-- __tests__/        # 56 frontend tests
 +-- deployment/
 |   +-- setup.sh                 # One-line setup script
 |   +-- docker-compose.yml       # Caddy + Platform compose
@@ -637,20 +626,24 @@ Srijan/
 
 ## Roadmap
 
-### Phase 1: MVP (v0.1)
+### Phase 1: MVP (v0.1) — DONE
+- [x] Platform container with API server
+- [x] Password auth + JWT sessions
+- [x] Chat UI (mobile-responsive, resizable sidebar, collapsible)
+- [x] Claude Code CLI subprocess as agent backend
+- [x] Docker socket access (build, run, stop, logs)
+- [x] Caddy route management (via Admin API for deployed apps)
+- [x] Anthropic API + Vertex AI provider support (configured via UI)
+- [x] Basic secret management (encrypted at rest)
+- [x] Git routes (clone, init, pull, status)
+- [x] Session management (create, join, delete, persist on reload)
+- [x] Configurable system prompt with security rules
+- [x] Real-time tool activity feedback (expandable tool messages)
+- [x] Thinking indicator with live status
+- [x] Inline settings page (not modal)
 - [ ] Setup script (domain, Docker, Caddy auto-SSL)
-- [ ] Platform container with API server
-- [ ] Password auth + JWT sessions
-- [ ] Chat UI (mobile-responsive)
-- [ ] Claude Code as agent backend (single SDK)
-- [ ] Docker socket access (build, run, stop, logs)
-- [ ] Caddy route management (via Admin API for deployed apps)
-- [ ] Single LLM provider (Anthropic direct)
-- [ ] Basic secret management (encrypted at rest)
-- [ ] Single git repo support
 
 ### Phase 2: Multi-Provider (v0.2)
-- [ ] LiteLLM integration (Azure, Vertex, OpenAI)
 - [ ] Multi-repo support
 - [ ] OpenCode as second agent backend
 - [ ] Secret proxy (placeholder injection pattern)
