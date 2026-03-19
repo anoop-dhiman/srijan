@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, FormEvent } from 'react';
-import { Send, Plus, Menu, Settings as SettingsIcon, Loader2 } from 'lucide-react';
+import { Send, Plus, Menu, Settings as SettingsIcon, Loader2, Trash2 } from 'lucide-react';
 import type { ChatMessage, Session } from '../hooks/useChat';
 import ReactMarkdown from 'react-markdown';
 
@@ -11,6 +11,7 @@ interface ChatProps {
   onSendMessage: (content: string) => void;
   onNewSession: () => void;
   onJoinSession: (sessionId: string) => void;
+  onDeleteSession: (sessionId: string) => void;
   onOpenSettings: () => void;
 }
 
@@ -22,6 +23,7 @@ export function Chat({
   onSendMessage,
   onNewSession,
   onJoinSession,
+  onDeleteSession,
   onOpenSettings,
 }: ChatProps) {
   const [input, setInput] = useState('');
@@ -82,23 +84,37 @@ export function Chat({
         {/* Sessions list */}
         <div className="flex-1 overflow-y-auto">
           {sessions.map((s) => (
-            <button
+            <div
               key={s.id}
-              onClick={() => {
-                onJoinSession(s.id);
-                setSidebarOpen(false);
-              }}
-              className={`w-full text-left px-4 py-3 text-base border-b border-border/50 hover:bg-background/50 transition-colors ${
-                currentSession?.id === s.id
-                  ? 'bg-background text-foreground'
-                  : 'text-muted-foreground'
+              className={`group flex items-center border-b border-border/50 ${
+                currentSession?.id === s.id ? 'bg-background' : 'hover:bg-background/50'
               }`}
             >
-              <div className="truncate">{s.title}</div>
-              <div className="text-xs text-muted-foreground mt-0.5">
-                {new Date(s.createdAt).toLocaleDateString()}
-              </div>
-            </button>
+              <button
+                onClick={() => {
+                  onJoinSession(s.id);
+                  setSidebarOpen(false);
+                }}
+                className={`flex-1 min-w-0 text-left px-4 py-3 text-base transition-colors ${
+                  currentSession?.id === s.id ? 'text-foreground' : 'text-muted-foreground'
+                }`}
+              >
+                <div className="truncate">{s.title}</div>
+                <div className="text-xs text-muted-foreground mt-0.5">
+                  {new Date(s.createdAt).toLocaleDateString()}
+                </div>
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDeleteSession(s.id);
+                }}
+                className="shrink-0 p-2 mr-1 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all"
+                title="Delete session"
+              >
+                <Trash2 size={14} />
+              </button>
+            </div>
           ))}
         </div>
 

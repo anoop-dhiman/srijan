@@ -3,8 +3,8 @@ import { IncomingMessage, Server } from 'http';
 import { parse } from 'url';
 import { join } from 'path';
 import { verifyToken } from '../security/auth.js';
-import { createSession, getSession, listSessions, getSessionEvents } from '../agent/session.js';
-import { getOrCreateRunner, getApiKey, getModel } from '../agent/runner.js';
+import { createSession, getSession, listSessions, getSessionEvents, deleteSession } from '../agent/session.js';
+import { getOrCreateRunner, getApiKey, getModel, getVertexConfig } from '../agent/runner.js';
 import { getWorkspaceRoot } from '../git/manager.js';
 
 export function setupWebSocket(server: Server): void {
@@ -71,6 +71,18 @@ export function setupWebSocket(server: Server): void {
             break;
           }
 
+          case 'delete_session': {
+            const session = getSession(msg.sessionId);
+            if (!session || session.userId !== user.userId) {
+              ws.send(JSON.stringify({ type: 'error', data: { message: 'Session not found' } }));
+              break;
+            }
+            deleteSession(msg.sessionId);
+            if (currentSessionId === msg.sessionId) currentSessionId = null;
+            ws.send(JSON.stringify({ type: 'session_deleted', data: { sessionId: msg.sessionId } }));
+            break;
+          }
+
           case 'message': {
             if (!currentSessionId) {
               // Auto-create session
@@ -79,12 +91,14 @@ export function setupWebSocket(server: Server): void {
               ws.send(JSON.stringify({ type: 'session_created', data: session }));
             }
 
-            const apiKey = getApiKey();
-            if (!apiKey) {
+            const vertexConfig = getVertexConfig();
+            const apiKey = vertexConfig.useVertex ? '' : getApiKey();
+
+            if (!vertexConfig.useVertex && !apiKey) {
               ws.send(
                 JSON.stringify({
                   type: 'error',
-                  data: { message: 'No API key configured. Go to Settings > LLM to add your Anthropic API key.' },
+                  data: { message: 'No API key configured. Go to Settings to add your Anthropic API key or configure Vertex AI.' },
                 })
               );
               break;
@@ -96,6 +110,7 @@ export function setupWebSocket(server: Server): void {
               apiKey,
               model: getModel(),
               sessionToken,
+              vertexConfig,
             });
 
             // Pipe agent events to WebSocket

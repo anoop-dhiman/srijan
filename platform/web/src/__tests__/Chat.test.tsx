@@ -19,6 +19,7 @@ const defaultProps = {
   onSendMessage: vi.fn(),
   onNewSession: vi.fn(),
   onJoinSession: vi.fn(),
+  onDeleteSession: vi.fn(),
   onOpenSettings: vi.fn(),
 };
 
@@ -73,7 +74,8 @@ describe('Chat', () => {
         <Chat {...defaultProps} sessions={[mockSession]} currentSession={mockSession} />
       );
       const sessionBtn = screen.getByText('Test Session').closest('button');
-      expect(sessionBtn?.className).toContain('bg-background');
+      const sessionRow = sessionBtn?.closest('div');
+      expect(sessionRow?.className).toContain('bg-background');
       expect(sessionBtn?.className).toContain('text-foreground');
     });
 

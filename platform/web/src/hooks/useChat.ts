@@ -36,21 +36,30 @@ export function useChat() {
       ws.send(JSON.stringify({ type: 'list_sessions' }));
     };
 
+    const savedSessionId = localStorage.getItem('srijan_session_id');
+
     ws.onmessage = (event) => {
       const msg = JSON.parse(event.data);
 
       switch (msg.type) {
-        case 'sessions':
+        case 'sessions': {
           setSessions(msg.data);
+          // Auto-rejoin last session on reconnect
+          if (savedSessionId && msg.data.some((s: Session) => s.id === savedSessionId)) {
+            ws.send(JSON.stringify({ type: 'join_session', sessionId: savedSessionId }));
+          }
           break;
+        }
 
         case 'session_created':
           setCurrentSession(msg.data);
           setSessions((prev) => [msg.data, ...prev]);
+          localStorage.setItem('srijan_session_id', msg.data.id);
           break;
 
         case 'session_joined':
           setCurrentSession(msg.data.session);
+          localStorage.setItem('srijan_session_id', msg.data.session.id);
           // Restore events as messages
           const restored: ChatMessage[] = msg.data.events
             .filter((e: any) => e.type === 'user_message' || (e.type === 'agent_response' && !e.data?.streaming))
@@ -62,6 +71,20 @@ export function useChat() {
             }));
           setMessages(restored);
           break;
+
+        case 'session_deleted': {
+          const deletedId = msg.data.sessionId;
+          setSessions((prev) => prev.filter((s) => s.id !== deletedId));
+          setCurrentSession((prev) => {
+            if (prev?.id === deletedId) {
+              setMessages([]);
+              localStorage.removeItem('srijan_session_id');
+              return null;
+            }
+            return prev;
+          });
+          break;
+        }
 
         case 'agent_event': {
           const evt = msg.data;
@@ -184,6 +207,11 @@ export function useChat() {
     wsRef.current.send(JSON.stringify({ type: 'new_session' }));
   }, []);
 
+  const deleteSession = useCallback((sessionId: string) => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+    wsRef.current.send(JSON.stringify({ type: 'delete_session', sessionId }));
+  }, []);
+
   useEffect(() => {
     return () => disconnect();
   }, [disconnect]);
@@ -199,5 +227,6 @@ export function useChat() {
     sendMessage,
     joinSession,
     newSession,
+    deleteSession,
   };
 }

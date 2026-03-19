@@ -53,6 +53,7 @@ function App() {
           onSendMessage={chat.sendMessage}
           onNewSession={chat.newSession}
           onJoinSession={chat.joinSession}
+          onDeleteSession={chat.deleteSession}
           onOpenSettings={() => setSettingsOpen(true)}
         />
       </div>

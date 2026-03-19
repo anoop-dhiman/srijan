@@ -11,6 +11,8 @@ export interface Session {
   updatedAt: string;
 }
 
+const SESSION_COLS = `id, user_id as userId, title, status, created_at as createdAt, updated_at as updatedAt`;
+
 export function createSession(userId: string, title?: string): Session {
   const db = getDb();
   const id = uuidv4();
@@ -18,19 +20,25 @@ export function createSession(userId: string, title?: string): Session {
     `INSERT INTO sessions (id, user_id, title) VALUES (?, ?, ?)`
   ).run(id, userId, title || 'New Session');
 
-  return db.prepare('SELECT * FROM sessions WHERE id = ?').get(id) as Session;
+  return db.prepare(`SELECT ${SESSION_COLS} FROM sessions WHERE id = ?`).get(id) as Session;
 }
 
 export function getSession(id: string): Session | undefined {
   const db = getDb();
-  return db.prepare('SELECT * FROM sessions WHERE id = ?').get(id) as Session | undefined;
+  return db.prepare(`SELECT ${SESSION_COLS} FROM sessions WHERE id = ?`).get(id) as Session | undefined;
 }
 
 export function listSessions(userId: string): Session[] {
   const db = getDb();
   return db.prepare(
-    'SELECT * FROM sessions WHERE user_id = ? ORDER BY updated_at DESC'
+    `SELECT ${SESSION_COLS} FROM sessions WHERE user_id = ? ORDER BY updated_at DESC`
   ).all(userId) as Session[];
+}
+
+export function deleteSession(id: string): void {
+  const db = getDb();
+  db.prepare('DELETE FROM events WHERE session_id = ?').run(id);
+  db.prepare('DELETE FROM sessions WHERE id = ?').run(id);
 }
 
 export function saveEvent(event: AgentEvent): void {

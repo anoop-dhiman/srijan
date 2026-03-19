@@ -1,8 +1,9 @@
 import { spawn } from 'child_process';
 import { EventEmitter } from 'events';
 import { fileURLToPath } from 'url';
-import { dirname, resolve } from 'path';
-import { existsSync, mkdirSync } from 'fs';
+import { dirname, resolve, join } from 'path';
+import { existsSync, mkdirSync, writeFileSync } from 'fs';
+import { tmpdir } from 'os';
 import { createEvent } from './events.js';
 import { saveEvent } from './session.js';
 import { getDb } from '../db/store.js';
@@ -13,12 +14,20 @@ const __dirname = dirname(__filename);
 // Resolve the claude CLI binary relative to this file's location
 const CLAUDE_BIN = resolve(__dirname, '../../node_modules/@anthropic-ai/claude-code/cli.js');
 
+interface VertexConfig {
+  useVertex: boolean;
+  projectId: string;
+  region: string;
+  credentialsJson: string;
+}
+
 interface RunnerOptions {
   sessionId: string;
   workspacePath: string;
   apiKey: string;
   model: string;
   sessionToken?: string;
+  vertexConfig?: VertexConfig;
 }
 
 export class AgentRunner extends EventEmitter {
@@ -27,6 +36,7 @@ export class AgentRunner extends EventEmitter {
   private apiKey: string;
   private model: string;
   private sessionToken: string;
+  private vertexConfig: VertexConfig | undefined;
   private claudeSessionId: string | null = null;
   private subprocess: ReturnType<typeof spawn> | null = null;
 
@@ -37,6 +47,7 @@ export class AgentRunner extends EventEmitter {
     this.apiKey = options.apiKey;
     this.model = options.model;
     this.sessionToken = options.sessionToken || '';
+    this.vertexConfig = options.vertexConfig;
 
     if (!existsSync(this.workspacePath)) {
       mkdirSync(this.workspacePath, { recursive: true });
@@ -53,6 +64,7 @@ export class AgentRunner extends EventEmitter {
         CLAUDE_BIN,
         '-p',
         '--output-format', 'stream-json',
+        '--verbose',
         '--permission-mode', 'bypassPermissions',
         '--model', this.model,
         '--append-system-prompt', this.getSystemPromptAddition(),
@@ -64,16 +76,37 @@ export class AgentRunner extends EventEmitter {
 
       args.push(message);
 
+      const env: Record<string, string> = { ...(process.env as any) };
+
+      const vertexCfg = this.vertexConfig;
+      if (vertexCfg?.useVertex) {
+        env['CLAUDE_CODE_USE_VERTEX'] = '1';
+        env['ANTHROPIC_VERTEX_PROJECT_ID'] = vertexCfg.projectId;
+        env['CLOUD_ML_REGION'] = vertexCfg.region;
+        delete env['ANTHROPIC_API_KEY'];
+
+        if (vertexCfg.credentialsJson) {
+          const credPath = join(tmpdir(), `srijan-sa-${this.sessionId}.json`);
+          writeFileSync(credPath, vertexCfg.credentialsJson, { mode: 0o600 });
+          env['GOOGLE_APPLICATION_CREDENTIALS'] = credPath;
+        }
+      } else {
+        env['ANTHROPIC_API_KEY'] = this.apiKey;
+      }
+
       const proc = spawn(process.execPath, args, {
         cwd: this.workspacePath,
-        env: {
-          ...process.env,
-          ANTHROPIC_API_KEY: this.apiKey,
-        },
+        env,
       });
 
       this.subprocess = proc;
       let buffer = '';
+      let stderrBuffer = '';
+
+      proc.stderr.on('data', (chunk: Buffer) => {
+        stderrBuffer += chunk.toString();
+        process.stderr.write(chunk);
+      });
 
       proc.stdout.on('data', (chunk: Buffer) => {
         buffer += chunk.toString();
@@ -98,8 +131,12 @@ export class AgentRunner extends EventEmitter {
         }
         this.subprocess = null;
         if (code !== 0 && code !== null) {
+          const detail = stderrBuffer.trim();
+          console.error(`[runner] process exited code=${code}${detail ? `\n${detail}` : ''}`);
           const errEvent = createEvent(this.sessionId, 'error', {
-            message: `Agent process exited with code ${code}`,
+            message: detail
+              ? `Agent process exited with code ${code}: ${detail}`
+              : `Agent process exited with code ${code}`,
           });
           saveEvent(errEvent);
           this.emit('event', errEvent);
@@ -255,4 +292,29 @@ function getModel(): string {
   return process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-6';
 }
 
-export { getApiKey, getModel };
+function getVertexConfig(): VertexConfig {
+  const db = getDb();
+  const row = db.prepare("SELECT value FROM config WHERE key = 'llm'").get() as { value: string } | undefined;
+  if (row) {
+    const config = JSON.parse(row.value);
+    if (config.provider === 'vertex') {
+      return {
+        useVertex: true,
+        projectId: config.vertexProjectId || '',
+        region: config.vertexRegion || 'global',
+        credentialsJson: config.vertexCredentials || '',
+      };
+    }
+  }
+  if (process.env.CLAUDE_CODE_USE_VERTEX === '1') {
+    return {
+      useVertex: true,
+      projectId: process.env.ANTHROPIC_VERTEX_PROJECT_ID || '',
+      region: process.env.CLOUD_ML_REGION || 'global',
+      credentialsJson: '',
+    };
+  }
+  return { useVertex: false, projectId: '', region: '', credentialsJson: '' };
+}
+
+export { getApiKey, getModel, getVertexConfig };

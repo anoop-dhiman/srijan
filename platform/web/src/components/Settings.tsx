@@ -14,9 +14,14 @@ interface Secret {
 }
 
 export function Settings({ open, onClose }: SettingsProps) {
+  const [provider, setProvider] = useState<'anthropic' | 'vertex'>('anthropic');
   const [apiKey, setApiKey] = useState('');
   const [model, setModel] = useState('claude-sonnet-4-6');
   const [showKey, setShowKey] = useState(false);
+  const [vertexProjectId, setVertexProjectId] = useState('');
+  const [vertexRegion, setVertexRegion] = useState('global');
+  const [vertexCredentials, setVertexCredentials] = useState('');
+  const [showVertexCreds, setShowVertexCreds] = useState(false);
   const [secrets, setSecrets] = useState<Secret[]>([]);
   const [newSecretName, setNewSecretName] = useState('');
   const [newSecretValue, setNewSecretValue] = useState('');
@@ -33,8 +38,12 @@ export function Settings({ open, onClose }: SettingsProps) {
     try {
       const config = await apiFetch('/config');
       if (config.llm) {
+        setProvider(config.llm.provider || 'anthropic');
         setApiKey(config.llm.apiKey || '');
         setModel(config.llm.model || 'claude-sonnet-4-6');
+        setVertexProjectId(config.llm.vertexProjectId || '');
+        setVertexRegion(config.llm.vertexRegion || 'global');
+        setVertexCredentials(config.llm.vertexCredentials || '');
       }
     } catch {
       // Config might not exist yet
@@ -56,7 +65,7 @@ export function Settings({ open, onClose }: SettingsProps) {
     try {
       await apiFetch('/config/llm', {
         method: 'PUT',
-        body: JSON.stringify({ value: { apiKey, model } }),
+        body: JSON.stringify({ value: { provider, apiKey, model, vertexProjectId, vertexRegion, vertexCredentials } }),
       });
       setMessage('Settings saved');
       setTimeout(() => setMessage(''), 2000);
@@ -113,25 +122,103 @@ export function Settings({ open, onClose }: SettingsProps) {
           <section className="space-y-4">
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">LLM Provider</h3>
 
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium">API Key</label>
-              <div className="relative">
-                <input
-                  type={showKey ? 'text' : 'password'}
-                  value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
-                  placeholder="sk-ant-..."
-                  className="w-full rounded-xl border border-border bg-muted px-4 py-3 pr-11 text-base focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowKey(!showKey)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  {showKey ? <EyeOff size={18} /> : <Eye size={18} />}
-                </button>
-              </div>
+            {/* Provider toggle */}
+            <div className="flex rounded-xl border border-border bg-muted p-1 gap-1">
+              <button
+                type="button"
+                onClick={() => setProvider('anthropic')}
+                className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                  provider === 'anthropic'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:bg-background hover:text-foreground'
+                }`}
+              >
+                Anthropic API
+              </button>
+              <button
+                type="button"
+                onClick={() => setProvider('vertex')}
+                className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                  provider === 'vertex'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:bg-background hover:text-foreground'
+                }`}
+              >
+                Vertex AI (GCP)
+              </button>
             </div>
+
+            {provider === 'anthropic' && (
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">API Key</label>
+                <div className="relative">
+                  <input
+                    type={showKey ? 'text' : 'password'}
+                    value={apiKey}
+                    onChange={(e) => setApiKey(e.target.value)}
+                    placeholder="sk-ant-..."
+                    className="w-full rounded-xl border border-border bg-muted px-4 py-3 pr-11 text-base focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowKey(!showKey)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    {showKey ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {provider === 'vertex' && (
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Project ID</label>
+                  <input
+                    type="text"
+                    value={vertexProjectId}
+                    onChange={(e) => setVertexProjectId(e.target.value)}
+                    placeholder="my-gcp-project"
+                    className="w-full rounded-xl border border-border bg-muted px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Region</label>
+                  <input
+                    type="text"
+                    value={vertexRegion}
+                    onChange={(e) => setVertexRegion(e.target.value)}
+                    placeholder="global"
+                    className="w-full rounded-xl border border-border bg-muted px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Service Account Key <span className="text-muted-foreground font-normal">(optional)</span></label>
+                  <div className="relative">
+                    <textarea
+                      rows={4}
+                      value={showVertexCreds ? vertexCredentials : (vertexCredentials ? '•'.repeat(Math.min(vertexCredentials.length, 40)) : '')}
+                      onChange={(e) => setVertexCredentials(e.target.value)}
+                      onFocus={() => setShowVertexCreds(true)}
+                      placeholder='Paste service account JSON here, or leave blank to use gcloud ADC'
+                      className="w-full rounded-xl border border-border bg-muted px-4 py-3 pr-11 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowVertexCreds(!showVertexCreds)}
+                      className="absolute right-3 top-3 p-1 text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      {showVertexCreds ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Leave blank to use Application Default Credentials (<code className="font-mono">gcloud auth application-default login</code>)
+                  </p>
+                </div>
+              </div>
+            )}
 
             <div className="space-y-1.5">
               <label className="text-sm font-medium">Model</label>
