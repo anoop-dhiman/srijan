@@ -25,6 +25,7 @@ export function getDb(): Database.Database {
 
     // Migrations for existing databases
     try { db.exec(`ALTER TABLE sessions ADD COLUMN workspace_name TEXT`); } catch {}
+    try { db.exec(`ALTER TABLE apps ADD COLUMN workspace_name TEXT`); } catch {}
   }
   return db;
 }

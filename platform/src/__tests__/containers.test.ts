@@ -4,6 +4,7 @@ import express from 'express';
 import { getDb } from '../db/store.js';
 import { setupAdmin } from '../security/auth.js';
 import authRouter from '../routes/auth.js';
+import { v4 as uuidv4 } from 'uuid';
 
 // Mock the Docker manager so tests don't need a Docker daemon
 vi.mock('../docker/manager.js', () => ({
@@ -37,9 +38,14 @@ describe('Containers API', () => {
   let token: string;
 
   beforeAll(async () => {
-    getDb();
+    const db = getDb();
     setupAdmin('testpass');
     app = createApp();
+
+    // Register an app with the known container ID so it appears in the filtered list
+    db.prepare(
+      `INSERT OR IGNORE INTO apps (id, name, path, port, container_id, workspace_name, status) VALUES (?, ?, ?, ?, ?, ?, 'running')`
+    ).run(uuidv4(), 'my-app', '/my-app', 8080, 'abc123', 'test-workspace');
 
     const res = await request(app)
       .post('/api/auth/login')
@@ -47,13 +53,29 @@ describe('Containers API', () => {
     token = res.body.token;
   });
 
-  it('should list containers', async () => {
+  it('should list containers (filtered to registered apps)', async () => {
     const res = await request(app)
       .get('/api/containers')
       .set('Authorization', `Bearer ${token}`);
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
     expect(res.body[0].Id).toBe('abc123');
+  });
+
+  it('should filter containers by workspace', async () => {
+    const res = await request(app)
+      .get('/api/containers?workspace=test-workspace')
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(200);
+    expect(res.body[0].Id).toBe('abc123');
+  });
+
+  it('should return empty when workspace has no registered apps', async () => {
+    const res = await request(app)
+      .get('/api/containers?workspace=nonexistent')
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(0);
   });
 
   it('should get container logs', async () => {

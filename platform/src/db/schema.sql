@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS apps (
   path TEXT UNIQUE NOT NULL,
   port INTEGER NOT NULL,
   container_id TEXT,
+  workspace_name TEXT,
   status TEXT NOT NULL DEFAULT 'running', -- running, stopped, error
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))

@@ -21,6 +21,22 @@ export interface Session {
   createdAt: string;
 }
 
+export interface WorkspaceInfo {
+  name: string;
+  sessionCount: number;
+  runningContainerCount: number;
+  totalCostUsd: number | null;
+  lastActivityAt: string | null;
+}
+
+export interface SessionActivity {
+  isLoading: boolean;
+  agentStatus: string;
+  hasUnread: boolean;
+}
+
+const DEFAULT_ACTIVITY: SessionActivity = { isLoading: false, agentStatus: '', hasUnread: false };
+
 function formatToolLabel(name: string, input: any): string {
   switch (name) {
     case 'Read': return `Reading ${input?.file_path || 'file'}`;
@@ -43,11 +59,32 @@ export function useChat() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [currentSession, setCurrentSession] = useState<Session | null>(null);
   const [isConnected, setIsConnected] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [agentStatus, setAgentStatus] = useState('');
+  const [sessionActivity, setSessionActivity] = useState<Record<string, SessionActivity>>({});
   const [sessionCosts, setSessionCosts] = useState<Record<string, number>>({});
+  const [workspaces, setWorkspaces] = useState<WorkspaceInfo[]>([]);
+  const [currentWorkspace, setCurrentWorkspaceState] = useState<string | null>(
+    () => localStorage.getItem('srijan_workspace')
+  );
+
   const wsRef = useRef<WebSocket | null>(null);
   const streamBufferRef = useRef('');
+  const currentSessionRef = useRef<Session | null>(null);
+
+  // Keep ref in sync with state
+  currentSessionRef.current = currentSession;
+
+  const setCurrentWorkspace = useCallback((name: string | null) => {
+    setCurrentWorkspaceState(name);
+    if (name) localStorage.setItem('srijan_workspace', name);
+    else localStorage.removeItem('srijan_workspace');
+  }, []);
+
+  const fetchWorkspaces = useCallback(async () => {
+    try {
+      const list = await apiFetch('/workspaces');
+      setWorkspaces(list);
+    } catch { /* non-fatal */ }
+  }, []);
 
   const connect = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
@@ -58,6 +95,7 @@ export function useChat() {
     ws.onopen = () => {
       setIsConnected(true);
       ws.send(JSON.stringify({ type: 'list_sessions' }));
+      fetchWorkspaces();
     };
 
     const savedSessionId = localStorage.getItem('srijan_session_id');
@@ -89,9 +127,14 @@ export function useChat() {
           localStorage.setItem('srijan_session_id', msg.data.id);
           break;
 
-        case 'session_joined':
+        case 'session_joined': {
           setCurrentSession(msg.data.session);
           localStorage.setItem('srijan_session_id', msg.data.session.id);
+          // Clear unread for joined session
+          setSessionActivity(prev => {
+            const cur = prev[msg.data.session.id] || DEFAULT_ACTIVITY;
+            return { ...prev, [msg.data.session.id]: { ...cur, hasUnread: false } };
+          });
           // Restore events as messages
           const restored: ChatMessage[] = [];
           for (const e of msg.data.events) {
@@ -120,7 +163,6 @@ export function useChat() {
                 timestamp: new Date(e.created_at).getTime(),
               });
             } else if (e.type === 'tool_result') {
-              // Attach result to the preceding tool_use message
               for (let j = restored.length - 1; j >= 0; j--) {
                 if (restored[j].role === 'tool' && !restored[j].toolResult) {
                   restored[j].toolResult = e.data.content || '';
@@ -139,6 +181,7 @@ export function useChat() {
           }
           setMessages(restored);
           break;
+        }
 
         case 'session_deleted': {
           const deletedId = msg.data.sessionId;
@@ -156,14 +199,46 @@ export function useChat() {
 
         case 'agent_event': {
           const evt = msg.data;
+          const sid: string = evt.sessionId;
 
-          if (evt.type === 'session_start') {
-            setAgentStatus('Connecting to agent…');
-          }
+          // Update per-session activity state
+          setSessionActivity(prev => {
+            const cur = prev[sid] || DEFAULT_ACTIVITY;
+            let updated = { ...cur };
+
+            if (evt.type === 'session_start') {
+              updated.isLoading = true;
+              updated.agentStatus = 'Connecting to agent…';
+            }
+            if (evt.type === 'agent_response') {
+              if (evt.data.streaming) { updated.isLoading = true; updated.agentStatus = 'Writing…'; }
+              if (evt.data.done) { updated.isLoading = false; updated.agentStatus = ''; }
+            }
+            if (evt.type === 'tool_use') {
+              updated.isLoading = true;
+              updated.agentStatus = formatToolLabel(evt.data.name, evt.data.input);
+            }
+            if (evt.type === 'tool_result') {
+              updated.agentStatus = 'Thinking…';
+            }
+            if (evt.type === 'error') {
+              updated.isLoading = false;
+              updated.agentStatus = '';
+            }
+
+            // Mark unread for sessions that aren't currently active
+            if (sid !== currentSessionRef.current?.id) {
+              updated.hasUnread = true;
+            }
+
+            return { ...prev, [sid]: updated };
+          });
+
+          // Only update messages / streaming for the active session
+          if (sid !== currentSessionRef.current?.id) break;
 
           if (evt.type === 'agent_response') {
             if (evt.data.streaming) {
-              setAgentStatus('Writing…');
               streamBufferRef.current += evt.data.content;
               setMessages((prev) => {
                 const last = prev[prev.length - 1];
@@ -204,14 +279,11 @@ export function useChat() {
                 }
                 return prev;
               });
-              setAgentStatus('');
-              setIsLoading(false);
             }
           }
 
           if (evt.type === 'tool_use') {
             const label = formatToolLabel(evt.data.name, evt.data.input);
-            setAgentStatus(label);
             setMessages((prev) => [
               ...prev,
               {
@@ -227,7 +299,6 @@ export function useChat() {
           }
 
           if (evt.type === 'tool_result') {
-            setAgentStatus('Thinking…');
             setMessages((prev) =>
               prev.map((m) =>
                 m.id === `tool-${evt.data.id}`
@@ -251,8 +322,6 @@ export function useChat() {
                 timestamp: Date.now(),
               },
             ]);
-            setAgentStatus('');
-            setIsLoading(false);
           }
           break;
         }
@@ -267,15 +336,18 @@ export function useChat() {
               timestamp: Date.now(),
             },
           ]);
-          setAgentStatus('');
-          setIsLoading(false);
+          if (currentSessionRef.current) {
+            setSessionActivity(prev => {
+              const sid = currentSessionRef.current!.id;
+              return { ...prev, [sid]: { ...(prev[sid] || DEFAULT_ACTIVITY), isLoading: false, agentStatus: '' } };
+            });
+          }
           break;
       }
     };
 
     ws.onclose = () => {
       setIsConnected(false);
-      // Reconnect after 3s
       setTimeout(connect, 3000);
     };
 
@@ -291,7 +363,9 @@ export function useChat() {
 
   const sendMessage = useCallback((content: string) => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+    if (!currentSessionRef.current) return;
 
+    const sid = currentSessionRef.current.id;
     const userMsg: ChatMessage = {
       id: `msg-${Date.now()}`,
       role: 'user',
@@ -299,8 +373,10 @@ export function useChat() {
       timestamp: Date.now(),
     };
     setMessages((prev) => [...prev, userMsg]);
-    setIsLoading(true);
-    setAgentStatus('Thinking…');
+    setSessionActivity(prev => ({
+      ...prev,
+      [sid]: { ...(prev[sid] || DEFAULT_ACTIVITY), isLoading: true, agentStatus: 'Thinking…' },
+    }));
     streamBufferRef.current = '';
 
     wsRef.current.send(JSON.stringify({ type: 'message', content }));
@@ -327,14 +403,23 @@ export function useChat() {
     return () => disconnect();
   }, [disconnect]);
 
+  const currentActivity = currentSession
+    ? (sessionActivity[currentSession.id] ?? DEFAULT_ACTIVITY)
+    : DEFAULT_ACTIVITY;
+
   return {
     messages,
     sessions,
     currentSession,
     isConnected,
-    isLoading,
-    agentStatus,
+    isLoading: currentActivity.isLoading,
+    agentStatus: currentActivity.agentStatus,
+    sessionActivity,
     sessionCosts,
+    workspaces,
+    currentWorkspace,
+    setCurrentWorkspace,
+    fetchWorkspaces,
     connect,
     disconnect,
     sendMessage,

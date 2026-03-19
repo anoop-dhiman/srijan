@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 
 vi.mock('../lib/api', () => ({
   apiFetch: vi.fn(),
@@ -7,94 +7,92 @@ vi.mock('../lib/api', () => ({
 
 import { apiFetch } from '../lib/api';
 import { Dashboard } from '../components/Dashboard';
+import type { WorkspaceInfo } from '../hooks/useChat';
 
-const mockContainers = [
+const mockWorkspaces: WorkspaceInfo[] = [
   {
-    Id: 'abc123def456',
-    Names: ['/my-app'],
-    Image: 'my-app:latest',
-    State: 'running',
-    Status: 'Up 5 minutes',
-    Ports: [{ PublicPort: 8080, PrivatePort: 3000, Type: 'tcp' }],
+    name: 'my-react-app',
+    sessionCount: 3,
+    runningContainerCount: 2,
+    totalCostUsd: 0.024,
+    lastActivityAt: '2024-01-10T12:00:00.000Z',
   },
   {
-    Id: 'def789ghi012',
-    Names: ['/stopped-app'],
-    Image: 'stopped:latest',
-    State: 'exited',
-    Status: 'Exited (0) 2 hours ago',
-    Ports: [],
+    name: 'backend-api',
+    sessionCount: 1,
+    runningContainerCount: 0,
+    totalCostUsd: null,
+    lastActivityAt: null,
   },
-];
-
-const mockApps = [
-  { id: 'app-1', name: 'my-app', path: '/myapp', port: 8080, container_id: 'abc123def456', status: 'running' },
 ];
 
 describe('Dashboard', () => {
+  const onRefresh = vi.fn();
+  const onViewSessions = vi.fn();
+
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('shows loading state initially', () => {
-    vi.mocked(apiFetch).mockResolvedValue([]);
-    render(<Dashboard />);
-    expect(screen.getByText('Loading…')).toBeInTheDocument();
+  it('renders Dashboard heading', () => {
+    render(<Dashboard workspaces={[]} onRefresh={onRefresh} onViewSessions={onViewSessions} />);
+    expect(screen.getByText('Dashboard')).toBeInTheDocument();
   });
 
-  it('renders containers after loading', async () => {
-    vi.mocked(apiFetch)
-      .mockResolvedValueOnce(mockContainers)
-      .mockResolvedValueOnce(mockApps);
-
-    render(<Dashboard />);
-
-    await waitFor(() => {
-      expect(screen.getByText('my-app')).toBeInTheDocument();
-    });
-    expect(screen.getByText('stopped-app')).toBeInTheDocument();
+  it('shows empty message when no workspaces', () => {
+    render(<Dashboard workspaces={[]} onRefresh={onRefresh} onViewSessions={onViewSessions} />);
+    expect(screen.getByText(/no workspaces yet/i)).toBeInTheDocument();
   });
 
-  it('shows app URL for matched containers', async () => {
-    vi.mocked(apiFetch)
-      .mockResolvedValueOnce(mockContainers)
-      .mockResolvedValueOnce(mockApps);
-
-    render(<Dashboard />);
-
-    await waitFor(() => {
-      expect(screen.getByText('/myapp')).toBeInTheDocument();
-    });
+  it('renders workspace cards', () => {
+    render(<Dashboard workspaces={mockWorkspaces} onRefresh={onRefresh} onViewSessions={onViewSessions} />);
+    expect(screen.getByText('my-react-app')).toBeInTheDocument();
+    expect(screen.getByText('backend-api')).toBeInTheDocument();
   });
 
-  it('shows empty message when no containers', async () => {
+  it('shows session and container counts', () => {
+    render(<Dashboard workspaces={mockWorkspaces} onRefresh={onRefresh} onViewSessions={onViewSessions} />);
+    expect(screen.getByText('3 sessions')).toBeInTheDocument();
+    expect(screen.getByText('2 containers')).toBeInTheDocument();
+  });
+
+  it('shows cost when available', () => {
+    render(<Dashboard workspaces={mockWorkspaces} onRefresh={onRefresh} onViewSessions={onViewSessions} />);
+    expect(screen.getByText('$0.0240')).toBeInTheDocument();
+  });
+
+  it('calls onViewSessions with workspace name when View Sessions is clicked', async () => {
+    render(<Dashboard workspaces={mockWorkspaces} onRefresh={onRefresh} onViewSessions={onViewSessions} />);
+    const btns = screen.getAllByText('View Sessions');
+    fireEvent.click(btns[0]);
+    expect(onViewSessions).toHaveBeenCalledWith('my-react-app');
+  });
+
+  it('calls onRefresh when Refresh is clicked', () => {
+    render(<Dashboard workspaces={mockWorkspaces} onRefresh={onRefresh} onViewSessions={onViewSessions} />);
+    fireEvent.click(screen.getByText('Refresh'));
+    expect(onRefresh).toHaveBeenCalledOnce();
+  });
+
+  it('shows active badge when workspace has containers', () => {
+    render(<Dashboard workspaces={mockWorkspaces} onRefresh={onRefresh} onViewSessions={onViewSessions} />);
+    const badges = screen.getAllByText('active');
+    expect(badges.length).toBeGreaterThan(0);
+  });
+
+  it('fetches containers when Containers is expanded', async () => {
     vi.mocked(apiFetch)
-      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        { Id: 'abc', Names: ['/my-app'], Image: 'my-app:latest', State: 'running', Status: 'Up', Ports: [] },
+      ])
       .mockResolvedValueOnce([]);
 
-    render(<Dashboard />);
+    render(<Dashboard workspaces={mockWorkspaces} onRefresh={onRefresh} onViewSessions={onViewSessions} />);
+    const containersBtns = screen.getAllByText('Containers');
+    fireEvent.click(containersBtns[0]);
 
     await waitFor(() => {
-      expect(screen.getByText('No containers found.')).toBeInTheDocument();
+      expect(apiFetch).toHaveBeenCalledWith(expect.stringContaining('/containers?workspace=my-react-app'));
     });
-  });
-
-  it('shows error message when API fails', async () => {
-    vi.mocked(apiFetch).mockRejectedValue(new Error('Docker unavailable'));
-
-    render(<Dashboard />);
-
-    await waitFor(() => {
-      expect(screen.getByText('Docker unavailable')).toBeInTheDocument();
-    });
-  });
-
-  it('renders App Dashboard heading', async () => {
-    vi.mocked(apiFetch)
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([]);
-
-    render(<Dashboard />);
-    expect(screen.getByText('App Dashboard')).toBeInTheDocument();
   });
 });

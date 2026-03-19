@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Eye, EyeOff, Plus, Trash2, Save, RotateCcw, Shield } from 'lucide-react';
+import { Eye, EyeOff, Plus, Trash2, Save, RotateCcw, Shield } from 'lucide-react';
 import { apiFetch } from '../lib/api';
 
 interface SettingsProps {
@@ -158,11 +158,8 @@ export function Settings({ open, onClose }: SettingsProps) {
   return (
     <div className="flex-1 flex flex-col min-h-0">
       {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-border shrink-0">
+      <div className="px-6 py-5 border-b border-border flex items-center justify-between shrink-0">
         <h2 className="font-semibold text-lg">Settings</h2>
-        <button onClick={onClose} className="p-2 rounded-lg hover:bg-muted transition-colors">
-          <X size={20} />
-        </button>
       </div>
 
       {/* Scrollable body */}

@@ -1,12 +1,11 @@
 import { useState, useRef, useEffect, useCallback, FormEvent } from 'react';
 import {
-  Send, Plus, Menu, Settings as SettingsIcon, Loader2, Trash2,
+  Send, Plus, Menu, Loader2, Trash2,
   PanelLeftClose, PanelLeftOpen, CheckCircle2, XCircle, Terminal,
-  FileText, Search, FolderSearch, Bot, ChevronDown, ChevronRight, FolderOpen,
+  FileText, Search, FolderSearch, Bot, ChevronDown, ChevronRight,
 } from 'lucide-react';
-import type { ChatMessage, Session } from '../hooks/useChat';
+import type { ChatMessage, Session, WorkspaceInfo, SessionActivity } from '../hooks/useChat';
 import ReactMarkdown from 'react-markdown';
-import { Settings } from './Settings';
 import { apiFetch } from '../lib/api';
 
 interface ChatProps {
@@ -15,14 +14,16 @@ interface ChatProps {
   currentSession: Session | null;
   isLoading: boolean;
   agentStatus: string;
-  settingsOpen: boolean;
+  sessionActivity: Record<string, SessionActivity>;
   sessionCosts: Record<string, number>;
+  currentWorkspace: string | null;
+  workspaces: WorkspaceInfo[];
   onSendMessage: (content: string) => void;
-  onNewSession: (workspaceName?: string) => void;
+  onNewSession: (workspaceName: string) => void;
   onJoinSession: (sessionId: string) => void;
   onDeleteSession: (sessionId: string) => void;
-  onOpenSettings: () => void;
-  onCloseSettings: () => void;
+  onWorkspaceChange: (name: string) => void;
+  onCreateWorkspace: (name: string) => Promise<void>;
 }
 
 const MIN_WIDTH = 180;
@@ -113,39 +114,159 @@ function ThinkingIndicator({ status }: { status: string }) {
   );
 }
 
+function WorkspaceSwitcher({
+  currentWorkspace,
+  workspaces,
+  onSelect,
+  onCreateWorkspace,
+}: {
+  currentWorkspace: string | null;
+  workspaces: WorkspaceInfo[];
+  onSelect: (name: string) => void;
+  onCreateWorkspace: (name: string) => Promise<void>;
+}) {
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [creating, setCreating] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  useEffect(() => {
+    if (createOpen) inputRef.current?.focus();
+  }, [createOpen]);
+
+  const handleCreate = async () => {
+    if (!newName.trim() || creating) return;
+    setCreating(true);
+    try {
+      await onCreateWorkspace(newName.trim());
+      onSelect(newName.trim());
+      setNewName('');
+      setCreateOpen(false);
+    } catch { /* ignore */ }
+    setCreating(false);
+  };
+
+  return (
+    <div className="space-y-1.5">
+      <p className="px-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70">
+        Workspace
+      </p>
+
+      <div className="flex items-center gap-1">
+        {/* Dropdown */}
+        <div ref={dropdownRef} className="relative flex-1 min-w-0">
+          <button
+            onClick={() => { setDropdownOpen(!dropdownOpen); setCreateOpen(false); }}
+            className="w-full flex items-center justify-between gap-1.5 px-2.5 py-2 rounded-lg bg-background border border-border text-sm font-medium hover:bg-muted transition-colors"
+          >
+            <span className="truncate font-mono text-xs">
+              {currentWorkspace || <span className="text-muted-foreground font-sans font-normal">Select…</span>}
+            </span>
+            <ChevronDown size={13} className={`shrink-0 text-muted-foreground transition-transform ${dropdownOpen ? 'rotate-180' : ''}`} />
+          </button>
+
+          {dropdownOpen && (
+            <div className="absolute left-0 right-0 top-full mt-1 z-50 rounded-xl border border-border bg-background shadow-lg overflow-hidden">
+              {workspaces.length === 0 ? (
+                <p className="px-3 py-2.5 text-xs text-muted-foreground">No workspaces yet.</p>
+              ) : (
+                <div className="py-1 max-h-48 overflow-y-auto">
+                  {workspaces.map((ws) => (
+                    <button
+                      key={ws.name}
+                      onClick={() => { onSelect(ws.name); setDropdownOpen(false); }}
+                      className={`w-full text-left px-3 py-2 text-xs hover:bg-muted transition-colors flex items-center justify-between gap-2 ${
+                        ws.name === currentWorkspace ? 'text-primary font-semibold' : 'text-foreground font-mono'
+                      }`}
+                    >
+                      <span className="truncate">{ws.name}</span>
+                      {ws.name === currentWorkspace && <CheckCircle2 size={12} className="shrink-0 text-primary" />}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Add workspace button */}
+        <button
+          onClick={() => { setCreateOpen(!createOpen); setDropdownOpen(false); }}
+          title="New workspace"
+          className={`shrink-0 w-8 h-8 flex items-center justify-center rounded-lg border transition-colors ${
+            createOpen
+              ? 'bg-primary/10 border-primary/30 text-primary'
+              : 'border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground'
+          }`}
+        >
+          <Plus size={15} />
+        </button>
+      </div>
+
+      {/* Inline create form */}
+      {createOpen && (
+        <div className="flex gap-1">
+          <input
+            ref={inputRef}
+            type="text"
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            placeholder="workspace-name"
+            className="flex-1 min-w-0 rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-primary"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleCreate();
+              if (e.key === 'Escape') { setCreateOpen(false); setNewName(''); }
+            }}
+          />
+          <button
+            onClick={handleCreate}
+            disabled={!newName.trim() || creating}
+            className="shrink-0 px-2.5 py-1.5 text-xs bg-primary text-primary-foreground rounded-lg disabled:opacity-50 font-medium"
+          >
+            {creating ? <Loader2 size={12} className="animate-spin" /> : 'Create'}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function Chat({
   messages,
   sessions,
   currentSession,
   isLoading,
   agentStatus,
-  settingsOpen,
+  sessionActivity,
   sessionCosts,
+  currentWorkspace,
+  workspaces,
   onSendMessage,
   onNewSession,
   onJoinSession,
   onDeleteSession,
-  onOpenSettings,
-  onCloseSettings,
+  onWorkspaceChange,
+  onCreateWorkspace,
 }: ChatProps) {
   const [input, setInput] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_WIDTH);
-  const [workspacePicker, setWorkspacePicker] = useState(false);
-  const [workspaces, setWorkspaces] = useState<string[]>([]);
-  const [newWorkspaceName, setNewWorkspaceName] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const isResizing = useRef(false);
-
-  const openWorkspacePicker = useCallback(async () => {
-    try {
-      const list = await apiFetch('/workspaces');
-      setWorkspaces(list);
-    } catch { setWorkspaces([]); }
-    setWorkspacePicker(true);
-  }, []);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -199,136 +320,101 @@ export function Chat({
     el.style.height = Math.min(el.scrollHeight, 200) + 'px';
   };
 
-  // Check if last message is a streaming assistant message (suppress thinking indicator)
+  // Sessions filtered to the current workspace
+  const workspaceSessions = currentWorkspace
+    ? sessions.filter(s => s.workspaceName === currentWorkspace)
+    : sessions;
+
   const lastMsg = messages[messages.length - 1];
   const showThinking = isLoading && agentStatus && !(lastMsg?.streaming);
 
   return (
     <div className="flex flex-1 min-h-0 w-full">
-      {/* Sidebar — desktop: resizable + collapsible, mobile: slide-over */}
+      {/* Sidebar */}
       <div
         className={`fixed inset-y-0 left-0 z-40 bg-muted border-r border-border flex flex-col transform transition-all duration-200 md:relative md:translate-x-0 md:top-auto md:inset-y-auto ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         } ${sidebarCollapsed ? 'md:w-0 md:overflow-hidden md:border-r-0' : ''}`}
         style={sidebarCollapsed ? undefined : { width: `${sidebarWidth}px` }}
       >
-        {/* New Chat button */}
-        <div className="p-3 border-b border-border shrink-0 relative">
-          <div className="flex gap-1">
-            <button
-              onClick={() => { onNewSession(); setSidebarOpen(false); }}
-              className="flex-1 flex items-center gap-2 px-3 py-2.5 rounded-lg bg-primary text-primary-foreground text-base font-medium hover:bg-primary/90 transition-colors"
-            >
-              <Plus size={16} />
-              New Chat
-            </button>
-            <button
-              onClick={openWorkspacePicker}
-              title="Choose workspace"
-              className="flex items-center justify-center px-2.5 rounded-lg bg-primary/20 text-primary hover:bg-primary/30 transition-colors"
-            >
-              <FolderOpen size={16} />
-            </button>
-          </div>
-
-          {/* Workspace picker popover */}
-          {workspacePicker && (
-            <div className="absolute left-3 right-3 top-full mt-1 z-50 rounded-xl border border-border bg-background shadow-lg p-3 space-y-2">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Choose Workspace</p>
-              <button
-                onClick={() => { onNewSession(); setWorkspacePicker(false); setSidebarOpen(false); }}
-                className="w-full text-left px-3 py-2 rounded-lg text-sm hover:bg-muted transition-colors"
-              >
-                Default (session ID)
-              </button>
-              {workspaces.map((ws) => (
-                <button
-                  key={ws}
-                  onClick={() => { onNewSession(ws); setWorkspacePicker(false); setSidebarOpen(false); }}
-                  className="w-full text-left px-3 py-2 rounded-lg text-sm font-mono hover:bg-muted transition-colors"
-                >
-                  {ws}
-                </button>
-              ))}
-              <div className="flex gap-1 pt-1 border-t border-border">
-                <input
-                  type="text"
-                  value={newWorkspaceName}
-                  onChange={(e) => setNewWorkspaceName(e.target.value)}
-                  placeholder="New workspace name…"
-                  className="flex-1 rounded-lg border border-border bg-muted px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && newWorkspaceName.trim()) {
-                      apiFetch('/workspaces', { method: 'POST', body: JSON.stringify({ name: newWorkspaceName.trim() }) })
-                        .then(() => { onNewSession(newWorkspaceName.trim()); setWorkspacePicker(false); setNewWorkspaceName(''); setSidebarOpen(false); })
-                        .catch(() => {});
-                    }
-                  }}
-                />
-                <button
-                  onClick={() => setWorkspacePicker(false)}
-                  className="px-2 py-1.5 text-xs text-muted-foreground hover:text-foreground"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          )}
+        {/* Workspace switcher */}
+        <div className="p-3 border-b border-border shrink-0 space-y-2">
+          <WorkspaceSwitcher
+            currentWorkspace={currentWorkspace}
+            workspaces={workspaces}
+            onSelect={onWorkspaceChange}
+            onCreateWorkspace={onCreateWorkspace}
+          />
+          <button
+            onClick={() => {
+              if (currentWorkspace) {
+                onNewSession(currentWorkspace);
+                setSidebarOpen(false);
+              }
+            }}
+            disabled={!currentWorkspace}
+            className="w-full flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            <Plus size={14} />
+            New Chat
+          </button>
         </div>
 
         {/* Sessions list */}
         <div className="flex-1 overflow-y-auto">
-          {sessions.map((s) => (
-            <div
-              key={s.id}
-              className={`group flex items-center border-b border-border/50 ${
-                currentSession?.id === s.id ? 'bg-background' : 'hover:bg-background/50'
-              }`}
-            >
-              <button
-                onClick={() => {
-                  onJoinSession(s.id);
-                  setSidebarOpen(false);
-                }}
-                className={`flex-1 min-w-0 text-left px-4 py-3 text-base transition-colors ${
-                  currentSession?.id === s.id ? 'text-foreground' : 'text-muted-foreground'
+          {workspaceSessions.map((s) => {
+            const activity = sessionActivity[s.id];
+            const isActive = currentSession?.id === s.id;
+            return (
+              <div
+                key={s.id}
+                className={`group flex items-center border-b border-border/50 ${
+                  isActive ? 'bg-background' : 'hover:bg-background/50'
                 }`}
               >
-                <div className="truncate">{s.title}</div>
-                <div className="flex items-center gap-2 mt-0.5">
-                  <span className="text-xs text-muted-foreground">{new Date(s.createdAt).toLocaleDateString()}</span>
-                  {(sessionCosts[s.id] ?? 0) > 0 && (
-                    <span className="text-[10px] text-muted-foreground/70 font-mono">${sessionCosts[s.id].toFixed(4)}</span>
-                  )}
-                </div>
-              </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onDeleteSession(s.id);
-                }}
-                className="shrink-0 p-2 mr-1 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all"
-                title="Delete session"
-              >
-                <Trash2 size={14} />
-              </button>
-            </div>
-          ))}
+                <button
+                  onClick={() => {
+                    onJoinSession(s.id);
+                    setSidebarOpen(false);
+                  }}
+                  className={`flex-1 min-w-0 text-left px-4 py-3 text-base transition-colors ${
+                    isActive ? 'text-foreground' : 'text-muted-foreground'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="truncate flex-1">{s.title}</span>
+                    {activity?.isLoading && (
+                      <Loader2 size={13} className="animate-spin text-primary shrink-0" />
+                    )}
+                    {!isActive && activity?.hasUnread && !activity?.isLoading && (
+                      <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className="text-xs text-muted-foreground">{new Date(s.createdAt).toLocaleDateString()}</span>
+                    {(sessionCosts[s.id] ?? 0) > 0 && (
+                      <span className="text-[10px] text-muted-foreground/70 font-mono">${sessionCosts[s.id].toFixed(4)}</span>
+                    )}
+                  </div>
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDeleteSession(s.id);
+                  }}
+                  className="shrink-0 p-2 mr-1 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all"
+                  title="Delete session"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            );
+          })}
         </div>
 
-        {/* Settings button */}
-        <div className="p-3 border-t border-border shrink-0">
-          <button
-            onClick={onOpenSettings}
-            className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-base text-muted-foreground hover:bg-background hover:text-foreground transition-colors"
-          >
-            <SettingsIcon size={16} />
-            Settings
-          </button>
-        </div>
       </div>
 
-      {/* Resize handle — desktop only, hidden when collapsed */}
+      {/* Resize handle — desktop only */}
       {!sidebarCollapsed && (
         <div
           onMouseDown={handleMouseDown}
@@ -348,7 +434,6 @@ export function Chat({
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top bar: collapse toggle (desktop) + mobile menu */}
         <div className="flex items-center px-2 py-1.5 border-b border-border md:border-b-0 shrink-0">
-          {/* Collapse/expand toggle — desktop */}
           <button
             onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
             className="hidden md:flex items-center justify-center w-9 h-9 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
@@ -356,7 +441,6 @@ export function Chat({
           >
             {sidebarCollapsed ? <PanelLeftOpen size={22} /> : <PanelLeftClose size={22} />}
           </button>
-          {/* Mobile menu button */}
           <button
             onClick={() => setSidebarOpen(true)}
             className="p-1.5 rounded-md hover:bg-muted transition-colors md:hidden"
@@ -365,89 +449,83 @@ export function Chat({
           </button>
         </div>
 
-        {settingsOpen ? (
-          <Settings open={true} onClose={onCloseSettings} />
-        ) : (
-          <>
-            {/* Messages */}
-            <div className="flex-1 overflow-y-auto py-6">
-              {messages.length === 0 && !isLoading && (
-                <div className="flex items-center justify-center h-full">
-                  <div className="text-center space-y-3">
-                    <h2 className="text-2xl font-semibold">Srijan</h2>
-                    <p className="text-muted-foreground text-sm max-w-sm">
-                      Tell me what to build. I can create apps, deploy containers, and give you live URLs.
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              <div className="max-w-5xl mx-auto px-6 space-y-3">
-                {messages.map((msg) => {
-                  if (msg.role === 'tool') {
-                    return <ToolMessage key={msg.id} msg={msg} />;
-                  }
-
-                  return (
-                    <div
-                      key={msg.id}
-                      className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                    >
-                      <div
-                        className={`max-w-[80%] rounded-2xl px-4 py-3 text-base ${
-                          msg.role === 'user'
-                            ? 'bg-primary text-primary-foreground'
-                            : msg.role === 'system'
-                            ? 'bg-destructive/20 text-destructive border border-destructive/30'
-                            : 'bg-muted border border-border'
-                        }`}
-                      >
-                        {msg.role === 'assistant' ? (
-                          <div className="prose prose-invert prose-base max-w-none [&_pre]:bg-background [&_pre]:rounded-lg [&_pre]:p-3 [&_code]:text-secondary-foreground">
-                            <ReactMarkdown>{msg.content}</ReactMarkdown>
-                            {msg.streaming && (
-                              <span className="inline-block w-2 h-4 bg-primary animate-pulse ml-0.5" />
-                            )}
-                          </div>
-                        ) : (
-                          <p className="whitespace-pre-wrap">{msg.content}</p>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-
-                {showThinking && <ThinkingIndicator status={agentStatus} />}
-
-                <div ref={messagesEndRef} />
+        {/* Messages */}
+        <div className="flex-1 overflow-y-auto py-6">
+          {messages.length === 0 && !isLoading && (
+            <div className="flex items-center justify-center h-full">
+              <div className="text-center space-y-3">
+                <h2 className="text-2xl font-semibold">Srijan</h2>
+                <p className="text-muted-foreground text-sm max-w-sm">
+                  Tell me what to build. I can create apps, deploy containers, and give you live URLs.
+                </p>
               </div>
             </div>
+          )}
 
-            {/* Input — pill style */}
-            <div className="px-6 pb-5">
-              <form onSubmit={handleSubmit} className="max-w-5xl mx-auto">
-                <div className="relative rounded-2xl border border-border bg-muted focus-within:ring-2 focus-within:ring-primary">
-                  <textarea
-                    ref={inputRef}
-                    value={input}
-                    onChange={handleInput}
-                    onKeyDown={handleKeyDown}
-                    placeholder="Type a message..."
-                    rows={2}
-                    className="w-full bg-transparent resize-none px-4 pt-4 pb-14 max-h-[200px] outline-none text-base placeholder:text-muted-foreground"
-                  />
-                  <button
-                    type="submit"
-                    disabled={!input.trim() || isLoading}
-                    className="absolute bottom-3 right-3 rounded-xl bg-primary p-2.5 text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+          <div className="max-w-5xl mx-auto px-6 space-y-3">
+            {messages.map((msg) => {
+              if (msg.role === 'tool') {
+                return <ToolMessage key={msg.id} msg={msg} />;
+              }
+
+              return (
+                <div
+                  key={msg.id}
+                  className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                >
+                  <div
+                    className={`max-w-[80%] rounded-2xl px-4 py-3 text-base ${
+                      msg.role === 'user'
+                        ? 'bg-primary text-primary-foreground'
+                        : msg.role === 'system'
+                        ? 'bg-destructive/20 text-destructive border border-destructive/30'
+                        : 'bg-muted border border-border'
+                    }`}
                   >
-                    {isLoading ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
-                  </button>
+                    {msg.role === 'assistant' ? (
+                      <div className="prose prose-invert prose-base max-w-none [&_pre]:bg-background [&_pre]:rounded-lg [&_pre]:p-3 [&_code]:text-secondary-foreground">
+                        <ReactMarkdown>{msg.content}</ReactMarkdown>
+                        {msg.streaming && (
+                          <span className="inline-block w-2 h-4 bg-primary animate-pulse ml-0.5" />
+                        )}
+                      </div>
+                    ) : (
+                      <p className="whitespace-pre-wrap">{msg.content}</p>
+                    )}
+                  </div>
                 </div>
-              </form>
+              );
+            })}
+
+            {showThinking && <ThinkingIndicator status={agentStatus} />}
+
+            <div ref={messagesEndRef} />
+          </div>
+        </div>
+
+        {/* Input */}
+        <div className="px-6 pb-5">
+          <form onSubmit={handleSubmit} className="max-w-5xl mx-auto">
+            <div className="relative rounded-2xl border border-border bg-muted focus-within:ring-2 focus-within:ring-primary">
+              <textarea
+                ref={inputRef}
+                value={input}
+                onChange={handleInput}
+                onKeyDown={handleKeyDown}
+                placeholder="Type a message..."
+                rows={2}
+                className="w-full bg-transparent resize-none px-4 pt-4 pb-14 max-h-[200px] outline-none text-base placeholder:text-muted-foreground"
+              />
+              <button
+                type="submit"
+                disabled={!input.trim() || isLoading}
+                className="absolute bottom-3 right-3 rounded-xl bg-primary p-2.5 text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+              >
+                {isLoading ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+              </button>
             </div>
-          </>
-        )}
+          </form>
+        </div>
       </div>
     </div>
   );

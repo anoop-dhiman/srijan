@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Chat } from '../components/Chat';
-import type { ChatMessage, Session } from '../hooks/useChat';
+import type { ChatMessage, Session, WorkspaceInfo, SessionActivity } from '../hooks/useChat';
 
 vi.mock('react-markdown', () => ({
   default: ({ children }: { children: string }) => <span>{children}</span>,
@@ -15,27 +15,37 @@ vi.mock('../lib/api', () => ({
 // jsdom does not implement scrollIntoView
 window.HTMLElement.prototype.scrollIntoView = vi.fn();
 
+const mockWorkspace: WorkspaceInfo = {
+  name: 'my-workspace',
+  sessionCount: 0,
+  runningContainerCount: 0,
+  totalCostUsd: null,
+  lastActivityAt: null,
+};
+
 const defaultProps = {
   messages: [] as ChatMessage[],
   sessions: [] as Session[],
   currentSession: null,
   isLoading: false,
   agentStatus: '',
-  settingsOpen: false,
+  sessionActivity: {} as Record<string, SessionActivity>,
   sessionCosts: {} as Record<string, number>,
+  currentWorkspace: 'my-workspace',
+  workspaces: [mockWorkspace],
   onSendMessage: vi.fn(),
   onNewSession: vi.fn(),
   onJoinSession: vi.fn(),
   onDeleteSession: vi.fn(),
-  onOpenSettings: vi.fn(),
-  onCloseSettings: vi.fn(),
+  onWorkspaceChange: vi.fn(),
+  onCreateWorkspace: vi.fn().mockResolvedValue(undefined),
 };
 
 const mockSession: Session = {
   id: 'session-1',
   title: 'Test Session',
   status: 'active',
-  workspaceName: null,
+  workspaceName: 'my-workspace',
   createdAt: '2024-01-01T00:00:00.000Z',
 };
 
@@ -50,26 +60,28 @@ describe('Chat', () => {
       expect(screen.getByText('New Chat')).toBeInTheDocument();
     });
 
-    it('renders Settings button at the bottom of the sidebar', () => {
-      render(<Chat {...defaultProps} />);
-      expect(screen.getByText('Settings')).toBeInTheDocument();
-    });
-
     it('calls onNewSession when New Chat is clicked', async () => {
       render(<Chat {...defaultProps} />);
       await userEvent.click(screen.getByText('New Chat'));
       expect(defaultProps.onNewSession).toHaveBeenCalledOnce();
     });
 
-    it('calls onOpenSettings when Settings button is clicked', async () => {
-      render(<Chat {...defaultProps} />);
-      await userEvent.click(screen.getByText('Settings'));
-      expect(defaultProps.onOpenSettings).toHaveBeenCalledOnce();
+    it('New Chat is disabled when currentWorkspace is null', () => {
+      render(<Chat {...defaultProps} currentWorkspace={null} />);
+      const btn = screen.getByText('New Chat').closest('button') as HTMLButtonElement;
+      expect(btn).toBeDisabled();
     });
 
-    it('renders session list items', () => {
+    it('renders session list items for current workspace', () => {
       render(<Chat {...defaultProps} sessions={[mockSession]} />);
       expect(screen.getByText('Test Session')).toBeInTheDocument();
+    });
+
+    it('hides sessions from other workspaces', () => {
+      const otherSession: Session = { ...mockSession, id: 'session-2', title: 'Other WS Session', workspaceName: 'other-ws' };
+      render(<Chat {...defaultProps} sessions={[mockSession, otherSession]} />);
+      expect(screen.getByText('Test Session')).toBeInTheDocument();
+      expect(screen.queryByText('Other WS Session')).not.toBeInTheDocument();
     });
 
     it('calls onJoinSession when a session is clicked', async () => {
@@ -89,12 +101,22 @@ describe('Chat', () => {
     });
 
     it('applies muted styling to inactive sessions', () => {
-      const otherSession: Session = { ...mockSession, id: 'session-2', title: 'Other Session', workspaceName: null };
+      const otherSession: Session = { ...mockSession, id: 'session-2', title: 'Other Session', workspaceName: 'my-workspace' };
       render(
         <Chat {...defaultProps} sessions={[mockSession, otherSession]} currentSession={otherSession} />
       );
       const inactiveBtn = screen.getByText('Test Session').closest('button');
       expect(inactiveBtn?.className).toContain('text-muted-foreground');
+    });
+
+    it('shows spinner for loading sessions', () => {
+      const activity: Record<string, SessionActivity> = {
+        'session-1': { isLoading: true, agentStatus: 'Thinking…', hasUnread: false },
+      };
+      render(<Chat {...defaultProps} sessions={[mockSession]} sessionActivity={activity} />);
+      // Loader2 icon renders as svg inside the session row
+      const row = screen.getByText('Test Session').closest('button');
+      expect(row?.querySelector('svg')).toBeInTheDocument();
     });
   });
 

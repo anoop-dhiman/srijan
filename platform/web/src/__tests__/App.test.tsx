@@ -5,6 +5,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 vi.mock('../lib/api', () => ({
   isAuthenticated: vi.fn(),
   logout: vi.fn(),
+  apiFetch: vi.fn().mockResolvedValue({ name: 'test', path: '/tmp/test' }),
 }));
 
 vi.mock('../hooks/useChat', () => ({
@@ -17,7 +18,7 @@ vi.mock('../components/Chat', () => ({
 
 vi.mock('../components/Settings', () => ({
   Settings: ({ open }: { open: boolean }) =>
-    open ? <div data-testid="settings-modal" /> : null,
+    open ? <div data-testid="settings-panel" /> : null,
 }));
 
 vi.mock('../components/Login', () => ({
@@ -26,9 +27,29 @@ vi.mock('../components/Login', () => ({
   ),
 }));
 
+vi.mock('../components/Dashboard', () => ({
+  Dashboard: () => <div data-testid="dashboard" />,
+}));
+
+vi.mock('../components/WorkspaceEmptyState', () => ({
+  WorkspaceEmptyState: ({ onCreate }: { onCreate: (name: string) => Promise<void> }) => (
+    <div data-testid="workspace-empty-state">
+      <button onClick={() => onCreate('new-ws')}>Create</button>
+    </div>
+  ),
+}));
+
 import { isAuthenticated, logout } from '../lib/api';
 import { useChat } from '../hooks/useChat';
 import App from '../App';
+
+const mockWorkspace = {
+  name: 'my-workspace',
+  sessionCount: 0,
+  runningContainerCount: 0,
+  totalCostUsd: null,
+  lastActivityAt: null,
+};
 
 const mockChat = {
   messages: [],
@@ -37,7 +58,12 @@ const mockChat = {
   isConnected: true,
   isLoading: false,
   agentStatus: '',
+  sessionActivity: {},
   sessionCosts: {},
+  workspaces: [mockWorkspace],
+  currentWorkspace: 'my-workspace',
+  setCurrentWorkspace: vi.fn(),
+  fetchWorkspaces: vi.fn().mockResolvedValue(undefined),
   connect: vi.fn(),
   disconnect: vi.fn(),
   sendMessage: vi.fn(),
@@ -112,7 +138,7 @@ describe('App', () => {
       expect(logout).toHaveBeenCalledOnce();
     });
 
-    it('renders the Chat component', () => {
+    it('renders the Chat component by default', () => {
       render(<App />);
       expect(screen.getByTestId('chat')).toBeInTheDocument();
     });
@@ -123,14 +149,64 @@ describe('App', () => {
     });
   });
 
-  describe('settings modal', () => {
+  describe('empty workspace state', () => {
     beforeEach(() => {
       vi.mocked(isAuthenticated).mockReturnValue(true);
     });
 
-    it('settings modal is not shown by default', () => {
+    it('shows WorkspaceEmptyState when no workspaces exist', () => {
+      vi.mocked(useChat).mockReturnValue({ ...mockChat, workspaces: [] });
       render(<App />);
-      expect(screen.queryByTestId('settings-modal')).not.toBeInTheDocument();
+      expect(screen.getByTestId('workspace-empty-state')).toBeInTheDocument();
+      expect(screen.queryByTestId('chat')).not.toBeInTheDocument();
+    });
+
+    it('shows Chat when workspaces exist', () => {
+      render(<App />);
+      expect(screen.getByTestId('chat')).toBeInTheDocument();
+      expect(screen.queryByTestId('workspace-empty-state')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('navigation', () => {
+    beforeEach(() => {
+      vi.mocked(isAuthenticated).mockReturnValue(true);
+    });
+
+    it('switches to Dashboard when Dashboard tab is clicked', () => {
+      render(<App />);
+      // Both desktop and mobile nav render the same tabs; click the first
+      fireEvent.click(screen.getAllByRole('button', { name: 'Dashboard' })[0]);
+      expect(screen.getByTestId('dashboard')).toBeInTheDocument();
+      expect(screen.queryByTestId('chat')).not.toBeInTheDocument();
+    });
+
+    it('Terminal tab is disabled when no current session', () => {
+      render(<App />);
+      const terminalBtns = screen.getAllByRole('button', { name: 'Terminal' });
+      expect(terminalBtns[0]).toBeDisabled();
+    });
+  });
+
+  describe('settings', () => {
+    beforeEach(() => {
+      vi.mocked(isAuthenticated).mockReturnValue(true);
+    });
+
+    it('Settings tab is shown in the header nav', () => {
+      render(<App />);
+      expect(screen.getAllByRole('button', { name: 'Settings' }).length).toBeGreaterThan(0);
+    });
+
+    it('settings panel is not shown by default', () => {
+      render(<App />);
+      expect(screen.queryByTestId('settings-panel')).not.toBeInTheDocument();
+    });
+
+    it('shows settings panel when Settings tab is clicked', () => {
+      render(<App />);
+      fireEvent.click(screen.getAllByRole('button', { name: 'Settings' })[0]);
+      expect(screen.getByTestId('settings-panel')).toBeInTheDocument();
     });
   });
 

@@ -2,7 +2,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { IncomingMessage } from 'http';
 import { join } from 'path';
 import { createSession, getSession, listSessions, getSessionEvents, deleteSession } from '../agent/session.js';
-import { getOrCreateRunner, getApiKey, getModel, getVertexConfig } from '../agent/runner.js';
+import { getOrCreateRunner, getRunner, getApiKey, getModel, getVertexConfig } from '../agent/runner.js';
 import { getWorkspaceRoot } from '../git/manager.js';
 
 export const chatWss = new WebSocketServer({ noServer: true });
@@ -11,6 +11,28 @@ export const chatWss = new WebSocketServer({ noServer: true });
 export function setupWebSocket(): void {
   chatWss.on('connection', (ws: WebSocket, _req: IncomingMessage, user: any, sessionToken: string) => {
     let currentSessionId: string | null = null;
+    const forwarders = new Map<string, (evt: any) => void>();
+
+    function attachForwarder(sessionId: string) {
+      if (forwarders.has(sessionId)) return;
+      const runner = getRunner(sessionId);
+      if (!runner) return;
+      const handler = (evt: any) => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'agent_event', data: evt }));
+        }
+      };
+      forwarders.set(sessionId, handler);
+      runner.on('event', handler);
+    }
+
+    function detachAll() {
+      for (const [sessionId, handler] of forwarders) {
+        const runner = getRunner(sessionId);
+        if (runner) runner.off('event', handler);
+      }
+      forwarders.clear();
+    }
 
     ws.on('message', async (data: Buffer) => {
       try {
@@ -27,6 +49,7 @@ export function setupWebSocket(): void {
             const session = createSession(user.userId, msg.title, msg.workspaceName);
             currentSessionId = session.id;
             ws.send(JSON.stringify({ type: 'session_created', data: session }));
+            // Runner doesn't exist yet; forwarder will be attached on first message
             break;
           }
 
@@ -37,6 +60,7 @@ export function setupWebSocket(): void {
               break;
             }
             currentSessionId = session.id;
+            attachForwarder(session.id);
             const events = getSessionEvents(session.id);
             ws.send(JSON.stringify({ type: 'session_joined', data: { session, events } }));
             break;
@@ -85,17 +109,10 @@ export function setupWebSocket(): void {
               vertexConfig,
             });
 
-            // Pipe agent events to WebSocket
-            const eventHandler = (event: any) => {
-              if (ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({ type: 'agent_event', data: event }));
-              }
-            };
-            runner.on('event', eventHandler);
+            // Attach persistent forwarder (idempotent — no-op if already attached)
+            attachForwarder(currentSessionId);
 
             await runner.sendMessage(msg.content);
-
-            runner.off('event', eventHandler);
             break;
           }
 
@@ -108,8 +125,8 @@ export function setupWebSocket(): void {
     });
 
     ws.on('close', () => {
+      detachAll();
       currentSessionId = null;
     });
   });
 }
-

@@ -14,7 +14,7 @@ router.get('/', (_req: Request, res: Response) => {
 });
 
 router.post('/register', async (req: Request, res: Response) => {
-  const { name, path, port, containerId } = req.body;
+  const { name, path, port, containerId, workspaceName } = req.body;
   if (!name || !path || !port) {
     res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'name, path, and port required' } });
     return;
@@ -26,8 +26,8 @@ router.post('/register', async (req: Request, res: Response) => {
 
   try {
     db.prepare(
-      `INSERT INTO apps (id, name, path, port, container_id, status) VALUES (?, ?, ?, ?, ?, 'running')`
-    ).run(id, name, appPath, port, containerId || null);
+      `INSERT INTO apps (id, name, path, port, container_id, workspace_name, status) VALUES (?, ?, ?, ?, ?, ?, 'running')`
+    ).run(id, name, appPath, port, containerId || null, workspaceName || null);
 
     await addRoute(name, appPath, port);
 
