@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Eye, EyeOff, Plus, Trash2, Save, RotateCcw, Shield, Lock, Users as UsersIcon, Copy, Check } from 'lucide-react';
+import { Eye, EyeOff, Plus, Trash2, Save, RotateCcw, Shield, Lock, Users as UsersIcon, Copy, Check, Bot, Terminal } from 'lucide-react';
 import { apiFetch } from '../lib/api';
 
 interface SettingsProps {
@@ -20,6 +20,8 @@ interface User {
   role: string;
   createdAt: string;
 }
+
+type SettingsSection = 'ai-provider' | 'agent' | 'security' | 'secrets' | 'users';
 
 export function Settings({ open, onClose, isAdmin = false }: SettingsProps) {
   const [provider, setProvider] = useState<'anthropic' | 'vertex'>('anthropic');
@@ -60,6 +62,7 @@ export function Settings({ open, onClose, isAdmin = false }: SettingsProps) {
   const [newUserRole, setNewUserRole] = useState<'admin' | 'user'>('user');
   const [usersMessage, setUsersMessage] = useState('');
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [activeSection, setActiveSection] = useState<SettingsSection>('ai-provider');
 
   useEffect(() => {
     if (!open) return;
@@ -293,20 +296,48 @@ export function Settings({ open, onClose, isAdmin = false }: SettingsProps) {
 
   if (!open) return null;
 
+  const navItems: { key: SettingsSection; label: string; icon: React.ReactNode }[] = [
+    { key: 'ai-provider', label: 'AI Provider', icon: <Bot size={15} /> },
+    { key: 'agent',       label: 'Agent',       icon: <Terminal size={15} /> },
+    { key: 'security',    label: 'Security',    icon: <Lock size={15} /> },
+    { key: 'secrets',     label: 'Secrets',     icon: <Shield size={15} /> },
+    ...(isAdmin ? [{ key: 'users' as const, label: 'Users', icon: <UsersIcon size={15} /> }] : []),
+  ];
+
   return (
     <div className="flex-1 flex flex-col min-h-0">
-      {/* Header */}
-      <div className="px-6 py-5 border-b border-border flex items-center justify-between shrink-0">
-        <h2 className="font-semibold text-lg">Settings</h2>
-      </div>
+      <div className="flex flex-1 min-h-0">
+        {/* Left sidebar nav */}
+        <nav className="w-48 shrink-0 border-r border-border flex flex-col">
+          <div className="px-5 py-5 border-b border-border shrink-0">
+            <h2 className="font-semibold text-base">Settings</h2>
+          </div>
+          <div className="py-3 flex flex-col gap-0.5 px-2 flex-1">
+          {navItems.map(({ key, label, icon }) => (
+            <button
+              key={key}
+              onClick={() => setActiveSection(key)}
+              className={`flex items-center gap-2.5 w-full rounded-lg px-3 py-2 text-sm font-medium text-left transition-colors ${
+                activeSection === key
+                  ? 'bg-muted text-foreground'
+                  : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
+              }`}
+            >
+              {icon}
+              {label}
+            </button>
+          ))}
+          </div>
+        </nav>
 
-      {/* Scrollable body */}
-      <div className="overflow-y-auto flex-1 p-6">
-        <div className="max-w-5xl mx-auto space-y-7">
-          {/* LLM Configuration */}
+        {/* Right content panel */}
+        <div className="flex-1 overflow-y-auto py-6 px-6">
+          <div className="max-w-5xl mx-auto space-y-6">
+
+        {/* AI Provider section */}
+        {activeSection === 'ai-provider' && <>
           <section className="space-y-4">
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">LLM Provider</h3>
-
             {/* Provider toggle */}
             <div className="flex rounded-xl border border-border bg-muted p-1 gap-1">
               <button
@@ -431,11 +462,12 @@ export function Settings({ open, onClose, isAdmin = false }: SettingsProps) {
               <p className="text-sm text-secondary-foreground">{message}</p>
             )}
           </section>
+        </>}
 
-          {/* System Prompt */}
+        {/* Agent section */}
+        {activeSection === 'agent' && <>
           <section className="space-y-4">
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Agent System Prompt</h3>
-
             <textarea
               rows={10}
               value={systemPrompt || defaultSystemPrompt}
@@ -469,12 +501,9 @@ export function Settings({ open, onClose, isAdmin = false }: SettingsProps) {
             )}
           </section>
 
-          {/* Security */}
           <section className="space-y-4">
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Security</h3>
-
             <div className="space-y-1.5">
-              <label className="text-sm font-medium">Agent Mode</label>
               <div className="flex rounded-xl border border-border bg-muted p-1 gap-1">
                 <button
                   type="button"
@@ -523,16 +552,17 @@ export function Settings({ open, onClose, isAdmin = false }: SettingsProps) {
               className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-base font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
             >
               <Save size={16} />
-              {savingMode ? 'Saving…' : 'Save Security Settings'}
+              {savingMode ? 'Saving…' : 'Save Agent Settings'}
             </button>
 
             {modeMessage && <p className="text-sm text-secondary-foreground">{modeMessage}</p>}
           </section>
+        </>}
 
-          {/* Two-Factor Authentication */}
+        {/* Security section (2FA only) */}
+        {activeSection === 'security' && <>
           <section className="space-y-4">
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Two-Factor Authentication</h3>
-
             {totpEnabled ? (
               <div className="space-y-3">
                 <div className="flex items-center gap-2 text-green-600 dark:text-green-400 text-sm font-medium">
@@ -626,11 +656,12 @@ export function Settings({ open, onClose, isAdmin = false }: SettingsProps) {
               </div>
             )}
           </section>
+        </>}
 
-          {/* Secrets */}
+        {/* Secrets section */}
+        {activeSection === 'secrets' && <>
           <section className="space-y-4">
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Secrets</h3>
-
             <div className="space-y-2">
               {secrets.map((s) => (
                 <div
@@ -648,106 +679,131 @@ export function Settings({ open, onClose, isAdmin = false }: SettingsProps) {
               ))}
             </div>
 
-            {/* Add secret — stacks on mobile */}
-            <div className="flex flex-col sm:flex-row gap-2">
-              <input
-                type="text"
-                placeholder="Name"
-                value={newSecretName}
-                onChange={(e) => setNewSecretName(e.target.value)}
-                className="flex-1 rounded-xl border border-border bg-muted px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-primary"
-              />
-              <input
-                type="password"
-                placeholder="Value"
-                value={newSecretValue}
-                onChange={(e) => setNewSecretValue(e.target.value)}
-                className="flex-1 rounded-xl border border-border bg-muted px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-primary"
-              />
+            {/* Add secret */}
+            <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-3">
+              <p className="text-sm font-medium text-muted-foreground">Add new secret</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">Name</label>
+                  <input
+                    type="text"
+                    placeholder="Name"
+                    value={newSecretName}
+                    onChange={(e) => setNewSecretName(e.target.value)}
+                    className="w-full rounded-xl border border-border bg-muted px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">Value</label>
+                  <input
+                    type="password"
+                    placeholder="Value"
+                    value={newSecretValue}
+                    onChange={(e) => setNewSecretValue(e.target.value)}
+                    className="w-full rounded-xl border border-border bg-muted px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+              </div>
               <button
                 onClick={addSecret}
                 disabled={!newSecretName || !newSecretValue}
-                className="flex items-center justify-center gap-2 rounded-xl bg-secondary px-5 py-3 text-base font-medium text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 transition-colors sm:w-auto"
+                className="flex items-center gap-2 rounded-xl bg-secondary px-4 py-2.5 text-sm font-medium text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 transition-colors"
               >
-                <Plus size={18} />
-                <span className="sm:hidden">Add Secret</span>
+                <Plus size={16} />
+                Add Secret
               </button>
             </div>
           </section>
+        </>}
 
-          {/* Users — admin only */}
-          {isAdmin && (
-            <section className="space-y-4">
-              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
-                <UsersIcon size={13} />
-                Users
-              </h3>
-
-              <div className="space-y-2">
-                {users.map((u) => (
-                  <div
-                    key={u.id}
-                    className="flex items-center justify-between rounded-xl border border-border px-4 py-3"
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className="text-base font-mono">{u.username}</span>
-                      <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${
-                        u.role === 'admin'
-                          ? 'border-primary/40 text-primary bg-primary/10'
-                          : 'border-border text-muted-foreground'
-                      }`}>
-                        {u.role}
-                      </span>
-                    </div>
-                    <button
-                      onClick={() => handleDeleteUser(u.id)}
-                      disabled={u.id === currentUserId}
-                      className="p-1.5 text-muted-foreground hover:text-destructive transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                      title={u.id === currentUserId ? 'Cannot delete own account' : 'Delete user'}
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-
-              {/* Add user form */}
-              <div className="flex flex-col sm:flex-row gap-2">
-                <input
-                  type="text"
-                  placeholder="Username"
-                  value={newUserName}
-                  onChange={(e) => setNewUserName(e.target.value)}
-                  className="flex-1 rounded-xl border border-border bg-muted px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-                <input
-                  type="password"
-                  placeholder="Password"
-                  value={newUserPassword}
-                  onChange={(e) => setNewUserPassword(e.target.value)}
-                  className="flex-1 rounded-xl border border-border bg-muted px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-                <select
-                  value={newUserRole}
-                  onChange={(e) => setNewUserRole(e.target.value as 'admin' | 'user')}
-                  className="rounded-xl border border-border bg-muted px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-primary"
+        {/* Users section — admin only */}
+        {activeSection === 'users' && isAdmin && <>
+          <section className="space-y-4">
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
+              <UsersIcon size={13} />
+              Users
+            </h3>
+            <div className="space-y-2">
+              {users.map((u) => (
+                <div
+                  key={u.id}
+                  className="flex items-center justify-between rounded-xl border border-border px-4 py-3"
                 >
-                  <option value="user">user</option>
-                  <option value="admin">admin</option>
-                </select>
+                  <div className="flex items-center gap-3">
+                    <span className="text-base font-mono">{u.username}</span>
+                    <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${
+                      u.role === 'admin'
+                        ? 'border-primary/40 text-primary bg-primary/10'
+                        : 'border-border text-muted-foreground'
+                    }`}>
+                      {u.role}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => handleDeleteUser(u.id)}
+                    disabled={u.id === currentUserId}
+                    className="p-1.5 text-muted-foreground hover:text-destructive transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                    title={u.id === currentUserId ? 'Cannot delete own account' : 'Delete user'}
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            {/* Add user form */}
+            <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-3">
+              <p className="text-sm font-medium text-muted-foreground">Add new user</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">Username</label>
+                  <input
+                    type="text"
+                    placeholder="Username"
+                    value={newUserName}
+                    onChange={(e) => setNewUserName(e.target.value)}
+                    className="w-full rounded-xl border border-border bg-muted px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">Password</label>
+                  <input
+                    type="password"
+                    placeholder="Password"
+                    value={newUserPassword}
+                    onChange={(e) => setNewUserPassword(e.target.value)}
+                    className="w-full rounded-xl border border-border bg-muted px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-medium text-muted-foreground">Role</label>
+                  <select
+                    value={newUserRole}
+                    onChange={(e) => setNewUserRole(e.target.value as 'admin' | 'user')}
+                    className="rounded-xl border border-border bg-muted px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  >
+                    <option value="user">user</option>
+                    <option value="admin">admin</option>
+                  </select>
+                </div>
                 <button
                   onClick={handleAddUser}
                   disabled={!newUserName || !newUserPassword}
-                  className="flex items-center justify-center gap-2 rounded-xl bg-secondary px-5 py-3 text-base font-medium text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 transition-colors"
+                  className="mt-auto flex items-center gap-2 rounded-xl bg-secondary px-4 py-2.5 text-sm font-medium text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 transition-colors"
                 >
-                  <Plus size={18} />
+                  <Plus size={16} />
                   Add User
                 </button>
               </div>
+            </div>
 
-              {usersMessage && <p className="text-sm text-secondary-foreground">{usersMessage}</p>}
-            </section>
-          )}
+            {usersMessage && <p className="text-sm text-secondary-foreground">{usersMessage}</p>}
+          </section>
+        </>}
+
+          </div>
         </div>
       </div>
     </div>

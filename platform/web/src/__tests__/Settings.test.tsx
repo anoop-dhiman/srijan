@@ -12,6 +12,9 @@ import { apiFetch } from '../lib/api';
 describe('Settings', () => {
   const mockOnClose = vi.fn();
 
+  const clickNav = (label: string) =>
+    userEvent.click(screen.getByRole('button', { name: label }));
+
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(apiFetch).mockImplementation((path: string) => {
@@ -35,8 +38,8 @@ describe('Settings', () => {
   it('renders LLM Provider and Secrets sections', async () => {
     render(<Settings open={true} onClose={mockOnClose} />);
     await waitFor(() => {
-      expect(screen.getByText('LLM Provider')).toBeInTheDocument();
-      expect(screen.getByText('Secrets')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'AI Provider' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Secrets' })).toBeInTheDocument();
     });
   });
 
@@ -137,6 +140,8 @@ describe('Settings', () => {
     });
 
     render(<Settings open={true} onClose={mockOnClose} />);
+    await waitFor(() => screen.getByRole('heading', { name: 'Settings' }));
+    await clickNav('Secrets');
 
     await waitFor(() => {
       expect(screen.getByText('MY_SECRET')).toBeInTheDocument();
@@ -151,6 +156,7 @@ describe('Settings', () => {
 
     render(<Settings open={true} onClose={mockOnClose} />);
     await waitFor(() => screen.getByRole('heading', { name: 'Settings' }));
+    await clickNav('Secrets');
 
     await userEvent.type(screen.getByPlaceholderText('Name'), 'API_TOKEN');
     await userEvent.type(screen.getByPlaceholderText('Value'), 'secret-value');
@@ -167,18 +173,23 @@ describe('Settings', () => {
   it('Add Secret button is disabled when fields are empty', async () => {
     render(<Settings open={true} onClose={mockOnClose} />);
     await waitFor(() => screen.getByRole('heading', { name: 'Settings' }));
+    await clickNav('Secrets');
 
     const addBtn = screen.getByText('Add Secret').closest('button')!;
     expect(addBtn).toBeDisabled();
   });
 
-  it('secrets add row uses flex-col on mobile (stacks vertically)', async () => {
+  it('secrets add form renders Name and Value inputs in a labeled grid', async () => {
     render(<Settings open={true} onClose={mockOnClose} />);
     await waitFor(() => screen.getByRole('heading', { name: 'Settings' }));
+    await clickNav('Secrets');
 
     const nameInput = screen.getByPlaceholderText('Name');
-    const row = nameInput.closest('div')!;
-    expect(row.className).toContain('flex-col');
+    const valueInput = screen.getByPlaceholderText('Value');
+    expect(nameInput).toBeInTheDocument();
+    expect(valueInput).toBeInTheDocument();
+    const grid = nameInput.closest('.grid')!;
+    expect(grid).not.toBeNull();
   });
 
   it('deletes a secret when trash button clicked', async () => {
@@ -190,6 +201,8 @@ describe('Settings', () => {
     });
 
     render(<Settings open={true} onClose={mockOnClose} />);
+    await waitFor(() => screen.getByRole('heading', { name: 'Settings' }));
+    await clickNav('Secrets');
     await waitFor(() => screen.getByText('MY_SECRET'));
 
     const trashBtn = screen.getByText('MY_SECRET').closest('div')!.querySelector('button')!;
@@ -203,6 +216,8 @@ describe('Settings', () => {
   // 2FA section tests
   it('renders Two-Factor Authentication section', async () => {
     render(<Settings open={true} onClose={mockOnClose} />);
+    await waitFor(() => screen.getByRole('heading', { name: 'Settings' }));
+    await clickNav('Security');
     await waitFor(() => {
       expect(screen.getByText('Two-Factor Authentication')).toBeInTheDocument();
     });
@@ -215,6 +230,8 @@ describe('Settings', () => {
     });
 
     render(<Settings open={true} onClose={mockOnClose} />);
+    await waitFor(() => screen.getByRole('heading', { name: 'Settings' }));
+    await clickNav('Security');
     await waitFor(() => {
       expect(screen.getByText('Enable 2FA')).toBeInTheDocument();
     });
@@ -227,6 +244,8 @@ describe('Settings', () => {
     });
 
     render(<Settings open={true} onClose={mockOnClose} />);
+    await waitFor(() => screen.getByRole('heading', { name: 'Settings' }));
+    await clickNav('Security');
     await waitFor(() => {
       expect(screen.getByText('2FA is active')).toBeInTheDocument();
       expect(screen.getByText('Disable 2FA')).toBeInTheDocument();
@@ -241,6 +260,8 @@ describe('Settings', () => {
     });
 
     render(<Settings open={true} onClose={mockOnClose} />);
+    await waitFor(() => screen.getByRole('heading', { name: 'Settings' }));
+    await clickNav('Security');
     await waitFor(() => screen.getByText('Enable 2FA'));
     await userEvent.click(screen.getByText('Enable 2FA'));
 
@@ -269,10 +290,12 @@ describe('Settings', () => {
     });
 
     render(<Settings open={true} onClose={mockOnClose} isAdmin={true} />);
+    await waitFor(() => screen.getByRole('heading', { name: 'Settings' }));
+    await clickNav('Users');
 
     await waitFor(() => {
-      expect(screen.getByText('Users')).toBeInTheDocument();
-      expect(screen.getByText('admin')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Users' })).toBeInTheDocument();
+      expect(screen.getAllByText('admin').length).toBeGreaterThan(0);
     });
   });
 
@@ -287,7 +310,8 @@ describe('Settings', () => {
     });
 
     render(<Settings open={true} onClose={mockOnClose} isAdmin={true} />);
-    await waitFor(() => screen.getByText('Users'));
+    await waitFor(() => screen.getByRole('heading', { name: 'Settings' }));
+    await clickNav('Users');
 
     // Find username input in users section (labeled "Username")
     await userEvent.type(screen.getByPlaceholderText('Username'), 'alice');

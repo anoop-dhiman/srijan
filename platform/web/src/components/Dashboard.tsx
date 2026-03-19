@@ -225,8 +225,7 @@ interface DashboardProps {
 export function Dashboard({ workspaces, onRefresh, onViewSessions }: DashboardProps) {
   return (
     <div className="flex-1 flex flex-col min-h-0 overflow-y-auto">
-      <div className="px-6 py-5 border-b border-border flex items-center justify-between shrink-0">
-        <h2 className="font-semibold text-lg">Dashboard</h2>
+      <div className="px-6 py-4 border-b border-border flex items-center justify-end shrink-0">
         <button
           onClick={onRefresh}
           className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground px-3 py-1.5 rounded-lg hover:bg-muted transition-colors"

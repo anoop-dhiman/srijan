@@ -34,9 +34,9 @@ describe('Dashboard', () => {
     vi.clearAllMocks();
   });
 
-  it('renders Dashboard heading', () => {
+  it('renders Refresh button', () => {
     render(<Dashboard workspaces={[]} onRefresh={onRefresh} onViewSessions={onViewSessions} />);
-    expect(screen.getByText('Dashboard')).toBeInTheDocument();
+    expect(screen.getByText('Refresh')).toBeInTheDocument();
   });
 
   it('shows empty message when no workspaces', () => {
