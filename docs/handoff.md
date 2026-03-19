@@ -1,7 +1,7 @@
 # Srijan — Agent Handoff Summary
 
-> Date: 2026-03-19
-> Latest commit: `31951cf` (workspace-first UX redesign, background session streaming, per-session activity)
+> Date: 2026-03-20
+> Latest commit: `de4c779` (2FA QR code; Settings sidebar nav; Dashboard header removed)
 > Location: `/Users/anoop.dhiman/Documents/Srijan`
 
 ---
@@ -25,7 +25,7 @@ Srijan/
 │   ├── src/
 │   │   ├── server.ts        # Express entry point (:8080), WS upgrade dispatcher
 │   │   ├── routes/
-│   │   │   ├── auth.ts      # POST /api/auth/login, GET /api/auth/me
+│   │   │   ├── auth.ts      # POST /api/auth/login, GET /api/auth/me, /auth/totp/* TOTP endpoints
 │   │   │   ├── chat.ts      # WebSocket /api/chat (sessions, agent messaging, persistent forwarders)
 │   │   │   ├── config.ts    # GET/PUT /api/config (LLM + system prompt settings)
 │   │   │   ├── secrets.ts   # CRUD /api/secrets (AES-256 encrypted)
@@ -34,7 +34,10 @@ Srijan/
 │   │   │   ├── cost.ts      # GET /api/sessions/:id/cost (token usage aggregates)
 │   │   │   ├── containers.ts# GET /api/containers (filtered to registered app containers)
 │   │   │   ├── workspaces.ts# GET /api/workspaces (WorkspaceInfo[]), POST /api/workspaces
-│   │   │   └── terminal.ts  # WS /api/terminal (node-pty PTY)
+│   │   │   ├── terminal.ts  # WS /api/terminal (node-pty PTY)
+│   │   │   ├── files.ts     # GET /api/workspaces/:name/files, /file (workspace file browser)
+│   │   │   ├── sessions.ts  # GET /api/sessions/:id/recording (event replay)
+│   │   │   └── users.ts     # CRUD /api/users (admin only, RBAC)
 │   │   ├── agent/
 │   │   │   ├── runner.ts    # AgentRunner — Claude Code CLI subprocess, Vertex AI, boundaries, cost
 │   │   │   ├── session.ts   # Session CRUD, event persistence, delete with cascade
@@ -54,20 +57,22 @@ Srijan/
 │   │   └── __tests__/       # 76 backend tests (vitest + supertest)
 │   ├── web/                  # React frontend (separate package.json)
 │   │   ├── src/
-│   │   │   ├── App.tsx       # 4-tab nav (Chat|Dashboard|Terminal|Settings), workspace gate
+│   │   │   ├── App.tsx       # 5-tab nav (Chat|Dashboard|Files|Terminal|Settings), workspace gate
 │   │   │   ├── components/
-│   │   │   │   ├── Chat.tsx          # Workspace switcher sidebar, session activity indicators
-│   │   │   │   ├── Dashboard.tsx     # Workspace cards with expandable container sublists
-│   │   │   │   ├── Terminal.tsx      # xterm.js PTY terminal (lazy-loaded)
-│   │   │   │   ├── Settings.tsx      # LLM provider, system prompt, secrets, agent mode, boundaries
-│   │   │   │   ├── Login.tsx         # Password login
-│   │   │   │   └── WorkspaceEmptyState.tsx  # Fullscreen gate — "create first workspace"
+│   │   │   │   ├── Chat.tsx               # Workspace switcher sidebar, session activity, replay button
+│   │   │   │   ├── Dashboard.tsx          # Workspace cards with expandable container sublists
+│   │   │   │   ├── Terminal.tsx           # xterm.js PTY terminal (lazy-loaded)
+│   │   │   │   ├── Settings.tsx           # Sidebar nav layout: AI Provider, Agent, Security, Secrets, Users
+│   │   │   │   ├── Login.tsx              # Password login + TOTP challenge step
+│   │   │   │   ├── FileBrowser.tsx        # Two-panel workspace file tree + viewer
+│   │   │   │   ├── SessionRecording.tsx   # Read-only event replay for past sessions
+│   │   │   │   └── WorkspaceEmptyState.tsx# Fullscreen gate — "create first workspace"
 │   │   │   ├── hooks/
 │   │   │   │   └── useChat.ts    # Per-session activity state, workspace state, WS hook
 │   │   │   ├── lib/
-│   │   │   │   ├── api.ts        # HTTP client with JWT, WebSocket factory
+│   │   │   │   ├── api.ts        # HTTP client with JWT, WebSocket factory, getCurrentUser()
 │   │   │   │   └── utils.ts      # cn() — Tailwind class merge
-│   │   │   └── __tests__/        # 76 frontend tests (vitest + RTL)
+│   │   │   └── __tests__/        # 112 frontend tests (vitest + RTL)
 │   │   └── vite.config.ts        # Tailwind plugin, /api proxy to :8080
 │   ├── Dockerfile            # Multi-stage (build + prod with docker-cli + git)
 │   ├── package.json
@@ -144,8 +149,8 @@ function attachForwarder(sessionId: string) {
 
 ## What Works Now
 
-### Backend (76 tests passing)
-- **Auth**: login + JWT, WebSocket auth via `?token=` query param
+### Backend (121 tests passing)
+- **Auth**: login + JWT, WebSocket auth via `?token=` query param; TOTP 2FA (setup/enable/disable/status); challenge token for login flow
 - **Config**: GET/PUT for LLM settings (provider, API key, model, Vertex config), system prompt, agent mode, boundaries blocklist
 - **Secrets**: CRUD with AES-256 encryption; injected as env vars at agent spawn
 - **Apps**: list, register (triggers Caddy route, accepts `workspace_name`), delete (removes Caddy route)
@@ -153,33 +158,43 @@ function attachForwarder(sessionId: string) {
 - **Chat (WebSocket)**: create/join/list/delete sessions (with `workspace_name`), send messages, stream agent events via persistent forwarders
 - **Agent runner**: Claude Code CLI subprocess with Anthropic and Vertex AI support, boundaries enforcement, cost tracking
 - **Session persistence**: events stored in DB, restored on join (with JSON parsing)
+- **Session recording**: `GET /api/sessions/:id/recording` returns ordered event list for replay
 - **Cost tracking**: token usage INSERT on each `result` event; aggregate GET endpoint
 - **Workspaces**: list with metadata (session count, running containers, total cost, last activity); create/clone
+- **File browser**: `GET /api/workspaces/:name/files?path=` (directory listing) + `/file?path=` (file content)
 - **Containers**: filtered to registered app containers only; optional `?workspace=` scoping
 - **Terminal**: PTY via node-pty, WS at `/api/terminal?token=&sessionId=`, xterm.js on frontend
+- **Users (RBAC)**: `GET/POST/DELETE /api/users` (admin only); `role` column in users table; `requireAdmin` middleware
 
-### Frontend (76 tests passing)
-- **Login**: password auth, JWT stored in localStorage
+### Frontend (112 tests passing)
+- **Login**: password auth + optional TOTP challenge step; JWT stored in localStorage
 - **Workspace gate**: fullscreen empty state if no workspaces exist; must create before any chat
 - **Workspace switcher**: sidebar dropdown + `+` button with inline create form; persisted to localStorage
-- **Chat UI**: responsive layout, markdown rendering, streaming cursor
+- **Chat UI**: responsive layout, markdown rendering, streaming cursor; replay button per session
 - **Resizable sidebar**: drag to resize (180–480px), collapse/expand toggle button
 - **Session management**: create, switch, delete; filtered to current workspace; persisted to localStorage, auto-rejoin on reload
 - **Per-session activity**: spinner per session while agent runs; blue unread dot for background sessions; cleared when switching to a session
 - **Cost badge**: `$X.XXXX` shown per session in sidebar when cost > 0
-- **4-tab navigation**: Chat, Dashboard, Terminal, Settings in top header (mobile tab bar too)
-- **Settings page**: top-level view replacing main area; LLM provider, system prompt, secrets, agent mode (auto/confirm), boundaries blocklist; no close button
-- **Dashboard**: workspace cards with session count, container count, cost, last activity; expandable container sublist per workspace (fetched on demand)
+- **5-tab navigation**: Chat, Dashboard, Files, Terminal, Settings in top header
+- **Settings page**: sidebar navigation layout with sections: AI Provider, Agent (system prompt + mode + blocklist), Security (TOTP 2FA with QR code), Secrets, Users (admin only); "Settings" header in left panel
+- **File browser**: two-panel workspace file tree + file content viewer (Files tab)
+- **Session recording**: read-only replay of past sessions; replay button in Chat sidebar
+- **Dashboard**: workspace cards with session count, container count, cost, last activity; expandable container sublist per workspace; Refresh button, no page heading
 - **Terminal**: xterm.js PTY (lazy-loaded), connected to current session's workspace
 - **Real-time tool activity**: expandable pills per tool invocation with input/output details
 - **Thinking indicator**: animated bouncing dots + live status text
+- **Multi-user**: admin/user roles; Users section in Settings (admin only); current username shown in header
 
 ### API Routes
 
 | Method | Route | Description |
 |--------|-------|-------------|
-| POST | `/api/auth/login` | Password login, returns JWT |
+| POST | `/api/auth/login` | Password login; returns `{token}` or `{requires_totp, challenge_token}` |
 | GET | `/api/auth/me` | Current user info |
+| GET | `/api/auth/totp/status` | Whether TOTP is enabled for current user |
+| POST | `/api/auth/totp/setup` | Generate TOTP secret + `otpauth://` URI |
+| POST | `/api/auth/totp/enable` | Verify code and activate TOTP |
+| POST | `/api/auth/totp/disable` | Verify code and deactivate TOTP |
 | GET | `/api/config` | All config (includes `default_system_prompt`) |
 | PUT | `/api/config/:key` | Upsert config value (e.g., `llm`, `system_prompt`, `agentMode`, `agent_boundaries`) |
 | GET | `/api/secrets` | List secrets (names only) |
@@ -193,12 +208,18 @@ function attachForwarder(sessionId: string) {
 | GET | `/api/git/:name/status` | Git status |
 | POST | `/api/git/:name/pull` | Git pull |
 | GET | `/api/sessions/:id/cost` | Token usage aggregates for a session |
+| GET | `/api/sessions/:id/recording` | Ordered event list for session replay |
 | GET | `/api/containers` | List workspace-registered containers (`?workspace=name` optional) |
 | GET | `/api/containers/:id/logs` | Container logs (`?tail=100`) |
 | POST | `/api/containers/:id/start` | Start container |
 | POST | `/api/containers/:id/stop` | Stop container |
 | GET | `/api/workspaces` | List workspaces with metadata (`WorkspaceInfo[]`) |
 | POST | `/api/workspaces` | Create or clone a workspace |
+| GET | `/api/workspaces/:name/files` | List directory contents (`?path=` optional) |
+| GET | `/api/workspaces/:name/file` | Read file content (`?path=` required) |
+| GET | `/api/users` | List all users (admin only) |
+| POST | `/api/users` | Create user with role (admin only) |
+| DELETE | `/api/users/:id` | Delete user (admin only, cannot delete self) |
 | WS | `/api/chat?token=` | WebSocket for chat sessions |
 | WS | `/api/terminal?token=&sessionId=` | PTY terminal WebSocket |
 
@@ -272,7 +293,10 @@ Customizable via Settings → "Agent System Prompt" section. Saved to DB key `sy
 - **No ORM** — raw SQLite with parameterized queries
 - **Claude Code as CLI subprocess** — `@anthropic-ai/claude-code` is CLI-only, no importable `query()` function
 - **Workspace-first UX** — workspaces are the primary navigation unit; a workspace must exist before any chat starts; sessions are scoped to a workspace
-- **Settings as nav tab** — Settings is a top-level view in the 4-tab header nav, not a sidebar toggle or modal, consistent with Dashboard and Terminal
+- **Settings as nav tab** — Settings is a top-level view in the 5-tab header nav (Chat, Dashboard, Files, Terminal, Settings), not a sidebar toggle or modal
+- **Settings sidebar nav** — Settings uses a two-column layout: fixed `w-48` left nav with "Settings" header selects active section; right panel renders only that section with `max-w-5xl mx-auto` matching chat page width
+- **TOTP challenge token** — login returns `{requires_totp, challenge_token}` when TOTP is enabled; challenge tokens include a `purpose` claim and are rejected by the standard `authMiddleware`
+- **QR code for 2FA** — `qrcode.react` renders the `otpauth://` URI as an inline SVG with white background (scannable on dark themes); manual key shown as fallback
 - **Persistent WS forwarders** — background sessions keep streaming events to the client; per-session `sessionActivity` state tracks `isLoading`, `agentStatus`, `hasUnread`
 - **Container filtering** — `GET /api/containers` only returns containers registered in the `apps` table, excluding platform/caddy/unrelated containers
 - **`currentSessionRef`** — a `useRef` updated synchronously in the render body to avoid stale closure issues in the WS `onmessage` handler
@@ -303,6 +327,6 @@ Login: username `admin`, password `admin` (or `SRIJAN_ADMIN_PASSWORD` env var).
 
 ```bash
 cd platform
-npm test             # 76 backend tests
-cd web && npx vitest run  # 76 frontend tests
+npm test                  # 121 backend tests
+cd web && npx vitest run  # 112 frontend tests
 ```

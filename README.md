@@ -62,8 +62,8 @@ Then visit `https://dev.example.com/forge` from any device.
 
 ```bash
 cd platform
-npm test                     # 76 backend tests
-cd web && npx vitest run     # 76 frontend tests
+npm test                     # 121 backend tests
+cd web && npx vitest run     # 112 frontend tests
 ```
 
 ## Architecture
@@ -99,7 +99,11 @@ cd web && npx vitest run     # 76 frontend tests
 - **Top navigation** — Chat, Dashboard, Terminal, Settings tabs in the main header
 - **Dashboard** — workspace cards showing session count, container count, cost, last activity; expandable container sublists with logs/start/stop
 - **Terminal** — xterm.js PTY terminal in the browser connected to the current session's workspace
-- **Settings** — LLM provider (Anthropic / Vertex AI), system prompt editor, secret manager, agent mode (auto / confirm), boundaries blocklist
+- **Settings** — sidebar navigation layout with sections: AI Provider, Agent (system prompt + mode + blocklist), Security (TOTP 2FA with QR code), Secrets, Users (admin only)
+- **File browser** — two-panel tree + viewer for workspace files (Files tab)
+- **Session recording** — read-only replay of any past session with replay button in sidebar
+- **Multi-user RBAC** — admin/user roles; user management in Settings; real username in header
+- **TOTP 2FA** — enable/disable via Settings Security section; QR code + manual key; challenge step at login
 - **Real-time tool activity** — expandable pills showing file reads, edits, bash commands with input/output details
 - **Thinking indicator** — animated status showing what the agent is doing (Thinking, Reading file, Running command)
 - **Markdown rendering** — code blocks, inline code, formatting in agent responses
@@ -119,7 +123,8 @@ cd web && npx vitest run     # 76 frontend tests
 | Phase 1.5 | Vertex AI provider, system prompt, session UX, real-time feedback | **Done** |
 | Phase 2 | Multi-repo workspaces, secret proxy, agent boundaries, cost tracking, dashboard, terminal, confirm mode | **Done** |
 | Phase 3 | Workspace-first UX redesign, background session streaming, workspace metadata, per-session activity indicators | **Done** |
-| Phase 4 | Session snapshots, pause/resume, multi-user, local models, GitHub bot, file browser | Planned |
+| Phase 4 | File browser, session recording, TOTP 2FA (QR code), multi-user RBAC, Settings sidebar nav redesign | **Done** |
+| Phase 5 | Local models (Ollama), GitHub bot, Monaco code editor, webhook notifications | Planned |
 
 ## Tech Stack
 

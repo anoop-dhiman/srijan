@@ -1,7 +1,7 @@
 # Srijan - Feature Requirements & Roadmap
 
-> Version: 0.3.0
-> Date: 2026-03-19
+> Version: 0.4.0
+> Date: 2026-03-20
 
 ---
 
@@ -49,19 +49,25 @@
 | 23 | Container filtering | `GET /api/containers` returns only workspace-registered containers | **Done** |
 | 24 | WorkspaceInfo metadata | `GET /api/workspaces` returns session count, container count, cost, last activity | **Done** |
 
-### Nice to Have (Phase 4+)
+### Phase 4 Features — Done
+
+| # | Feature | Description | Status |
+|---|---------|-------------|--------|
+| 25 | File Browser | Two-panel tree + viewer for workspace files; Files tab in top nav | **Done** |
+| 26 | Session Recording | Read-only event replay for any past session; replay button in Chat sidebar | **Done** |
+| 27 | TOTP 2FA | Enable/disable via Settings → Security; QR code + manual key; challenge step at login | **Done** |
+| 28 | Multi-User RBAC | admin/user roles; `/api/users` CRUD; Users section in Settings (admin only); username in header | **Done** |
+| 29 | Settings Sidebar Nav | Two-column layout: fixed left nav selects section; sections: AI Provider, Agent, Security, Secrets, Users | **Done** |
+
+### Phase 5+ (Planned)
 
 | # | Feature | Description | Source Inspiration |
 |---|---------|-------------|-------------------|
-| 22 | Multi-User | RBAC, multiple user accounts | Coder |
-| 23 | Local Models | Ollama integration for private inference | Netclode |
-| 24 | GitHub Bot | @mention on PRs/issues triggers agent | Netclode |
-| 25 | Session Recording | VCR-pattern replay for debugging/testing | Docker cagent |
-| 26 | File Browser | Navigate workspace files in browser | OpenHands |
-| 27 | Code Editor | Monaco editor in browser | OpenHands |
-| 28 | TOTP 2FA | Two-factor authentication | Standard |
-| 29 | Webhook Notifications | Slack/Discord alerts for agent actions | Custom |
-| 30 | OCI Packaging | Package agent configs as container images | Docker cagent |
+| 30 | Local Models | Ollama integration for private inference | Netclode |
+| 31 | GitHub Bot | @mention on PRs/issues triggers agent | Netclode |
+| 32 | Code Editor | Monaco editor in browser | OpenHands |
+| 33 | Webhook Notifications | Slack/Discord alerts for agent actions | Custom |
+| 34 | OCI Packaging | Package agent configs as container images | Docker cagent |
 
 ---
 
