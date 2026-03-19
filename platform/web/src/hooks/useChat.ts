@@ -3,10 +3,12 @@ import { createChatSocket } from '../lib/api';
 
 export interface ChatMessage {
   id: string;
-  role: 'user' | 'assistant' | 'system';
+  role: 'user' | 'assistant' | 'system' | 'tool';
   content: string;
   streaming?: boolean;
   timestamp: number;
+  toolName?: string;
+  toolStatus?: 'running' | 'done' | 'error';
 }
 
 export interface Session {
@@ -16,12 +18,30 @@ export interface Session {
   createdAt: string;
 }
 
+function formatToolLabel(name: string, input: any): string {
+  switch (name) {
+    case 'Read': return `Reading ${input?.file_path || 'file'}`;
+    case 'Write': return `Writing ${input?.file_path || 'file'}`;
+    case 'Edit': return `Editing ${input?.file_path || 'file'}`;
+    case 'Bash': {
+      const cmd = input?.command || '';
+      const short = cmd.length > 80 ? cmd.slice(0, 80) + '…' : cmd;
+      return `Running: ${short}`;
+    }
+    case 'Grep': return `Searching for "${input?.pattern || '...'}"`;
+    case 'Glob': return `Finding files: ${input?.pattern || '...'}`;
+    case 'Agent': return 'Delegating to sub-agent';
+    default: return `Using ${name}`;
+  }
+}
+
 export function useChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [currentSession, setCurrentSession] = useState<Session | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [agentStatus, setAgentStatus] = useState('');
   const wsRef = useRef<WebSocket | null>(null);
   const streamBufferRef = useRef('');
 
@@ -61,14 +81,40 @@ export function useChat() {
           setCurrentSession(msg.data.session);
           localStorage.setItem('srijan_session_id', msg.data.session.id);
           // Restore events as messages
-          const restored: ChatMessage[] = msg.data.events
-            .filter((e: any) => e.type === 'user_message' || (e.type === 'agent_response' && !e.data?.streaming))
-            .map((e: any, i: number) => ({
-              id: `restored-${i}`,
-              role: e.type === 'user_message' ? 'user' : 'assistant',
-              content: e.type === 'user_message' ? e.data.content : e.data.content,
-              timestamp: new Date(e.created_at).getTime(),
-            }));
+          const restored: ChatMessage[] = [];
+          for (const e of msg.data.events) {
+            if (e.type === 'user_message') {
+              restored.push({
+                id: `restored-${restored.length}`,
+                role: 'user',
+                content: e.data.content,
+                timestamp: new Date(e.created_at).getTime(),
+              });
+            } else if (e.type === 'agent_response' && !e.data?.streaming) {
+              restored.push({
+                id: `restored-${restored.length}`,
+                role: 'assistant',
+                content: e.data.content,
+                timestamp: new Date(e.created_at).getTime(),
+              });
+            } else if (e.type === 'tool_use') {
+              restored.push({
+                id: `restored-${restored.length}`,
+                role: 'tool',
+                content: formatToolLabel(e.data.name, e.data.input),
+                toolName: e.data.name,
+                toolStatus: 'done',
+                timestamp: new Date(e.created_at).getTime(),
+              });
+            } else if (e.type === 'error') {
+              restored.push({
+                id: `restored-${restored.length}`,
+                role: 'system',
+                content: e.data.message,
+                timestamp: new Date(e.created_at).getTime(),
+              });
+            }
+          }
           setMessages(restored);
           break;
 
@@ -88,8 +134,14 @@ export function useChat() {
 
         case 'agent_event': {
           const evt = msg.data;
+
+          if (evt.type === 'session_start') {
+            setAgentStatus('Connecting to agent…');
+          }
+
           if (evt.type === 'agent_response') {
             if (evt.data.streaming) {
+              setAgentStatus('Writing…');
               streamBufferRef.current += evt.data.content;
               setMessages((prev) => {
                 const last = prev[prev.length - 1];
@@ -130,9 +182,38 @@ export function useChat() {
                 }
                 return prev;
               });
+              setAgentStatus('');
               setIsLoading(false);
             }
           }
+
+          if (evt.type === 'tool_use') {
+            const label = formatToolLabel(evt.data.name, evt.data.input);
+            setAgentStatus(label);
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: `tool-${evt.data.id}`,
+                role: 'tool',
+                content: label,
+                toolName: evt.data.name,
+                toolStatus: 'running',
+                timestamp: Date.now(),
+              },
+            ]);
+          }
+
+          if (evt.type === 'tool_result') {
+            setAgentStatus('Thinking…');
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === `tool-${evt.data.id}`
+                  ? { ...m, toolStatus: evt.data.isError ? 'error' : 'done' }
+                  : m
+              )
+            );
+          }
+
           if (evt.type === 'error') {
             setMessages((prev) => [
               ...prev,
@@ -143,6 +224,7 @@ export function useChat() {
                 timestamp: Date.now(),
               },
             ]);
+            setAgentStatus('');
             setIsLoading(false);
           }
           break;
@@ -158,6 +240,7 @@ export function useChat() {
               timestamp: Date.now(),
             },
           ]);
+          setAgentStatus('');
           setIsLoading(false);
           break;
       }
@@ -190,6 +273,7 @@ export function useChat() {
     };
     setMessages((prev) => [...prev, userMsg]);
     setIsLoading(true);
+    setAgentStatus('Thinking…');
     streamBufferRef.current = '';
 
     wsRef.current.send(JSON.stringify({ type: 'message', content }));
@@ -222,6 +306,7 @@ export function useChat() {
     currentSession,
     isConnected,
     isLoading,
+    agentStatus,
     connect,
     disconnect,
     sendMessage,

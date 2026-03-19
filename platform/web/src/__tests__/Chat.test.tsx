@@ -16,6 +16,7 @@ const defaultProps = {
   sessions: [] as Session[],
   currentSession: null,
   isLoading: false,
+  agentStatus: '',
   settingsOpen: false,
   onSendMessage: vi.fn(),
   onNewSession: vi.fn(),

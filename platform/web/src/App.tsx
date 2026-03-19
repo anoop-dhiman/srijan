@@ -50,6 +50,7 @@ function App() {
           sessions={chat.sessions}
           currentSession={chat.currentSession}
           isLoading={chat.isLoading}
+          agentStatus={chat.agentStatus}
           settingsOpen={settingsOpen}
           onSendMessage={chat.sendMessage}
           onNewSession={chat.newSession}

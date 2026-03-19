@@ -137,8 +137,10 @@ export class AgentRunner extends EventEmitter {
       const proc = spawn(process.execPath, args, {
         cwd: this.workspacePath,
         env,
+        stdio: ['pipe', 'pipe', 'pipe'],
       });
 
+      proc.stdin.end();
       this.subprocess = proc;
       let buffer = '';
       let stderrBuffer = '';

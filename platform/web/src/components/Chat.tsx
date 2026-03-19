@@ -1,5 +1,9 @@
 import { useState, useRef, useEffect, useCallback, FormEvent } from 'react';
-import { Send, Plus, Menu, Settings as SettingsIcon, Loader2, Trash2, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import {
+  Send, Plus, Menu, Settings as SettingsIcon, Loader2, Trash2,
+  PanelLeftClose, PanelLeftOpen, CheckCircle2, XCircle, Terminal,
+  FileText, Search, FolderSearch, Bot, ChevronDown, ChevronRight,
+} from 'lucide-react';
 import type { ChatMessage, Session } from '../hooks/useChat';
 import ReactMarkdown from 'react-markdown';
 import { Settings } from './Settings';
@@ -9,6 +13,7 @@ interface ChatProps {
   sessions: Session[];
   currentSession: Session | null;
   isLoading: boolean;
+  agentStatus: string;
   settingsOpen: boolean;
   onSendMessage: (content: string) => void;
   onNewSession: () => void;
@@ -22,11 +27,72 @@ const MIN_WIDTH = 180;
 const MAX_WIDTH = 480;
 const DEFAULT_WIDTH = 240;
 
+function toolIcon(name: string) {
+  switch (name) {
+    case 'Bash': return <Terminal size={14} />;
+    case 'Read': case 'Write': case 'Edit': return <FileText size={14} />;
+    case 'Grep': return <Search size={14} />;
+    case 'Glob': return <FolderSearch size={14} />;
+    case 'Agent': return <Bot size={14} />;
+    default: return <Terminal size={14} />;
+  }
+}
+
+function ToolMessage({ msg }: { msg: ChatMessage }) {
+  const [expanded, setExpanded] = useState(false);
+  const isRunning = msg.toolStatus === 'running';
+  const isError = msg.toolStatus === 'error';
+
+  return (
+    <div className="flex justify-start">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-mono transition-colors ${
+          isRunning
+            ? 'bg-primary/10 text-primary border border-primary/20'
+            : isError
+            ? 'bg-destructive/10 text-destructive border border-destructive/20'
+            : 'bg-muted/50 text-muted-foreground border border-border/50 hover:bg-muted'
+        }`}
+      >
+        {isRunning ? (
+          <Loader2 size={14} className="animate-spin shrink-0" />
+        ) : isError ? (
+          <XCircle size={14} className="shrink-0" />
+        ) : (
+          <>
+            {toolIcon(msg.toolName || '')}
+            <CheckCircle2 size={14} className="text-green-500 shrink-0" />
+          </>
+        )}
+        <span className="truncate max-w-md">{msg.content}</span>
+        {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+      </button>
+    </div>
+  );
+}
+
+function ThinkingIndicator({ status }: { status: string }) {
+  return (
+    <div className="flex justify-start">
+      <div className="flex items-center gap-2.5 rounded-2xl bg-muted border border-border px-4 py-3">
+        <div className="flex gap-1">
+          <span className="w-2 h-2 bg-primary/60 rounded-full animate-bounce [animation-delay:0ms]" />
+          <span className="w-2 h-2 bg-primary/60 rounded-full animate-bounce [animation-delay:150ms]" />
+          <span className="w-2 h-2 bg-primary/60 rounded-full animate-bounce [animation-delay:300ms]" />
+        </div>
+        <span className="text-sm text-muted-foreground">{status}</span>
+      </div>
+    </div>
+  );
+}
+
 export function Chat({
   messages,
   sessions,
   currentSession,
   isLoading,
+  agentStatus,
   settingsOpen,
   onSendMessage,
   onNewSession,
@@ -45,7 +111,7 @@ export function Chat({
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, agentStatus]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -94,6 +160,10 @@ export function Chat({
     el.style.height = 'auto';
     el.style.height = Math.min(el.scrollHeight, 200) + 'px';
   };
+
+  // Check if last message is a streaming assistant message (suppress thinking indicator)
+  const lastMsg = messages[messages.length - 1];
+  const showThinking = isLoading && agentStatus && !(lastMsg?.streaming);
 
   return (
     <div className="flex flex-1 min-h-0 w-full">
@@ -210,7 +280,7 @@ export function Chat({
           <>
             {/* Messages */}
             <div className="flex-1 overflow-y-auto py-6">
-              {messages.length === 0 && (
+              {messages.length === 0 && !isLoading && (
                 <div className="flex items-center justify-center h-full">
                   <div className="text-center space-y-3">
                     <h2 className="text-2xl font-semibold">Srijan</h2>
@@ -221,34 +291,43 @@ export function Chat({
                 </div>
               )}
 
-              <div className="max-w-5xl mx-auto px-6 space-y-5">
-                {messages.map((msg) => (
-                  <div
-                    key={msg.id}
-                    className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                  >
+              <div className="max-w-5xl mx-auto px-6 space-y-3">
+                {messages.map((msg) => {
+                  if (msg.role === 'tool') {
+                    return <ToolMessage key={msg.id} msg={msg} />;
+                  }
+
+                  return (
                     <div
-                      className={`max-w-[80%] rounded-2xl px-4 py-3 text-base ${
-                        msg.role === 'user'
-                          ? 'bg-primary text-primary-foreground'
-                          : msg.role === 'system'
-                          ? 'bg-destructive/20 text-destructive border border-destructive/30'
-                          : 'bg-muted border border-border'
-                      }`}
+                      key={msg.id}
+                      className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                     >
-                      {msg.role === 'assistant' ? (
-                        <div className="prose prose-invert prose-base max-w-none [&_pre]:bg-background [&_pre]:rounded-lg [&_pre]:p-3 [&_code]:text-secondary-foreground">
-                          <ReactMarkdown>{msg.content}</ReactMarkdown>
-                          {msg.streaming && (
-                            <span className="inline-block w-2 h-4 bg-primary animate-pulse ml-0.5" />
-                          )}
-                        </div>
-                      ) : (
-                        <p className="whitespace-pre-wrap">{msg.content}</p>
-                      )}
+                      <div
+                        className={`max-w-[80%] rounded-2xl px-4 py-3 text-base ${
+                          msg.role === 'user'
+                            ? 'bg-primary text-primary-foreground'
+                            : msg.role === 'system'
+                            ? 'bg-destructive/20 text-destructive border border-destructive/30'
+                            : 'bg-muted border border-border'
+                        }`}
+                      >
+                        {msg.role === 'assistant' ? (
+                          <div className="prose prose-invert prose-base max-w-none [&_pre]:bg-background [&_pre]:rounded-lg [&_pre]:p-3 [&_code]:text-secondary-foreground">
+                            <ReactMarkdown>{msg.content}</ReactMarkdown>
+                            {msg.streaming && (
+                              <span className="inline-block w-2 h-4 bg-primary animate-pulse ml-0.5" />
+                            )}
+                          </div>
+                        ) : (
+                          <p className="whitespace-pre-wrap">{msg.content}</p>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
+
+                {showThinking && <ThinkingIndicator status={agentStatus} />}
+
                 <div ref={messagesEndRef} />
               </div>
             </div>
