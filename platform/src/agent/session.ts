@@ -50,9 +50,13 @@ export function saveEvent(event: AgentEvent): void {
 
 export function getSessionEvents(sessionId: string): AgentEvent[] {
   const db = getDb();
-  return db.prepare(
+  const rows = db.prepare(
     'SELECT * FROM events WHERE session_id = ? ORDER BY id ASC'
-  ).all(sessionId) as AgentEvent[];
+  ).all(sessionId) as any[];
+  return rows.map((row) => ({
+    ...row,
+    data: typeof row.data === 'string' ? JSON.parse(row.data) : row.data,
+  })) as AgentEvent[];
 }
 
 export function updateSessionTitle(id: string, title: string): void {
