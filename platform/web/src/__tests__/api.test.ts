@@ -1,9 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { setToken, clearToken, isAuthenticated } from '../lib/api';
+import { setToken, clearToken, isAuthenticated, logout } from '../lib/api';
 
 describe('API Utils', () => {
   beforeEach(() => {
     localStorage.clear();
+    vi.restoreAllMocks();
   });
 
   describe('token management', () => {
@@ -19,6 +20,24 @@ describe('API Utils', () => {
       expect(isAuthenticated()).toBe(true);
       clearToken();
       expect(isAuthenticated()).toBe(false);
+    });
+  });
+
+  describe('logout', () => {
+    it('should clear token and reload the page', () => {
+      const reloadMock = vi.fn();
+      vi.spyOn(window, 'location', 'get').mockReturnValue({
+        ...window.location,
+        reload: reloadMock,
+      });
+
+      setToken('test-token');
+      expect(isAuthenticated()).toBe(true);
+
+      logout();
+
+      expect(isAuthenticated()).toBe(false);
+      expect(reloadMock).toHaveBeenCalledOnce();
     });
   });
 });
