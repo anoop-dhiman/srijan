@@ -42,18 +42,19 @@ function ToolMessage({ msg }: { msg: ChatMessage }) {
   const [expanded, setExpanded] = useState(false);
   const isRunning = msg.toolStatus === 'running';
   const isError = msg.toolStatus === 'error';
+  const hasDetails = msg.toolInput || msg.toolResult;
 
   return (
-    <div className="flex justify-start">
+    <div className="flex flex-col items-start gap-1">
       <button
-        onClick={() => setExpanded(!expanded)}
+        onClick={() => hasDetails && setExpanded(!expanded)}
         className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-mono transition-colors ${
           isRunning
             ? 'bg-primary/10 text-primary border border-primary/20'
             : isError
             ? 'bg-destructive/10 text-destructive border border-destructive/20'
             : 'bg-muted/50 text-muted-foreground border border-border/50 hover:bg-muted'
-        }`}
+        } ${hasDetails ? 'cursor-pointer' : 'cursor-default'}`}
       >
         {isRunning ? (
           <Loader2 size={14} className="animate-spin shrink-0" />
@@ -66,8 +67,31 @@ function ToolMessage({ msg }: { msg: ChatMessage }) {
           </>
         )}
         <span className="truncate max-w-md">{msg.content}</span>
-        {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+        {hasDetails && (expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />)}
       </button>
+
+      {expanded && hasDetails && (
+        <div className="ml-2 w-full max-w-2xl rounded-lg border border-border/50 bg-background text-xs font-mono overflow-hidden">
+          {msg.toolInput && (
+            <div className="px-3 py-2 border-b border-border/30">
+              <div className="text-muted-foreground mb-1 text-[10px] uppercase tracking-wider">Input</div>
+              <pre className="whitespace-pre-wrap break-all text-foreground/80 max-h-40 overflow-y-auto">
+                {typeof msg.toolInput === 'string' ? msg.toolInput : JSON.stringify(msg.toolInput, null, 2)}
+              </pre>
+            </div>
+          )}
+          {msg.toolResult && (
+            <div className="px-3 py-2">
+              <div className={`mb-1 text-[10px] uppercase tracking-wider ${isError ? 'text-destructive' : 'text-muted-foreground'}`}>
+                {isError ? 'Error' : 'Output'}
+              </div>
+              <pre className="whitespace-pre-wrap break-all text-foreground/80 max-h-60 overflow-y-auto">
+                {msg.toolResult}
+              </pre>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

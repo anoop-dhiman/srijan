@@ -8,6 +8,8 @@ export interface ChatMessage {
   streaming?: boolean;
   timestamp: number;
   toolName?: string;
+  toolInput?: any;
+  toolResult?: string;
   toolStatus?: 'running' | 'done' | 'error';
 }
 
@@ -103,9 +105,19 @@ export function useChat() {
                 role: 'tool',
                 content: formatToolLabel(e.data.name, e.data.input),
                 toolName: e.data.name,
+                toolInput: e.data.input,
                 toolStatus: 'done',
                 timestamp: new Date(e.created_at).getTime(),
               });
+            } else if (e.type === 'tool_result') {
+              // Attach result to the preceding tool_use message
+              for (let j = restored.length - 1; j >= 0; j--) {
+                if (restored[j].role === 'tool' && !restored[j].toolResult) {
+                  restored[j].toolResult = e.data.content || '';
+                  if (e.data.isError) restored[j].toolStatus = 'error';
+                  break;
+                }
+              }
             } else if (e.type === 'error') {
               restored.push({
                 id: `restored-${restored.length}`,
@@ -197,6 +209,7 @@ export function useChat() {
                 role: 'tool',
                 content: label,
                 toolName: evt.data.name,
+                toolInput: evt.data.input,
                 toolStatus: 'running',
                 timestamp: Date.now(),
               },
@@ -208,7 +221,11 @@ export function useChat() {
             setMessages((prev) =>
               prev.map((m) =>
                 m.id === `tool-${evt.data.id}`
-                  ? { ...m, toolStatus: evt.data.isError ? 'error' : 'done' }
+                  ? {
+                      ...m,
+                      toolStatus: evt.data.isError ? 'error' : 'done',
+                      toolResult: evt.data.content || '',
+                    }
                   : m
               )
             );
