@@ -7,12 +7,16 @@
 Srijan is a self-hosted platform that runs on a single VM and provides:
 
 - **Chat-based AI coding agent** accessible from laptop or mobile browser
+- **Workspace-first UX** — workspaces are the primary unit; all sessions are scoped to a workspace
 - **Full Docker access** — agent can build images, run containers, deploy apps
 - **Automatic routing** — deployed apps get live URLs under your domain
-- **Secret protection** — API keys never exposed to the agent sandbox
+- **Secret protection** — API keys decrypted at agent spawn, injected as `SRIJAN_SECRET_*` env vars, never visible to the agent
 - **Dual LLM provider support** — Anthropic API or Google Cloud Vertex AI
-- **Real-time activity feedback** — see tool use, file edits, and commands as they happen
-- **Configurable system prompt** — customize agent behavior and security rules from the UI
+- **Real-time activity feedback** — per-session spinner and unread indicators; background sessions continue streaming
+- **Agent Boundaries** — blocklist of dangerous Bash commands enforced at the platform level
+- **Confirm mode** — optional human-in-the-loop approval before agent executes actions
+- **Cost tracking** — token usage and USD cost per session, shown in sidebar
+- **PTY terminal** — browser-based terminal (xterm.js) connected to the agent's workspace
 
 ## How it Works
 
@@ -23,7 +27,7 @@ You (phone/laptop) -> https://your-domain.com/forge -> Chat with AI Agent
                                                            |
                                                     Agent deploys containers
                                                            |
-                                              https://your-domain.com/todo <- Live app!
+                                          https://your-domain.com/todo <- Live app!
 ```
 
 ## Quick Start
@@ -58,8 +62,8 @@ Then visit `https://dev.example.com/forge` from any device.
 
 ```bash
 cd platform
-npm test                     # 56 backend tests
-cd web && npx vitest run     # 56 frontend tests
+npm test                     # 76 backend tests
+cd web && npx vitest run     # 76 frontend tests
 ```
 
 ## Architecture
@@ -88,11 +92,14 @@ cd web && npx vitest run     # 56 frontend tests
 
 ## UI Features
 
+- **Workspace-first navigation** — create a workspace first; all sessions scoped to it; switcher dropdown + inline create in sidebar
+- **Background session activity** — spinner per session while agent runs; blue dot for unread updates from sessions you've switched away from
 - **Resizable sidebar** — drag to resize (180–480px), collapse/expand toggle
-- **Session management** — create, switch, delete sessions; auto-restored on reload
-- **Inline settings page** — full-width settings replaces chat area (not a modal)
-- **Provider toggle** — switch between Anthropic API and Vertex AI (GCP) with ADC or Service Account Key
-- **System prompt editor** — customize agent instructions with Reset to Default
+- **Session management** — create, switch, delete sessions; auto-restored on reload; cost badge per session
+- **Top navigation** — Chat, Dashboard, Terminal, Settings tabs in the main header
+- **Dashboard** — workspace cards showing session count, container count, cost, last activity; expandable container sublists with logs/start/stop
+- **Terminal** — xterm.js PTY terminal in the browser connected to the current session's workspace
+- **Settings** — LLM provider (Anthropic / Vertex AI), system prompt editor, secret manager, agent mode (auto / confirm), boundaries blocklist
 - **Real-time tool activity** — expandable pills showing file reads, edits, bash commands with input/output details
 - **Thinking indicator** — animated status showing what the agent is doing (Thinking, Reading file, Running command)
 - **Markdown rendering** — code blocks, inline code, formatting in agent responses
@@ -110,9 +117,9 @@ cd web && npx vitest run     # 56 frontend tests
 |-------|-------|--------|
 | Phase 1 (MVP) | Chat UI, Claude Code agent, Docker deploy, Caddy routing, auth, setup script | **Done** |
 | Phase 1.5 | Vertex AI provider, system prompt, session UX, real-time feedback | **Done** |
-| Phase 2 | Multi-repo, secret proxy, agent boundaries, app dashboard | Planned |
-| Phase 3 | Session snapshots, pause/resume, cost tracking | Planned |
-| Phase 4 | Multi-user, local models, GitHub bot, file browser | Planned |
+| Phase 2 | Multi-repo workspaces, secret proxy, agent boundaries, cost tracking, dashboard, terminal, confirm mode | **Done** |
+| Phase 3 | Workspace-first UX redesign, background session streaming, workspace metadata, per-session activity indicators | **Done** |
+| Phase 4 | Session snapshots, pause/resume, multi-user, local models, GitHub bot, file browser | Planned |
 
 ## Tech Stack
 
@@ -123,6 +130,7 @@ cd web && npx vitest run     # 56 frontend tests
 | Agent | @anthropic-ai/claude-code (CLI subprocess) |
 | LLM Providers | Anthropic API, Google Cloud Vertex AI |
 | Database | SQLite (better-sqlite3, WAL mode) |
+| Terminal | node-pty + xterm.js |
 | Containers | Docker Engine |
 | Proxy | Caddy 2 (auto HTTPS, Admin API) |
 | Auth | bcrypt + JWT (jsonwebtoken) |
@@ -130,4 +138,4 @@ cd web && npx vitest run     # 56 frontend tests
 
 ## License
 
-TBD
+MIT

@@ -1,6 +1,6 @@
 # Srijan - Feature Requirements & Roadmap
 
-> Version: 0.1.0
+> Version: 0.3.0
 > Date: 2026-03-19
 
 ---
@@ -25,21 +25,29 @@
 | 12 | Session Persistence | Sessions persist across reloads, delete support, event restoration | **Done** |
 | 13 | Real-time Feedback | Expandable tool activity pills, thinking indicator, live status | **Done** |
 
-### Should Have (Phase 2-3)
+### Phase 2 Features — Done
 
-| # | Feature | Description | Source Inspiration |
-|---|---------|-------------|-------------------|
-| 11 | Multi-LLM Providers | Azure OpenAI, GCP Vertex, OpenAI via LiteLLM | OpenHands LiteLLM |
-| 12 | Multi-Repo | Support multiple git repositories simultaneously | Coder |
-| 13 | Secret Proxy | Placeholder injection - API keys never enter agent sandbox | Netclode |
-| 14 | Agent Boundaries | Block destructive commands (rm -rf /, docker rm platform) | Coder |
-| 15 | App Dashboard | Running containers, logs, URLs, start/stop controls | Custom |
-| 16 | Terminal Access | xterm.js terminal in browser connected to agent workspace | Netclode |
-| 17 | Multiple Agent SDKs | OpenCode, Codex as alternative agent backends | Netclode |
-| 18 | Session Snapshots | Turn-based state snapshots with full rollback capability | Netclode |
-| 19 | Session Pause/Resume | Save and restore complete session state | Netclode |
-| 20 | Agent Confirm Mode | Approve actions before execution (vs yolo mode) | Claude Code |
-| 21 | Cost Tracking | Token usage per session/conversation | OpenHands |
+| # | Feature | Description | Status |
+|---|---------|-------------|--------|
+| 11 | Multi-Repo / Workspaces | Multiple named workspaces; sessions scoped to a workspace | **Done** |
+| 12 | Secret Proxy | Secrets injected as `SRIJAN_SECRET_*` env vars at agent spawn; never visible to agent | **Done** |
+| 13 | Agent Boundaries | Blocklist of dangerous Bash commands enforced at platform level; configurable via UI | **Done** |
+| 14 | Agent Confirm Mode | `--permission-mode default` flag; agent asks before executing actions | **Done** |
+| 15 | Cost Tracking | Token usage inserted per session on each result; USD cost shown in session sidebar | **Done** |
+| 16 | App Dashboard | Workspace cards with session count, container count, cost, last activity | **Done** |
+| 17 | Terminal Access | xterm.js PTY terminal in browser via node-pty WebSocket | **Done** |
+
+### Phase 3 Features — Done
+
+| # | Feature | Description | Status |
+|---|---------|-------------|--------|
+| 18 | Workspace-first UX | Workspace must exist before chat; all sessions scoped to workspace | **Done** |
+| 19 | Workspace switcher | Sidebar dropdown + `+` inline create; persisted to localStorage | **Done** |
+| 20 | Background session streaming | Persistent per-session WS forwarders; all sessions stream even when not active | **Done** |
+| 21 | Per-session activity indicators | Spinner (agent running) + blue dot (unread) per session in sidebar | **Done** |
+| 22 | Settings as nav tab | Settings promoted to top-level 4-tab navigation (Chat/Dashboard/Terminal/Settings) | **Done** |
+| 23 | Container filtering | `GET /api/containers` returns only workspace-registered containers | **Done** |
+| 24 | WorkspaceInfo metadata | `GET /api/workspaces` returns session count, container count, cost, last activity | **Done** |
 
 ### Nice to Have (Phase 4+)
 

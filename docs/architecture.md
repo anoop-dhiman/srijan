@@ -1,8 +1,8 @@
 # Srijan - Architecture Design
 
-> Version: 0.1.0
+> Version: 0.3.0
 > Date: 2026-03-19
-> Status: Draft
+> Status: Current
 
 ---
 
@@ -332,39 +332,43 @@ Browser -> Caddy (HTTPS, auto-TLS) -> Platform API
 ### Layout (Mobile-First)
 
 ```
-+--------------------------------------------------+
-|  Srijan                   ● Connected  admin [Logout] |
-+--------------------------------------------------+
-| [◀] | Chat / Settings area                        |
-|-----+                                             |
-| + New Chat  |                                      |
-|             |  > Build me a todo app               |
-| Session 1   |                                      |
-| 19/03/2026  |  ✓ Reading package.json              |
-|             |  ✓ Editing src/index.ts               |
-|             |  ● Running: npm install  (spinner)    |
-|             |                                      |
-| Session 2   |  ● ● ● Thinking...                  |
-| 18/03/2026  |                                      |
-|             |  Agent: Here's what I built...        |
-|             |  (markdown rendered)                  |
-|             |                                      |
-|             |  +--------------------------------+  |
-|  ⚙ Settings |  | Type a message...         [▶] |  |
-|             |  +--------------------------------+  |
-+--------------------------------------------------+
++----------------------------------------------------------+
+|  Srijan   [Chat] [Dashboard] [Terminal] [Settings]        |
+|           ● Connected  admin  [Logout]                    |
++----------------------------------------------------------+
+| [◀] SIDEBAR  |  MAIN AREA (Chat / Dashboard / Terminal / |
+|              |  Settings based on active tab)             |
+|  Workspace   |                                            |
+|  [my-app  v] [+]                                         |
+|              |  > Build me a todo app                     |
+|  [+ New Chat]|                                            |
+|  ──────────  |  ✓ Reading package.json                   |
+|  Session 1 ⟳ |  ✓ Editing src/index.ts                   |
+|  Session 2 🔵 |  ● Running: npm install  (spinner)        |
+|  Session 3   |                                            |
+|              |  ● ● ● Thinking...                        |
+|              |                                            |
+|              |  Agent: Here's what I built...             |
+|              |  (markdown rendered)                       |
+|              |                                            |
+|              |  +----------------------------------+      |
+|              |  | Type a message...           [▶]  |      |
+|              |  +----------------------------------+      |
++----------------------------------------------------------+
 ```
 
+- Header: 4-tab nav (Chat, Dashboard, Terminal, Settings) + connection status + logout
 - Sidebar: resizable (180–480px), collapsible via toggle button
+- Workspace switcher: dropdown (select) + `+` button → inline create form
+- Session list: filtered to current workspace; ⟳ = agent running, 🔵 = unread update
 - Tool pills: expandable to show input/output details
 - Thinking indicator: animated dots + live status text
-- Settings opens inline (replaces chat area)
 
-### Settings Page (Inline — replaces chat area)
+### Settings Page (Top-level view — replaces main area when Settings tab active)
 
 ```
 +------------------------------------------+
-|  Settings                         [Close] |
+|  Settings                                 |
 +------------------------------------------+
 |                                           |
 |  LLM PROVIDER                             |
@@ -372,12 +376,12 @@ Browser -> Caddy (HTTPS, auto-TLS) -> Platform API
 |  | [Anthropic API] [Vertex AI (GCP)]   | |  <- segmented toggle
 |  |                                      | |
 |  | IF Anthropic:                        | |
-|  |   API Key: [sk-ant-... 👁]           | |
+|  |   API Key: [sk-ant-... eye]          | |
 |  | IF Vertex:                           | |
 |  |   Project ID: [my-gcp-project]       | |
 |  |   Region: [global]                   | |
-|  |   SA Key (optional): [textarea 👁]   | |
-|  |   ℹ Leave blank to use gcloud ADC    | |
+|  |   SA Key (optional): [textarea eye]  | |
+|  |   i  Leave blank to use gcloud ADC   | |
 |  |                                      | |
 |  | Model: [Claude Sonnet 4.6 v]         | |
 |  | [Save]                               | |
@@ -395,20 +399,33 @@ Browser -> Caddy (HTTPS, auto-TLS) -> Platform API
 |  | MY_SECRET                     [trash]| |
 |  | [Name] [Value] [+]                   | |
 |  +-------------------------------------+ |
-+------------------------------------------+
-```
-
-### Apps Dashboard (Bottom Panel)
-
-```
-+------------------------------------------+
-|  Deployed Apps                            |
-+------------------------------------------+
-|  todo-app  /todo  :3001  [Running]  [...] |
-|  api-svc   /api   :3002  [Running]  [...] |
-|  ml-model  /ml    :3003  [Stopped]  [...] |
 |                                           |
-|  [...] menu: Logs | Restart | Stop | Remove
+|  SECURITY                                 |
+|  +-------------------------------------+ |
+|  | Agent Mode: [Auto] [Confirm]         | |
+|  | Boundaries (blocked commands):       | |
+|  | [rm -rf /]  [shutdown]  [...]        | |
+|  +-------------------------------------+ |
++------------------------------------------+
+```
+
+### Dashboard (Workspace Cards)
+
+```
++------------------------------------------+
+|  Dashboard                    [Refresh]   |
++------------------------------------------+
+|  my-react-app           [Active]          |
+|  3 sessions  2 containers  $0.024         |
+|  Last active: 2 hours ago                 |
+|  [View Sessions]  [Show Containers v]     |
+|    todo-web  [running]  [Logs] [Stop]     |
+|    postgres  [running]  [Logs] [Stop]     |
++------------------------------------------+
+|  api-service            [Idle]            |
+|  1 session   0 containers  $0.012         |
+|  Last active: yesterday                   |
+|  [View Sessions]  [Show Containers v]     |
 +------------------------------------------+
 ```
 
@@ -571,16 +588,20 @@ Srijan/
 |   +-- Dockerfile
 |   +-- package.json
 |   +-- src/
-|   |   +-- server.ts            # Express API server
+|   |   +-- server.ts            # Express API server, WS upgrade dispatcher
 |   |   +-- routes/
 |   |   |   +-- auth.ts
-|   |   |   +-- chat.ts          # WebSocket handler (sessions, agent events, delete)
+|   |   |   +-- chat.ts          # WebSocket handler (persistent per-session forwarders)
 |   |   |   +-- config.ts        # GET/PUT config (exposes default_system_prompt)
 |   |   |   +-- secrets.ts
-|   |   |   +-- apps.ts
+|   |   |   +-- apps.ts          # register accepts workspace_name
 |   |   |   +-- git.ts
+|   |   |   +-- cost.ts          # GET /api/sessions/:id/cost
+|   |   |   +-- containers.ts    # Filtered to registered app containers
+|   |   |   +-- workspaces.ts    # WorkspaceInfo[] with metadata
+|   |   |   +-- terminal.ts      # WS PTY (node-pty)
 |   |   +-- agent/
-|   |   |   +-- runner.ts        # Claude Code CLI subprocess, Vertex AI, system prompt
+|   |   |   +-- runner.ts        # Claude Code CLI subprocess, Vertex AI, boundaries, cost
 |   |   |   +-- events.ts        # Event type definitions
 |   |   |   +-- session.ts       # Session CRUD, event persistence, delete with cascade
 |   |   +-- security/
@@ -590,25 +611,30 @@ Srijan/
 |   |   |   +-- caddy.ts         # Caddy Admin API client
 |   |   +-- git/
 |   |   |   +-- manager.ts       # Git operations (simple-git)
+|   |   +-- lib/
+|   |   |   +-- crypto.ts        # AES-256-CBC encrypt/decrypt
 |   |   +-- db/
-|   |   |   +-- store.ts         # SQLite singleton (WAL mode)
-|   |   |   +-- schema.sql       # Tables: users, sessions, events, secrets, apps, config
-|   |   +-- __tests__/           # 56 backend tests
+|   |   |   +-- store.ts         # SQLite singleton (WAL mode, migrations)
+|   |   |   +-- schema.sql       # Tables: users, sessions, events, secrets, apps, config, token_usage
+|   |   +-- __tests__/           # 76 backend tests
 |   +-- web/                      # React frontend (separate package.json)
 |       +-- index.html
 |       +-- vite.config.ts
 |       +-- src/
-|           +-- App.tsx           # Auth gate → Chat + inline Settings
+|           +-- App.tsx           # 4-tab nav, workspace gate, view routing
 |           +-- components/
-|           |   +-- Chat.tsx      # Resizable sidebar, tool messages, thinking indicator
-|           |   +-- Login.tsx     # Password login
-|           |   +-- Settings.tsx  # Inline: LLM provider, system prompt, secrets
+|           |   +-- Chat.tsx              # Workspace switcher, session activity indicators
+|           |   +-- Dashboard.tsx         # Workspace cards with container sublists
+|           |   +-- Terminal.tsx          # xterm.js PTY (lazy-loaded)
+|           |   +-- Settings.tsx          # LLM, system prompt, secrets, agent mode, boundaries
+|           |   +-- Login.tsx             # Password login
+|           |   +-- WorkspaceEmptyState.tsx  # Fullscreen create-first-workspace gate
 |           +-- hooks/
-|           |   +-- useChat.ts    # WebSocket hook (sessions, streaming, tool events)
+|           |   +-- useChat.ts    # Per-session activity state, workspace state, WS hook
 |           +-- lib/
 |           |   +-- api.ts        # HTTP client with JWT, WebSocket factory
 |           |   +-- utils.ts      # cn() — Tailwind class merge
-|           +-- __tests__/        # 56 frontend tests
+|           +-- __tests__/        # 76 frontend tests
 +-- deployment/
 |   +-- setup.sh                 # One-line setup script
 |   +-- docker-compose.yml       # Caddy + Platform compose
@@ -640,30 +666,33 @@ Srijan/
 - [x] Configurable system prompt with security rules
 - [x] Real-time tool activity feedback (expandable tool messages)
 - [x] Thinking indicator with live status
-- [x] Inline settings page (not modal)
-- [ ] Setup script (domain, Docker, Caddy auto-SSL)
+- [x] Settings as top-level nav tab
+- [x] Setup script (domain, Docker, Caddy auto-SSL)
 
-### Phase 2: Multi-Provider (v0.2)
-- [ ] Multi-repo support
-- [ ] OpenCode as second agent backend
-- [ ] Secret proxy (placeholder injection pattern)
-- [ ] Agent Boundaries (destructive command blocking)
-- [ ] App dashboard (running containers, logs, URLs)
-- [ ] Terminal access (xterm.js)
+### Phase 2: Features (v0.2) — DONE
+- [x] Multi-repo / workspace support
+- [x] Secret proxy (secrets injected as SRIJAN_SECRET_* env vars at agent spawn)
+- [x] Agent Boundaries (destructive Bash command blocklist, configurable via UI)
+- [x] Agent confirm mode (approve actions before execution)
+- [x] Cost tracking (token usage per session, USD cost in sidebar)
+- [x] App dashboard (workspace cards, container sublists, logs, start/stop)
+- [x] Terminal access (xterm.js PTY in browser)
 
-### Phase 3: Sessions & Safety (v0.3)
-- [ ] Session pause/resume
-- [ ] Turn-based snapshots (full state rollback)
-- [ ] Agent confirm mode (approve actions before execution)
-- [ ] Codex SDK integration
-- [ ] Cost tracking (token usage per session)
-- [ ] Webhook notifications (Slack, Discord)
+### Phase 3: Workspace-first UX (v0.3) — DONE
+- [x] Workspace-first navigation — workspace must exist before chat
+- [x] Workspace switcher dropdown + inline create in sidebar
+- [x] Session list scoped to current workspace
+- [x] Background session streaming — all sessions stream events even when not active
+- [x] Per-session activity indicators (spinner for running, blue dot for unread)
+- [x] Dashboard workspace cards with metadata (session count, containers, cost, last activity)
+- [x] Container filtering — only workspace-registered containers shown
+- [x] WorkspaceInfo metadata endpoint
 
-### Phase 4: Advanced (v1.0)
+### Phase 4: Advanced (v1.0) — Planned
+- [ ] Session snapshots, pause/resume
 - [ ] Multi-user support (RBAC)
 - [ ] Local model support (Ollama)
 - [ ] GitHub bot (@mention on PRs/issues)
-- [ ] Session recording/replay
 - [ ] File browser in UI
 - [ ] Code editor in UI (Monaco)
 - [ ] TOTP 2FA
