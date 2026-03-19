@@ -69,9 +69,11 @@ export function useChat() {
   const wsRef = useRef<WebSocket | null>(null);
   const streamBufferRef = useRef('');
   const currentSessionRef = useRef<Session | null>(null);
+  const currentWorkspaceRef = useRef<string | null>(currentWorkspace);
 
-  // Keep ref in sync with state
+  // Keep refs in sync with state
   currentSessionRef.current = currentSession;
+  currentWorkspaceRef.current = currentWorkspace;
 
   const setCurrentWorkspace = useCallback((name: string | null) => {
     setCurrentWorkspaceState(name);
@@ -363,9 +365,9 @@ export function useChat() {
 
   const sendMessage = useCallback((content: string) => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
-    if (!currentSessionRef.current) return;
+    // Require a workspace when no session exists yet — prevents orphaned sessions
+    if (!currentSessionRef.current && !currentWorkspaceRef.current) return;
 
-    const sid = currentSessionRef.current.id;
     const userMsg: ChatMessage = {
       id: `msg-${Date.now()}`,
       role: 'user',
@@ -373,13 +375,21 @@ export function useChat() {
       timestamp: Date.now(),
     };
     setMessages((prev) => [...prev, userMsg]);
-    setSessionActivity(prev => ({
-      ...prev,
-      [sid]: { ...(prev[sid] || DEFAULT_ACTIVITY), isLoading: true, agentStatus: 'Thinking…' },
-    }));
     streamBufferRef.current = '';
 
-    wsRef.current.send(JSON.stringify({ type: 'message', content }));
+    if (currentSessionRef.current) {
+      const sid = currentSessionRef.current.id;
+      setSessionActivity(prev => ({
+        ...prev,
+        [sid]: { ...(prev[sid] || DEFAULT_ACTIVITY), isLoading: true, agentStatus: 'Thinking…' },
+      }));
+    }
+
+    wsRef.current.send(JSON.stringify({
+      type: 'message',
+      content,
+      workspaceName: currentWorkspaceRef.current ?? undefined,
+    }));
   }, []);
 
   const joinSession = useCallback((sessionId: string) => {

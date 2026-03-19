@@ -46,6 +46,10 @@ export function setupWebSocket(): void {
           }
 
           case 'new_session': {
+            if (!msg.workspaceName) {
+              ws.send(JSON.stringify({ type: 'error', data: { message: 'A workspace must be selected before starting a new session.' } }));
+              break;
+            }
             const session = createSession(user.userId, msg.title, msg.workspaceName);
             currentSessionId = session.id;
             ws.send(JSON.stringify({ type: 'session_created', data: session }));
@@ -79,8 +83,12 @@ export function setupWebSocket(): void {
           }
 
           case 'message': {
+            if (!currentSessionId && !msg.workspaceName) {
+              ws.send(JSON.stringify({ type: 'error', data: { message: 'A workspace must be selected before sending a message.' } }));
+              break;
+            }
             if (!currentSessionId) {
-              const session = createSession(user.userId);
+              const session = createSession(user.userId, undefined, msg.workspaceName);
               currentSessionId = session.id;
               ws.send(JSON.stringify({ type: 'session_created', data: session }));
             }

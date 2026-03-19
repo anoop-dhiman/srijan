@@ -298,9 +298,11 @@ export function Chat({
     document.addEventListener('mouseup', handleMouseUp);
   }, []);
 
+  const noWorkspace = !currentWorkspace && !currentSession;
+
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || isLoading) return;
+    if (!input.trim() || isLoading || noWorkspace) return;
     onSendMessage(input.trim());
     setInput('');
     if (inputRef.current) {
@@ -524,13 +526,14 @@ export function Chat({
                 value={input}
                 onChange={handleInput}
                 onKeyDown={handleKeyDown}
-                placeholder="Type a message..."
+                disabled={noWorkspace}
+                placeholder={noWorkspace ? 'Select a workspace to start chatting…' : 'Type a message...'}
                 rows={2}
-                className="w-full bg-transparent resize-none px-4 pt-4 pb-14 max-h-[200px] outline-none text-base placeholder:text-muted-foreground"
+                className="w-full bg-transparent resize-none px-4 pt-4 pb-14 max-h-[200px] outline-none text-base placeholder:text-muted-foreground disabled:opacity-50 disabled:cursor-not-allowed"
               />
               <button
                 type="submit"
-                disabled={!input.trim() || isLoading}
+                disabled={!input.trim() || isLoading || noWorkspace}
                 className="absolute bottom-3 right-3 rounded-xl bg-primary p-2.5 text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
               >
                 {isLoading ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
