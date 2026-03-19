@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { authMiddleware } from '../security/auth.js';
 import { getDb } from '../db/store.js';
+import { DEFAULT_SYSTEM_PROMPT } from '../agent/runner.js';
 
 const router = Router();
 
@@ -13,6 +14,7 @@ router.get('/', (_req: Request, res: Response) => {
   for (const row of rows) {
     config[row.key] = JSON.parse(row.value);
   }
+  config.default_system_prompt = DEFAULT_SYSTEM_PROMPT;
   res.json(config);
 });
 

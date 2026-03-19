@@ -16,11 +16,13 @@ const defaultProps = {
   sessions: [] as Session[],
   currentSession: null,
   isLoading: false,
+  settingsOpen: false,
   onSendMessage: vi.fn(),
   onNewSession: vi.fn(),
   onJoinSession: vi.fn(),
   onDeleteSession: vi.fn(),
   onOpenSettings: vi.fn(),
+  onCloseSettings: vi.fn(),
 };
 
 const mockSession: Session = {

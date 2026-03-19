@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Eye, EyeOff, Plus, Trash2, Save } from 'lucide-react';
+import { X, Eye, EyeOff, Plus, Trash2, Save, RotateCcw } from 'lucide-react';
 import { apiFetch } from '../lib/api';
 
 interface SettingsProps {
@@ -25,8 +25,12 @@ export function Settings({ open, onClose }: SettingsProps) {
   const [secrets, setSecrets] = useState<Secret[]>([]);
   const [newSecretName, setNewSecretName] = useState('');
   const [newSecretValue, setNewSecretValue] = useState('');
+  const [systemPrompt, setSystemPrompt] = useState('');
+  const [defaultSystemPrompt, setDefaultSystemPrompt] = useState('');
   const [saving, setSaving] = useState(false);
+  const [savingPrompt, setSavingPrompt] = useState(false);
   const [message, setMessage] = useState('');
+  const [promptMessage, setPromptMessage] = useState('');
 
   useEffect(() => {
     if (!open) return;
@@ -45,6 +49,8 @@ export function Settings({ open, onClose }: SettingsProps) {
         setVertexRegion(config.llm.vertexRegion || 'global');
         setVertexCredentials(config.llm.vertexCredentials || '');
       }
+      setSystemPrompt(config.system_prompt || '');
+      setDefaultSystemPrompt(config.default_system_prompt || '');
     } catch {
       // Config might not exist yet
     }
@@ -76,6 +82,23 @@ export function Settings({ open, onClose }: SettingsProps) {
     }
   };
 
+  const saveSystemPrompt = async () => {
+    setSavingPrompt(true);
+    setPromptMessage('');
+    try {
+      await apiFetch('/config/system_prompt', {
+        method: 'PUT',
+        body: JSON.stringify({ value: systemPrompt }),
+      });
+      setPromptMessage('System prompt saved');
+      setTimeout(() => setPromptMessage(''), 2000);
+    } catch (err: any) {
+      setPromptMessage(err.message);
+    } finally {
+      setSavingPrompt(false);
+    }
+  };
+
   const addSecret = async () => {
     if (!newSecretName || !newSecretValue) return;
     try {
@@ -103,21 +126,18 @@ export function Settings({ open, onClose }: SettingsProps) {
   if (!open) return null;
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60"
-      onClick={(e) => e.target === e.currentTarget && onClose()}
-    >
-      <div className="w-full sm:max-w-lg sm:mx-4 bg-background border border-border rounded-t-2xl sm:rounded-2xl max-h-[90dvh] flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
-          <h2 className="font-semibold text-lg">Settings</h2>
-          <button onClick={onClose} className="p-2 rounded-lg hover:bg-muted transition-colors">
-            <X size={20} />
-          </button>
-        </div>
+    <div className="flex-1 flex flex-col min-h-0">
+      {/* Header */}
+      <div className="flex items-center justify-between px-6 py-4 border-b border-border shrink-0">
+        <h2 className="font-semibold text-lg">Settings</h2>
+        <button onClick={onClose} className="p-2 rounded-lg hover:bg-muted transition-colors">
+          <X size={20} />
+        </button>
+      </div>
 
-        {/* Scrollable body */}
-        <div className="overflow-y-auto flex-1 p-5 space-y-7">
+      {/* Scrollable body */}
+      <div className="overflow-y-auto flex-1 p-6">
+        <div className="max-w-5xl mx-auto space-y-7">
           {/* LLM Configuration */}
           <section className="space-y-4">
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">LLM Provider</h3>
@@ -247,6 +267,43 @@ export function Settings({ open, onClose }: SettingsProps) {
             )}
           </section>
 
+          {/* System Prompt */}
+          <section className="space-y-4">
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Agent System Prompt</h3>
+
+            <textarea
+              rows={10}
+              value={systemPrompt || defaultSystemPrompt}
+              onChange={(e) => setSystemPrompt(e.target.value)}
+              className="w-full rounded-xl border border-border bg-muted px-4 py-3 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary resize-y leading-relaxed"
+            />
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={saveSystemPrompt}
+                disabled={savingPrompt}
+                className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-base font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+              >
+                <Save size={16} />
+                {savingPrompt ? 'Saving…' : 'Save Prompt'}
+              </button>
+              <button
+                onClick={() => {
+                  setSystemPrompt('');
+                  setPromptMessage('Reset to default — click Save to apply');
+                }}
+                className="flex items-center gap-2 rounded-xl border border-border px-4 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+              >
+                <RotateCcw size={14} />
+                Reset to Default
+              </button>
+            </div>
+
+            {promptMessage && (
+              <p className="text-sm text-secondary-foreground">{promptMessage}</p>
+            )}
+          </section>
+
           {/* Secrets */}
           <section className="space-y-4">
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Secrets</h3>
@@ -299,3 +356,5 @@ export function Settings({ open, onClose }: SettingsProps) {
     </div>
   );
 }
+
+export default Settings;

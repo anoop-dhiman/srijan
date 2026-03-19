@@ -1,39 +1,75 @@
-import { useState, useRef, useEffect, FormEvent } from 'react';
-import { Send, Plus, Menu, Settings as SettingsIcon, Loader2, Trash2 } from 'lucide-react';
+import { useState, useRef, useEffect, useCallback, FormEvent } from 'react';
+import { Send, Plus, Menu, Settings as SettingsIcon, Loader2, Trash2, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import type { ChatMessage, Session } from '../hooks/useChat';
 import ReactMarkdown from 'react-markdown';
+import { Settings } from './Settings';
 
 interface ChatProps {
   messages: ChatMessage[];
   sessions: Session[];
   currentSession: Session | null;
   isLoading: boolean;
+  settingsOpen: boolean;
   onSendMessage: (content: string) => void;
   onNewSession: () => void;
   onJoinSession: (sessionId: string) => void;
   onDeleteSession: (sessionId: string) => void;
   onOpenSettings: () => void;
+  onCloseSettings: () => void;
 }
+
+const MIN_WIDTH = 180;
+const MAX_WIDTH = 480;
+const DEFAULT_WIDTH = 240;
 
 export function Chat({
   messages,
   sessions,
   currentSession,
   isLoading,
+  settingsOpen,
   onSendMessage,
   onNewSession,
   onJoinSession,
   onDeleteSession,
   onOpenSettings,
+  onCloseSettings,
 }: ChatProps) {
   const [input, setInput] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_WIDTH);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const isResizing = useRef(false);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    isResizing.current = true;
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizing.current) return;
+      const newWidth = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, e.clientX));
+      setSidebarWidth(newWidth);
+    };
+
+    const handleMouseUp = () => {
+      isResizing.current = false;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  }, []);
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -61,11 +97,12 @@ export function Chat({
 
   return (
     <div className="flex flex-1 min-h-0 w-full">
-      {/* Sidebar */}
+      {/* Sidebar — desktop: resizable + collapsible, mobile: slide-over */}
       <div
-        className={`fixed inset-y-0 left-0 z-40 w-60 bg-muted border-r border-border flex flex-col transform transition-transform duration-200 md:relative md:translate-x-0 md:top-auto md:inset-y-auto ${
+        className={`fixed inset-y-0 left-0 z-40 bg-muted border-r border-border flex flex-col transform transition-all duration-200 md:relative md:translate-x-0 md:top-auto md:inset-y-auto ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}
+        } ${sidebarCollapsed ? 'md:w-0 md:overflow-hidden md:border-r-0' : ''}`}
+        style={sidebarCollapsed ? undefined : { width: `${sidebarWidth}px` }}
       >
         {/* New Chat button */}
         <div className="p-3 border-b border-border shrink-0">
@@ -130,6 +167,14 @@ export function Chat({
         </div>
       </div>
 
+      {/* Resize handle — desktop only, hidden when collapsed */}
+      {!sidebarCollapsed && (
+        <div
+          onMouseDown={handleMouseDown}
+          className="hidden md:flex w-1 cursor-col-resize items-center justify-center hover:bg-primary/30 active:bg-primary/50 transition-colors shrink-0"
+        />
+      )}
+
       {/* Sidebar overlay on mobile */}
       {sidebarOpen && (
         <div
@@ -138,86 +183,101 @@ export function Chat({
         />
       )}
 
-      {/* Main chat area */}
+      {/* Main content area */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Mobile menu button */}
-        <div className="flex items-center px-4 py-2 border-b border-border md:hidden">
+        {/* Top bar: collapse toggle (desktop) + mobile menu */}
+        <div className="flex items-center px-2 py-1.5 border-b border-border md:border-b-0 shrink-0">
+          {/* Collapse/expand toggle — desktop */}
+          <button
+            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+            className="hidden md:flex items-center justify-center w-9 h-9 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+            title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            {sidebarCollapsed ? <PanelLeftOpen size={22} /> : <PanelLeftClose size={22} />}
+          </button>
+          {/* Mobile menu button */}
           <button
             onClick={() => setSidebarOpen(true)}
-            className="p-1.5 rounded-md hover:bg-muted transition-colors"
+            className="p-1.5 rounded-md hover:bg-muted transition-colors md:hidden"
           >
             <Menu size={20} />
           </button>
         </div>
 
-        {/* Messages */}
-        <div className="flex-1 overflow-y-auto py-6">
-          {messages.length === 0 && (
-            <div className="flex items-center justify-center h-full">
-              <div className="text-center space-y-3">
-                <h2 className="text-2xl font-semibold">Srijan</h2>
-                <p className="text-muted-foreground text-sm max-w-sm">
-                  Tell me what to build. I can create apps, deploy containers, and give you live URLs.
-                </p>
-              </div>
-            </div>
-          )}
+        {settingsOpen ? (
+          <Settings open={true} onClose={onCloseSettings} />
+        ) : (
+          <>
+            {/* Messages */}
+            <div className="flex-1 overflow-y-auto py-6">
+              {messages.length === 0 && (
+                <div className="flex items-center justify-center h-full">
+                  <div className="text-center space-y-3">
+                    <h2 className="text-2xl font-semibold">Srijan</h2>
+                    <p className="text-muted-foreground text-sm max-w-sm">
+                      Tell me what to build. I can create apps, deploy containers, and give you live URLs.
+                    </p>
+                  </div>
+                </div>
+              )}
 
-          <div className="max-w-3xl mx-auto px-6 space-y-5">
-            {messages.map((msg) => (
-              <div
-                key={msg.id}
-                className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-              >
-                <div
-                  className={`max-w-[80%] rounded-2xl px-4 py-3 text-base ${
-                    msg.role === 'user'
-                      ? 'bg-primary text-primary-foreground'
-                      : msg.role === 'system'
-                      ? 'bg-destructive/20 text-destructive border border-destructive/30'
-                      : 'bg-muted border border-border'
-                  }`}
-                >
-                  {msg.role === 'assistant' ? (
-                    <div className="prose prose-invert prose-base max-w-none [&_pre]:bg-background [&_pre]:rounded-lg [&_pre]:p-3 [&_code]:text-secondary-foreground">
-                      <ReactMarkdown>{msg.content}</ReactMarkdown>
-                      {msg.streaming && (
-                        <span className="inline-block w-2 h-4 bg-primary animate-pulse ml-0.5" />
+              <div className="max-w-5xl mx-auto px-6 space-y-5">
+                {messages.map((msg) => (
+                  <div
+                    key={msg.id}
+                    className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                  >
+                    <div
+                      className={`max-w-[80%] rounded-2xl px-4 py-3 text-base ${
+                        msg.role === 'user'
+                          ? 'bg-primary text-primary-foreground'
+                          : msg.role === 'system'
+                          ? 'bg-destructive/20 text-destructive border border-destructive/30'
+                          : 'bg-muted border border-border'
+                      }`}
+                    >
+                      {msg.role === 'assistant' ? (
+                        <div className="prose prose-invert prose-base max-w-none [&_pre]:bg-background [&_pre]:rounded-lg [&_pre]:p-3 [&_code]:text-secondary-foreground">
+                          <ReactMarkdown>{msg.content}</ReactMarkdown>
+                          {msg.streaming && (
+                            <span className="inline-block w-2 h-4 bg-primary animate-pulse ml-0.5" />
+                          )}
+                        </div>
+                      ) : (
+                        <p className="whitespace-pre-wrap">{msg.content}</p>
                       )}
                     </div>
-                  ) : (
-                    <p className="whitespace-pre-wrap">{msg.content}</p>
-                  )}
-                </div>
+                  </div>
+                ))}
+                <div ref={messagesEndRef} />
               </div>
-            ))}
-            <div ref={messagesEndRef} />
-          </div>
-        </div>
-
-        {/* Input — pill style */}
-        <div className="px-6 pb-5">
-          <form onSubmit={handleSubmit} className="max-w-3xl mx-auto">
-            <div className="relative rounded-2xl border border-border bg-muted focus-within:ring-2 focus-within:ring-primary">
-              <textarea
-                ref={inputRef}
-                value={input}
-                onChange={handleInput}
-                onKeyDown={handleKeyDown}
-                placeholder="Type a message..."
-                rows={2}
-                className="w-full bg-transparent resize-none px-4 pt-4 pb-14 max-h-[200px] outline-none text-base placeholder:text-muted-foreground"
-              />
-              <button
-                type="submit"
-                disabled={!input.trim() || isLoading}
-                className="absolute bottom-3 right-3 rounded-xl bg-primary p-2.5 text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
-              >
-                {isLoading ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
-              </button>
             </div>
-          </form>
-        </div>
+
+            {/* Input — pill style */}
+            <div className="px-6 pb-5">
+              <form onSubmit={handleSubmit} className="max-w-5xl mx-auto">
+                <div className="relative rounded-2xl border border-border bg-muted focus-within:ring-2 focus-within:ring-primary">
+                  <textarea
+                    ref={inputRef}
+                    value={input}
+                    onChange={handleInput}
+                    onKeyDown={handleKeyDown}
+                    placeholder="Type a message..."
+                    rows={2}
+                    className="w-full bg-transparent resize-none px-4 pt-4 pb-14 max-h-[200px] outline-none text-base placeholder:text-muted-foreground"
+                  />
+                  <button
+                    type="submit"
+                    disabled={!input.trim() || isLoading}
+                    className="absolute bottom-3 right-3 rounded-xl bg-primary p-2.5 text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                  >
+                    {isLoading ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

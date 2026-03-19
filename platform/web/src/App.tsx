@@ -50,14 +50,15 @@ function App() {
           sessions={chat.sessions}
           currentSession={chat.currentSession}
           isLoading={chat.isLoading}
+          settingsOpen={settingsOpen}
           onSendMessage={chat.sendMessage}
           onNewSession={chat.newSession}
           onJoinSession={chat.joinSession}
           onDeleteSession={chat.deleteSession}
           onOpenSettings={() => setSettingsOpen(true)}
+          onCloseSettings={() => setSettingsOpen(false)}
         />
       </div>
-      <Settings open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </div>
   );
 }

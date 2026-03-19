@@ -47,22 +47,6 @@ describe('Settings', () => {
     expect(mockOnClose).toHaveBeenCalled();
   });
 
-  it('closes when backdrop is clicked', async () => {
-    const { container } = render(<Settings open={true} onClose={mockOnClose} />);
-    await waitFor(() => screen.getByRole('heading', { name: 'Settings' }));
-    const backdrop = container.firstChild as HTMLElement;
-    fireEvent.click(backdrop);
-    expect(mockOnClose).toHaveBeenCalled();
-  });
-
-  it('does not close when modal body is clicked', async () => {
-    render(<Settings open={true} onClose={mockOnClose} />);
-    await waitFor(() => screen.getByRole('heading', { name: 'Settings' }));
-    const modal = document.querySelector('.bg-background') as HTMLElement;
-    fireEvent.click(modal);
-    expect(mockOnClose).not.toHaveBeenCalled();
-  });
-
   it('toggles API key visibility', async () => {
     render(<Settings open={true} onClose={mockOnClose} />);
     await waitFor(() => screen.getByRole('heading', { name: 'Settings' }));
