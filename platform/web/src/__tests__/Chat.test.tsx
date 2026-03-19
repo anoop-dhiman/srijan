@@ -114,9 +114,9 @@ describe('Chat', () => {
         'session-1': { isLoading: true, agentStatus: 'Thinking…', hasUnread: false },
       };
       render(<Chat {...defaultProps} sessions={[mockSession]} sessionActivity={activity} />);
-      // Loader2 icon renders as svg inside the session row
-      const row = screen.getByText('Test Session').closest('button');
-      expect(row?.querySelector('svg')).toBeInTheDocument();
+      // Loader2 icon renders as svg sibling to the session button, inside the row div
+      const row = screen.getByText('Test Session').closest('button')?.closest('div');
+      expect(row?.querySelector('svg.animate-spin')).toBeInTheDocument();
     });
   });
 

@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { RefreshCw, Play, Square, ChevronDown, ChevronRight, ExternalLink, FolderOpen, MessageSquare } from 'lucide-react';
+import { RefreshCw, Play, Square, ChevronDown, ChevronRight, ExternalLink, FolderOpen, MessageSquare, Globe } from 'lucide-react';
 import { apiFetch } from '../lib/api';
 import type { WorkspaceInfo } from '../hooks/useChat';
 
@@ -28,20 +28,34 @@ function statusColor(state: string) {
   return 'bg-yellow-500';
 }
 
-function ContainerRow({ container, app, onAction }: {
+function ContainerRow({ container, app, workspaceName, onAction, onRegistered }: {
   container: ContainerInfo;
   app?: AppInfo;
+  workspaceName: string;
   onAction: () => void;
+  onRegistered: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [logs, setLogs] = useState<string>('');
   const [loadingLogs, setLoadingLogs] = useState(false);
   const [actioning, setActioning] = useState(false);
+  const [showRegister, setShowRegister] = useState(false);
+  const [regPath, setRegPath] = useState('');
+  const [regPort, setRegPort] = useState('');
+  const [registering, setRegistering] = useState(false);
+  const [regError, setRegError] = useState<string | null>(null);
+
   const isRunning = container.State === 'running';
   const displayName = container.Names[0]?.replace(/^\//, '') || container.Id.slice(0, 12);
 
+  // Derive a sensible default service name (strip workspace prefix and trailing -N)
+  const defaultServiceName = displayName
+    .replace(new RegExp(`^${workspaceName}-`, 'i'), '')
+    .replace(/-\d+$/, '');
+
   const fetchLogs = async () => {
-    if (logs) { setExpanded(!expanded); return; }
+    if (logs && !expanded) { setExpanded(true); return; }
+    if (expanded) { setExpanded(false); return; }
     setLoadingLogs(true);
     try {
       const data = await apiFetch(`/containers/${container.Id}/logs?tail=100`);
@@ -62,6 +76,37 @@ function ContainerRow({ container, app, onAction }: {
       onAction();
     } catch { /* ignore */ }
     setActioning(false);
+  };
+
+  const openRegister = () => {
+    const firstPublicPort = container.Ports.find(p => p.PublicPort)?.PublicPort;
+    setRegPath(`/${defaultServiceName}`);
+    setRegPort(firstPublicPort ? String(firstPublicPort) : '');
+    setRegError(null);
+    setShowRegister(true);
+  };
+
+  const submitRegister = async () => {
+    if (!regPath || !regPort) { setRegError('Path and port are required.'); return; }
+    setRegistering(true);
+    setRegError(null);
+    try {
+      await apiFetch('/apps/register', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: defaultServiceName,
+          path: regPath,
+          port: parseInt(regPort, 10),
+          containerId: container.Id,
+          workspaceName,
+        }),
+      });
+      setShowRegister(false);
+      onRegistered();
+    } catch (err: any) {
+      setRegError(err.message || 'Registration failed.');
+    }
+    setRegistering(false);
   };
 
   return (
@@ -85,6 +130,16 @@ function ContainerRow({ container, app, onAction }: {
           </div>
           <div className="text-xs text-muted-foreground mt-0.5">{container.Image} · {container.Status}</div>
         </div>
+        {!app && isRunning && (
+          <button
+            onClick={openRegister}
+            title="Register public URL"
+            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded-lg hover:bg-muted transition-colors"
+          >
+            <Globe size={12} />
+            Publish
+          </button>
+        )}
         <button
           onClick={fetchLogs}
           className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded-lg hover:bg-muted transition-colors"
@@ -98,9 +153,47 @@ function ContainerRow({ container, app, onAction }: {
           title={isRunning ? 'Stop' : 'Start'}
           className={`p-1.5 rounded-lg transition-colors ${isRunning ? 'hover:bg-destructive/10 hover:text-destructive' : 'hover:bg-green-500/10 hover:text-green-600'} text-muted-foreground`}
         >
-          {isRunning ? <Square size={14} /> : <Play size={14} />}
+          {actioning ? <RefreshCw size={14} className="animate-spin" /> : isRunning ? <Square size={14} /> : <Play size={14} />}
         </button>
       </div>
+
+      {showRegister && (
+        <div className="border-t border-border bg-muted/30 px-3 py-2.5 space-y-2">
+          <p className="text-xs font-medium text-foreground">Register public URL via Caddy</p>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={regPath}
+              onChange={e => setRegPath(e.target.value)}
+              placeholder="/myapp"
+              className="flex-1 text-xs px-2 py-1 rounded border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+            />
+            <input
+              type="number"
+              value={regPort}
+              onChange={e => setRegPort(e.target.value)}
+              placeholder="Port"
+              className="w-24 text-xs px-2 py-1 rounded border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+            />
+          </div>
+          {regError && <p className="text-xs text-destructive">{regError}</p>}
+          <div className="flex gap-2">
+            <button
+              onClick={submitRegister}
+              disabled={registering}
+              className="text-xs px-3 py-1 rounded bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+            >
+              {registering ? 'Registering…' : 'Register'}
+            </button>
+            <button
+              onClick={() => setShowRegister(false)}
+              className="text-xs px-3 py-1 rounded border border-border hover:bg-muted transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       {expanded && (
         <div className="border-t border-border bg-background px-3 py-2">
@@ -121,6 +214,16 @@ function WorkspaceCard({ workspace, onViewSessions }: {
   const [containers, setContainers] = useState<ContainerInfo[]>([]);
   const [apps, setApps] = useState<AppInfo[]>([]);
   const [loadingContainers, setLoadingContainers] = useState(false);
+  const [bulkActioning, setBulkActioning] = useState(false);
+
+  const fetchContainers = useCallback(async () => {
+    const [c, a] = await Promise.all([
+      apiFetch(`/containers?workspace=${encodeURIComponent(workspace.name)}`),
+      apiFetch('/apps'),
+    ]);
+    setContainers(c);
+    setApps(a);
+  }, [workspace.name]);
 
   const toggleContainers = useCallback(async () => {
     if (containersOpen) {
@@ -129,16 +232,31 @@ function WorkspaceCard({ workspace, onViewSessions }: {
     }
     setLoadingContainers(true);
     try {
-      const [c, a] = await Promise.all([
-        apiFetch(`/containers?workspace=${encodeURIComponent(workspace.name)}`),
-        apiFetch('/apps'),
-      ]);
-      setContainers(c);
-      setApps(a);
+      await fetchContainers();
     } catch { /* ignore */ }
     setLoadingContainers(false);
     setContainersOpen(true);
-  }, [containersOpen, workspace.name]);
+  }, [containersOpen, fetchContainers]);
+
+  const refreshContainers = useCallback(async () => {
+    try { await fetchContainers(); } catch { /* ignore */ }
+  }, [fetchContainers]);
+
+  const startAll = async () => {
+    setBulkActioning(true);
+    const stopped = containers.filter(c => c.State !== 'running');
+    await Promise.allSettled(stopped.map(c => apiFetch(`/containers/${c.Id}/start`, { method: 'POST' })));
+    await refreshContainers();
+    setBulkActioning(false);
+  };
+
+  const stopAll = async () => {
+    setBulkActioning(true);
+    const running = containers.filter(c => c.State === 'running');
+    await Promise.allSettled(running.map(c => apiFetch(`/containers/${c.Id}/stop`, { method: 'POST' })));
+    await refreshContainers();
+    setBulkActioning(false);
+  };
 
   const appByContainer = (id: string) => apps.find(a => a.container_id === id);
 
@@ -147,6 +265,8 @@ function WorkspaceCard({ workspace, onViewSessions }: {
     : null;
 
   const hasActivity = workspace.runningContainerCount > 0 || workspace.sessionCount > 0;
+  const hasRunning = containers.some(c => c.State === 'running');
+  const hasStopped = containers.some(c => c.State !== 'running');
 
   return (
     <div className="rounded-xl border border-border bg-background overflow-hidden">
@@ -168,7 +288,7 @@ function WorkspaceCard({ workspace, onViewSessions }: {
 
         <div className="mt-2 flex items-center gap-4 text-sm text-muted-foreground">
           <span>{workspace.sessionCount} session{workspace.sessionCount !== 1 ? 's' : ''}</span>
-          <span>{workspace.runningContainerCount} container{workspace.runningContainerCount !== 1 ? 's' : ''}</span>
+          <span>{workspace.runningContainerCount} container{workspace.runningContainerCount !== 1 ? 's' : ''} running</span>
           {lastActive && <span>Last active {lastActive}</span>}
         </div>
 
@@ -198,15 +318,42 @@ function WorkspaceCard({ workspace, onViewSessions }: {
 
       {containersOpen && (
         <div className="border-t border-border px-4 py-3 space-y-2">
+          {containers.length > 0 && (
+            <div className="flex items-center gap-2 pb-1">
+              {hasStopped && (
+                <button
+                  onClick={startAll}
+                  disabled={bulkActioning}
+                  className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg bg-green-500/10 text-green-600 hover:bg-green-500/20 transition-colors disabled:opacity-50"
+                >
+                  <Play size={11} />
+                  Start All
+                </button>
+              )}
+              {hasRunning && (
+                <button
+                  onClick={stopAll}
+                  disabled={bulkActioning}
+                  className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg hover:bg-destructive/10 hover:text-destructive text-muted-foreground transition-colors disabled:opacity-50"
+                >
+                  <Square size={11} />
+                  Stop All
+                </button>
+              )}
+              {bulkActioning && <RefreshCw size={12} className="animate-spin text-muted-foreground" />}
+            </div>
+          )}
           {containers.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-2">No registered containers for this workspace.</p>
+            <p className="text-sm text-muted-foreground text-center py-2">No containers found for this workspace.</p>
           ) : (
             containers.map(c => (
               <ContainerRow
                 key={c.Id}
                 container={c}
                 app={appByContainer(c.Id)}
-                onAction={toggleContainers}
+                workspaceName={workspace.name}
+                onAction={refreshContainers}
+                onRegistered={refreshContainers}
               />
             ))
           )}

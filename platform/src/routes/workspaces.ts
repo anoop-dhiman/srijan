@@ -2,13 +2,14 @@ import { Router, Request, Response } from 'express';
 import { authMiddleware } from '../security/auth.js';
 import { getWorkspaceRoot, cloneRepo, initRepo } from '../git/manager.js';
 import { getDb } from '../db/store.js';
+import { listContainers } from '../docker/manager.js';
 import { readdirSync, statSync } from 'fs';
 import { join } from 'path';
 
 const router = Router();
 router.use(authMiddleware);
 
-router.get('/', (_req: Request, res: Response) => {
+router.get('/', async (_req: Request, res: Response) => {
   try {
     const root = getWorkspaceRoot();
     const names = readdirSync(root).filter((name) => {
@@ -30,34 +31,35 @@ router.get('/', (_req: Request, res: Response) => {
       GROUP BY s.workspace_name
     `).all() as { workspace_name: string; sessionCount: number; lastActivityAt: string | null; totalCost: number }[];
 
-    // Registered apps with container_id per workspace
-    const containerStats = db.prepare(`
-      SELECT workspace_name, COUNT(*) as containerCount
-      FROM apps
-      WHERE container_id IS NOT NULL AND workspace_name IS NOT NULL
-      GROUP BY workspace_name
-    `).all() as { workspace_name: string; containerCount: number }[];
+    // Count running Docker containers per workspace by name-match
+    // (docker-compose names containers as <workspace>-<service>-<index>)
+    const containerCountByWorkspace = new Map<string, number>();
+    try {
+      const allContainers = await listContainers();
+      for (const name of names) {
+        const count = allContainers.filter(c =>
+          c.State === 'running' &&
+          c.Names.some(n => n.replace(/^\//, '').toLowerCase().includes(name.toLowerCase()))
+        ).length;
+        containerCountByWorkspace.set(name, count);
+      }
+    } catch { /* Docker unavailable — default to 0 */ }
 
-    const statsMap = new Map<string, { sessionCount: number; lastActivityAt: string | null; totalCost: number; containerCount: number }>();
+    const statsMap = new Map<string, { sessionCount: number; lastActivityAt: string | null; totalCost: number }>();
     for (const s of sessionStats) {
       statsMap.set(s.workspace_name, {
         sessionCount: s.sessionCount,
         lastActivityAt: s.lastActivityAt,
         totalCost: s.totalCost,
-        containerCount: 0,
       });
-    }
-    for (const c of containerStats) {
-      const existing = statsMap.get(c.workspace_name) || { sessionCount: 0, lastActivityAt: null, totalCost: 0, containerCount: 0 };
-      statsMap.set(c.workspace_name, { ...existing, containerCount: c.containerCount });
     }
 
     const result = names.map((name) => {
-      const stats = statsMap.get(name) || { sessionCount: 0, lastActivityAt: null, totalCost: 0, containerCount: 0 };
+      const stats = statsMap.get(name) || { sessionCount: 0, lastActivityAt: null, totalCost: 0 };
       return {
         name,
         sessionCount: stats.sessionCount,
-        runningContainerCount: stats.containerCount,
+        runningContainerCount: containerCountByWorkspace.get(name) ?? 0,
         totalCostUsd: stats.totalCost > 0 ? stats.totalCost : null,
         lastActivityAt: stats.lastActivityAt,
       };

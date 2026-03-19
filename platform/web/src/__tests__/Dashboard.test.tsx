@@ -53,7 +53,7 @@ describe('Dashboard', () => {
   it('shows session and container counts', () => {
     render(<Dashboard workspaces={mockWorkspaces} onRefresh={onRefresh} onViewSessions={onViewSessions} />);
     expect(screen.getByText('3 sessions')).toBeInTheDocument();
-    expect(screen.getByText('2 containers')).toBeInTheDocument();
+    expect(screen.getByText('2 containers running')).toBeInTheDocument();
   });
 
   it('shows cost when available', () => {
