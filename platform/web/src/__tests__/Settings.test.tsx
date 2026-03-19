@@ -37,14 +37,12 @@ describe('Settings', () => {
     });
   });
 
-  it('closes when X button is clicked', async () => {
+  it('has no close button in the header', async () => {
     render(<Settings open={true} onClose={mockOnClose} />);
     await waitFor(() => screen.getByRole('heading', { name: 'Settings' }));
-    // The close button is the only button in the header row (next to the heading)
     const heading = screen.getByRole('heading', { name: 'Settings' });
-    const closeBtn = heading.parentElement!.querySelector('button')!;
-    await userEvent.click(closeBtn);
-    expect(mockOnClose).toHaveBeenCalled();
+    const closeBtn = heading.parentElement!.querySelector('button');
+    expect(closeBtn).toBeNull();
   });
 
   it('toggles API key visibility', async () => {

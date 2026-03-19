@@ -147,6 +147,17 @@ describe('App', () => {
       render(<App />);
       expect(mockChat.connect).toHaveBeenCalled();
     });
+
+    it('renders a theme toggle button in the header', () => {
+      render(<App />);
+      expect(screen.getByRole('button', { name: 'Toggle theme' })).toBeInTheDocument();
+    });
+
+    it('theme toggle button is in the header', () => {
+      render(<App />);
+      const header = document.querySelector('header')!;
+      expect(header).toContainElement(screen.getByRole('button', { name: 'Toggle theme' }));
+    });
   });
 
   describe('empty workspace state', () => {

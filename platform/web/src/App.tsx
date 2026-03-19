@@ -1,4 +1,5 @@
 import { useState, useEffect, lazy, Suspense } from 'react';
+import { Sun, Moon } from 'lucide-react';
 import { Login } from './components/Login';
 import { Chat } from './components/Chat';
 import { Dashboard } from './components/Dashboard';
@@ -14,7 +15,17 @@ type ActiveView = 'chat' | 'dashboard' | 'terminal' | 'settings';
 function App() {
   const [authed, setAuthed] = useState(isAuthenticated());
   const [activeView, setActiveView] = useState<ActiveView>('chat');
+  const [theme, setTheme] = useState<'dark' | 'light'>(() =>
+    (localStorage.getItem('srijan_theme') as 'dark' | 'light') ?? 'dark'
+  );
   const chat = useChat();
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', theme === 'dark');
+    localStorage.setItem('srijan_theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => setTheme(t => (t === 'dark' ? 'light' : 'dark'));
 
   useEffect(() => {
     if (authed) {
@@ -114,6 +125,13 @@ function App() {
           </nav>
         </div>
         <div className="flex items-center gap-4">
+          <button
+            onClick={toggleTheme}
+            aria-label="Toggle theme"
+            className="p-2 rounded-lg border border-border hover:bg-background/60 transition-colors"
+          >
+            {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+          </button>
           <div className="flex items-center gap-2">
             <div className={`w-2.5 h-2.5 rounded-full ${chat.isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
             <span className="text-base text-muted-foreground">
