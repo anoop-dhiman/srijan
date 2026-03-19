@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Eye, EyeOff, Plus, Trash2, Save, RotateCcw, Shield } from 'lucide-react';
+import { Eye, EyeOff, Plus, Trash2, Save, RotateCcw, Shield, Lock, Users as UsersIcon, Copy, Check } from 'lucide-react';
 import { apiFetch } from '../lib/api';
 
 interface SettingsProps {
   open: boolean;
   onClose: () => void;
+  isAdmin?: boolean;
 }
 
 interface Secret {
@@ -13,7 +14,14 @@ interface Secret {
   created_at: string;
 }
 
-export function Settings({ open, onClose }: SettingsProps) {
+interface User {
+  id: string;
+  username: string;
+  role: string;
+  createdAt: string;
+}
+
+export function Settings({ open, onClose, isAdmin = false }: SettingsProps) {
   const [provider, setProvider] = useState<'anthropic' | 'vertex'>('anthropic');
   const [apiKey, setApiKey] = useState('');
   const [model, setModel] = useState('claude-sonnet-4-6');
@@ -36,11 +44,30 @@ export function Settings({ open, onClose }: SettingsProps) {
   const [message, setMessage] = useState('');
   const [promptMessage, setPromptMessage] = useState('');
 
+  // TOTP state
+  const [totpEnabled, setTotpEnabled] = useState(false);
+  const [totpSetupSecret, setTotpSetupSecret] = useState<string | null>(null);
+  const [totpSetupUri, setTotpSetupUri] = useState<string | null>(null);
+  const [totpCode, setTotpCode] = useState('');
+  const [totpMessage, setTotpMessage] = useState('');
+  const [totpLoading, setTotpLoading] = useState(false);
+  const [totpCopied, setTotpCopied] = useState(false);
+
+  // Users state
+  const [users, setUsers] = useState<User[]>([]);
+  const [newUserName, setNewUserName] = useState('');
+  const [newUserPassword, setNewUserPassword] = useState('');
+  const [newUserRole, setNewUserRole] = useState<'admin' | 'user'>('user');
+  const [usersMessage, setUsersMessage] = useState('');
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
   useEffect(() => {
     if (!open) return;
     loadConfig();
     loadSecrets();
-  }, [open]);
+    loadTotpStatus();
+    if (isAdmin) loadUsers();
+  }, [open, isAdmin]);
 
   const loadConfig = async () => {
     try {
@@ -62,6 +89,23 @@ export function Settings({ open, onClose }: SettingsProps) {
     } catch {
       // Config might not exist yet
     }
+  };
+
+  const loadTotpStatus = async () => {
+    try {
+      const data = await apiFetch('/auth/totp/status');
+      setTotpEnabled(data.enabled);
+    } catch {}
+  };
+
+  const loadUsers = async () => {
+    try {
+      const data = await apiFetch('/users');
+      setUsers(data);
+      // Identify current user from /auth/me
+      const me = await apiFetch('/auth/me');
+      setCurrentUserId(me.user?.userId || null);
+    } catch {}
   };
 
   const saveSecuritySettings = async () => {
@@ -150,6 +194,100 @@ export function Settings({ open, onClose }: SettingsProps) {
       loadSecrets();
     } catch (err: any) {
       setMessage(err.message);
+    }
+  };
+
+  // TOTP handlers
+  const handleSetup2FA = async () => {
+    setTotpLoading(true);
+    setTotpMessage('');
+    try {
+      const data = await apiFetch('/auth/totp/setup', { method: 'POST' });
+      setTotpSetupSecret(data.secret);
+      setTotpSetupUri(data.uri);
+      setTotpCode('');
+    } catch (err: any) {
+      setTotpMessage(err.message);
+    } finally {
+      setTotpLoading(false);
+    }
+  };
+
+  const handleEnable2FA = async () => {
+    if (!totpSetupSecret || !totpCode) return;
+    setTotpLoading(true);
+    setTotpMessage('');
+    try {
+      await apiFetch('/auth/totp/enable', {
+        method: 'POST',
+        body: JSON.stringify({ secret: totpSetupSecret, code: totpCode }),
+      });
+      setTotpEnabled(true);
+      setTotpSetupSecret(null);
+      setTotpSetupUri(null);
+      setTotpCode('');
+      setTotpMessage('2FA enabled successfully');
+      setTimeout(() => setTotpMessage(''), 3000);
+    } catch (err: any) {
+      setTotpMessage(err.message);
+    } finally {
+      setTotpLoading(false);
+    }
+  };
+
+  const handleDisable2FA = async () => {
+    if (!totpCode) return;
+    setTotpLoading(true);
+    setTotpMessage('');
+    try {
+      await apiFetch('/auth/totp/disable', {
+        method: 'POST',
+        body: JSON.stringify({ code: totpCode }),
+      });
+      setTotpEnabled(false);
+      setTotpCode('');
+      setTotpMessage('2FA disabled');
+      setTimeout(() => setTotpMessage(''), 3000);
+    } catch (err: any) {
+      setTotpMessage(err.message);
+    } finally {
+      setTotpLoading(false);
+    }
+  };
+
+  const copyToClipboard = async (text: string) => {
+    await navigator.clipboard.writeText(text);
+    setTotpCopied(true);
+    setTimeout(() => setTotpCopied(false), 2000);
+  };
+
+  // Users handlers
+  const handleAddUser = async () => {
+    if (!newUserName || !newUserPassword) return;
+    try {
+      await apiFetch('/users', {
+        method: 'POST',
+        body: JSON.stringify({ username: newUserName, password: newUserPassword, role: newUserRole }),
+      });
+      setNewUserName('');
+      setNewUserPassword('');
+      setNewUserRole('user');
+      setUsersMessage('User created');
+      setTimeout(() => setUsersMessage(''), 2000);
+      loadUsers();
+    } catch (err: any) {
+      setUsersMessage(err.message);
+    }
+  };
+
+  const handleDeleteUser = async (id: string) => {
+    try {
+      await apiFetch(`/users/${id}`, { method: 'DELETE' });
+      setUsersMessage('User deleted');
+      setTimeout(() => setUsersMessage(''), 2000);
+      loadUsers();
+    } catch (err: any) {
+      setUsersMessage(err.message);
     }
   };
 
@@ -391,6 +529,104 @@ export function Settings({ open, onClose }: SettingsProps) {
             {modeMessage && <p className="text-sm text-secondary-foreground">{modeMessage}</p>}
           </section>
 
+          {/* Two-Factor Authentication */}
+          <section className="space-y-4">
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Two-Factor Authentication</h3>
+
+            {totpEnabled ? (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 text-green-600 dark:text-green-400 text-sm font-medium">
+                  <Lock size={14} />
+                  2FA is active
+                </div>
+                <p className="text-xs text-muted-foreground">Enter your authenticator code to disable 2FA.</p>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]{6}"
+                    maxLength={6}
+                    placeholder="000000"
+                    value={totpCode}
+                    onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, ''))}
+                    className="w-32 rounded-xl border border-border bg-muted px-3 py-2 text-base font-mono text-center focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                  <button
+                    onClick={handleDisable2FA}
+                    disabled={totpLoading || totpCode.length !== 6}
+                    className="flex items-center gap-2 rounded-xl border border-destructive/50 px-4 py-2 text-sm font-medium text-destructive hover:bg-destructive/10 disabled:opacity-50 transition-colors"
+                  >
+                    Disable 2FA
+                  </button>
+                </div>
+                {totpMessage && <p className="text-sm text-secondary-foreground">{totpMessage}</p>}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {!totpSetupSecret ? (
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground">Add an extra layer of security with a time-based one-time password.</p>
+                    <button
+                      onClick={handleSetup2FA}
+                      disabled={totpLoading}
+                      className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-base font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                    >
+                      <Lock size={16} />
+                      Enable 2FA
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <p className="text-sm text-muted-foreground">
+                      Enter this key in your authenticator app (Google Authenticator, Authy, 1Password, etc.):
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <code className="flex-1 rounded-xl border border-border bg-muted px-4 py-3 text-sm font-mono break-all">
+                        {totpSetupSecret}
+                      </code>
+                      <button
+                        onClick={() => copyToClipboard(totpSetupSecret!)}
+                        className="shrink-0 p-2 rounded-lg border border-border hover:bg-muted transition-colors"
+                        title="Copy secret"
+                      >
+                        {totpCopied ? <Check size={16} className="text-green-500" /> : <Copy size={16} />}
+                      </button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Then enter the 6-digit code from your app to confirm:
+                    </p>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]{6}"
+                        maxLength={6}
+                        placeholder="000000"
+                        value={totpCode}
+                        onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, ''))}
+                        className="w-32 rounded-xl border border-border bg-muted px-3 py-2 text-base font-mono text-center focus:outline-none focus:ring-2 focus:ring-primary"
+                      />
+                      <button
+                        onClick={handleEnable2FA}
+                        disabled={totpLoading || totpCode.length !== 6}
+                        className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                      >
+                        Activate
+                      </button>
+                      <button
+                        onClick={() => { setTotpSetupSecret(null); setTotpSetupUri(null); setTotpCode(''); }}
+                        className="flex items-center gap-2 rounded-xl border border-border px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {totpMessage && <p className="text-sm text-secondary-foreground">{totpMessage}</p>}
+              </div>
+            )}
+          </section>
+
           {/* Secrets */}
           <section className="space-y-4">
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Secrets</h3>
@@ -438,6 +674,80 @@ export function Settings({ open, onClose }: SettingsProps) {
               </button>
             </div>
           </section>
+
+          {/* Users — admin only */}
+          {isAdmin && (
+            <section className="space-y-4">
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
+                <UsersIcon size={13} />
+                Users
+              </h3>
+
+              <div className="space-y-2">
+                {users.map((u) => (
+                  <div
+                    key={u.id}
+                    className="flex items-center justify-between rounded-xl border border-border px-4 py-3"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="text-base font-mono">{u.username}</span>
+                      <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${
+                        u.role === 'admin'
+                          ? 'border-primary/40 text-primary bg-primary/10'
+                          : 'border-border text-muted-foreground'
+                      }`}>
+                        {u.role}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => handleDeleteUser(u.id)}
+                      disabled={u.id === currentUserId}
+                      className="p-1.5 text-muted-foreground hover:text-destructive transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                      title={u.id === currentUserId ? 'Cannot delete own account' : 'Delete user'}
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              {/* Add user form */}
+              <div className="flex flex-col sm:flex-row gap-2">
+                <input
+                  type="text"
+                  placeholder="Username"
+                  value={newUserName}
+                  onChange={(e) => setNewUserName(e.target.value)}
+                  className="flex-1 rounded-xl border border-border bg-muted px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+                <input
+                  type="password"
+                  placeholder="Password"
+                  value={newUserPassword}
+                  onChange={(e) => setNewUserPassword(e.target.value)}
+                  className="flex-1 rounded-xl border border-border bg-muted px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+                <select
+                  value={newUserRole}
+                  onChange={(e) => setNewUserRole(e.target.value as 'admin' | 'user')}
+                  className="rounded-xl border border-border bg-muted px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-primary"
+                >
+                  <option value="user">user</option>
+                  <option value="admin">admin</option>
+                </select>
+                <button
+                  onClick={handleAddUser}
+                  disabled={!newUserName || !newUserPassword}
+                  className="flex items-center justify-center gap-2 rounded-xl bg-secondary px-5 py-3 text-base font-medium text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 transition-colors"
+                >
+                  <Plus size={18} />
+                  Add User
+                </button>
+              </div>
+
+              {usersMessage && <p className="text-sm text-secondary-foreground">{usersMessage}</p>}
+            </section>
+          )}
         </div>
       </div>
     </div>

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Settings } from '../components/Settings';
 
@@ -14,7 +14,10 @@ describe('Settings', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(apiFetch).mockResolvedValue([]);
+    vi.mocked(apiFetch).mockImplementation((path: string) => {
+      if (path === '/auth/totp/status') return Promise.resolve({ enabled: false });
+      return Promise.resolve([]);
+    });
   });
 
   it('does not render when open=false', () => {
@@ -52,7 +55,6 @@ describe('Settings', () => {
     const apiKeyInput = screen.getByPlaceholderText('sk-ant-...') as HTMLInputElement;
     expect(apiKeyInput.type).toBe('password');
 
-    // Click the eye toggle button (sibling of the input)
     const toggleBtn = apiKeyInput.parentElement!.querySelector('button')!;
     await userEvent.click(toggleBtn);
     expect(apiKeyInput.type).toBe('text');
@@ -64,6 +66,7 @@ describe('Settings', () => {
   it('calls apiFetch to load config on open', async () => {
     vi.mocked(apiFetch).mockImplementation((path: string) => {
       if (path === '/config') return Promise.resolve({ llm: { apiKey: 'sk-test', model: 'claude-sonnet-4-6' } });
+      if (path === '/auth/totp/status') return Promise.resolve({ enabled: false });
       return Promise.resolve([]);
     });
 
@@ -78,6 +81,7 @@ describe('Settings', () => {
   it('populates API key and model from loaded config', async () => {
     vi.mocked(apiFetch).mockImplementation((path: string) => {
       if (path === '/config') return Promise.resolve({ llm: { apiKey: 'sk-ant-loaded', model: 'claude-opus-4-6' } });
+      if (path === '/auth/totp/status') return Promise.resolve({ enabled: false });
       return Promise.resolve([]);
     });
 
@@ -92,7 +96,10 @@ describe('Settings', () => {
   });
 
   it('saves config when Save is clicked', async () => {
-    vi.mocked(apiFetch).mockResolvedValue([]);
+    vi.mocked(apiFetch).mockImplementation((path: string) => {
+      if (path === '/auth/totp/status') return Promise.resolve({ enabled: false });
+      return Promise.resolve([]);
+    });
 
     render(<Settings open={true} onClose={mockOnClose} />);
     await waitFor(() => screen.getByRole('heading', { name: 'Settings' }));
@@ -105,7 +112,10 @@ describe('Settings', () => {
   });
 
   it('shows success message after saving', async () => {
-    vi.mocked(apiFetch).mockResolvedValue([]);
+    vi.mocked(apiFetch).mockImplementation((path: string) => {
+      if (path === '/auth/totp/status') return Promise.resolve({ enabled: false });
+      return Promise.resolve([]);
+    });
 
     render(<Settings open={true} onClose={mockOnClose} />);
     await waitFor(() => screen.getByRole('heading', { name: 'Settings' }));
@@ -122,6 +132,7 @@ describe('Settings', () => {
       if (path === '/secrets') return Promise.resolve([
         { id: 'sec-1', name: 'MY_SECRET', created_at: '2024-01-01' },
       ]);
+      if (path === '/auth/totp/status') return Promise.resolve({ enabled: false });
       return Promise.resolve({});
     });
 
@@ -133,7 +144,10 @@ describe('Settings', () => {
   });
 
   it('adds a secret when Name + Value filled and Add Secret clicked', async () => {
-    vi.mocked(apiFetch).mockResolvedValue([]);
+    vi.mocked(apiFetch).mockImplementation((path: string) => {
+      if (path === '/auth/totp/status') return Promise.resolve({ enabled: false });
+      return Promise.resolve([]);
+    });
 
     render(<Settings open={true} onClose={mockOnClose} />);
     await waitFor(() => screen.getByRole('heading', { name: 'Settings' }));
@@ -171,6 +185,7 @@ describe('Settings', () => {
     vi.mocked(apiFetch).mockImplementation((path: string, opts?: any) => {
       if (path === '/secrets' && !opts) return Promise.resolve([{ id: 'sec-1', name: 'MY_SECRET', created_at: '2024-01-01' }]);
       if (path === '/secrets/sec-1') return Promise.resolve({});
+      if (path === '/auth/totp/status') return Promise.resolve({ enabled: false });
       return Promise.resolve([]);
     });
 
@@ -182,6 +197,110 @@ describe('Settings', () => {
 
     await waitFor(() => {
       expect(apiFetch).toHaveBeenCalledWith('/secrets/sec-1', { method: 'DELETE' });
+    });
+  });
+
+  // 2FA section tests
+  it('renders Two-Factor Authentication section', async () => {
+    render(<Settings open={true} onClose={mockOnClose} />);
+    await waitFor(() => {
+      expect(screen.getByText('Two-Factor Authentication')).toBeInTheDocument();
+    });
+  });
+
+  it('shows Enable 2FA button when TOTP is disabled', async () => {
+    vi.mocked(apiFetch).mockImplementation((path: string) => {
+      if (path === '/auth/totp/status') return Promise.resolve({ enabled: false });
+      return Promise.resolve([]);
+    });
+
+    render(<Settings open={true} onClose={mockOnClose} />);
+    await waitFor(() => {
+      expect(screen.getByText('Enable 2FA')).toBeInTheDocument();
+    });
+  });
+
+  it('shows 2FA active status when TOTP is enabled', async () => {
+    vi.mocked(apiFetch).mockImplementation((path: string) => {
+      if (path === '/auth/totp/status') return Promise.resolve({ enabled: true });
+      return Promise.resolve([]);
+    });
+
+    render(<Settings open={true} onClose={mockOnClose} />);
+    await waitFor(() => {
+      expect(screen.getByText('2FA is active')).toBeInTheDocument();
+      expect(screen.getByText('Disable 2FA')).toBeInTheDocument();
+    });
+  });
+
+  it('clicking Enable 2FA calls setup endpoint and shows secret', async () => {
+    vi.mocked(apiFetch).mockImplementation((path: string, opts?: any) => {
+      if (path === '/auth/totp/status') return Promise.resolve({ enabled: false });
+      if (path === '/auth/totp/setup') return Promise.resolve({ secret: 'JBSWY3DPEHPK3PXP', uri: 'otpauth://...' });
+      return Promise.resolve([]);
+    });
+
+    render(<Settings open={true} onClose={mockOnClose} />);
+    await waitFor(() => screen.getByText('Enable 2FA'));
+    await userEvent.click(screen.getByText('Enable 2FA'));
+
+    await waitFor(() => {
+      expect(apiFetch).toHaveBeenCalledWith('/auth/totp/setup', { method: 'POST' });
+      expect(screen.getByText('JBSWY3DPEHPK3PXP')).toBeInTheDocument();
+      expect(screen.getByText('Activate')).toBeInTheDocument();
+    });
+  });
+
+  // Users section tests
+  it('does not render Users section when not admin', async () => {
+    render(<Settings open={true} onClose={mockOnClose} isAdmin={false} />);
+    await waitFor(() => screen.getByRole('heading', { name: 'Settings' }));
+    expect(screen.queryByText('Users')).not.toBeInTheDocument();
+  });
+
+  it('renders Users section when isAdmin=true', async () => {
+    vi.mocked(apiFetch).mockImplementation((path: string) => {
+      if (path === '/auth/totp/status') return Promise.resolve({ enabled: false });
+      if (path === '/users') return Promise.resolve([
+        { id: 'u1', username: 'admin', role: 'admin', createdAt: '2024-01-01' },
+      ]);
+      if (path === '/auth/me') return Promise.resolve({ user: { userId: 'u1' } });
+      return Promise.resolve([]);
+    });
+
+    render(<Settings open={true} onClose={mockOnClose} isAdmin={true} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Users')).toBeInTheDocument();
+      expect(screen.getByText('admin')).toBeInTheDocument();
+    });
+  });
+
+  it('Add User button creates user', async () => {
+    vi.mocked(apiFetch).mockImplementation((path: string, opts?: any) => {
+      if (path === '/auth/totp/status') return Promise.resolve({ enabled: false });
+      if (path === '/users' && !opts) return Promise.resolve([]);
+      if (path === '/auth/me') return Promise.resolve({ user: { userId: 'u1' } });
+      if (path === '/secrets') return Promise.resolve([]);
+      if (path === '/config') return Promise.resolve({});
+      return Promise.resolve({ id: 'new-id' });
+    });
+
+    render(<Settings open={true} onClose={mockOnClose} isAdmin={true} />);
+    await waitFor(() => screen.getByText('Users'));
+
+    // Find username input in users section (labeled "Username")
+    await userEvent.type(screen.getByPlaceholderText('Username'), 'alice');
+    // Find password input in users section (labeled "Password")
+    const pwdInputs = screen.getAllByPlaceholderText('Password');
+    await userEvent.type(pwdInputs[pwdInputs.length - 1], 'secret123');
+    await userEvent.click(screen.getByText('Add User'));
+
+    await waitFor(() => {
+      expect(apiFetch).toHaveBeenCalledWith('/users', expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ username: 'alice', password: 'secret123', role: 'user' }),
+      }));
     });
   });
 });

@@ -5,20 +5,27 @@ import { Chat } from './components/Chat';
 import { Dashboard } from './components/Dashboard';
 import { WorkspaceEmptyState } from './components/WorkspaceEmptyState';
 import { Settings } from './components/Settings';
-import { isAuthenticated, logout, apiFetch } from './lib/api';
+import { FileBrowser } from './components/FileBrowser';
+import { SessionRecording } from './components/SessionRecording';
+import { isAuthenticated, logout, apiFetch, getCurrentUser } from './lib/api';
 import { useChat } from './hooks/useChat';
 
 const Terminal = lazy(() => import('./components/Terminal').then((m) => ({ default: m.Terminal })));
 
-type ActiveView = 'chat' | 'dashboard' | 'terminal' | 'settings';
+type ActiveView = 'chat' | 'dashboard' | 'terminal' | 'settings' | 'files';
 
 function App() {
   const [authed, setAuthed] = useState(isAuthenticated());
   const [activeView, setActiveView] = useState<ActiveView>('chat');
+  const [replaySessionId, setReplaySessionId] = useState<string | null>(null);
   const [theme, setTheme] = useState<'dark' | 'light'>(() =>
     (localStorage.getItem('srijan_theme') as 'dark' | 'light') ?? 'dark'
   );
   const chat = useChat();
+
+  const currentUser = getCurrentUser();
+  const username = currentUser?.username ?? 'admin';
+  const isAdmin = currentUser?.role === 'admin';
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', theme === 'dark');
@@ -48,9 +55,14 @@ function App() {
     setActiveView('chat');
   };
 
+  const handleReplaySession = (sessionId: string) => {
+    setReplaySessionId(sessionId);
+  };
+
   const navTabs: { id: ActiveView; label: string }[] = [
     { id: 'chat', label: 'Chat' },
     { id: 'dashboard', label: 'Dashboard' },
+    { id: 'files', label: 'Files' },
     { id: 'terminal', label: 'Terminal' },
     { id: 'settings', label: 'Settings' },
   ];
@@ -58,6 +70,16 @@ function App() {
   const hasWorkspaces = chat.workspaces.length > 0;
 
   const renderMain = () => {
+    // Session replay overrides the current view
+    if (replaySessionId) {
+      return (
+        <SessionRecording
+          sessionId={replaySessionId}
+          onClose={() => setReplaySessionId(null)}
+        />
+      );
+    }
+
     if (!hasWorkspaces) {
       return <WorkspaceEmptyState onCreate={handleCreateWorkspace} />;
     }
@@ -81,16 +103,24 @@ function App() {
             onDeleteSession={chat.deleteSession}
             onWorkspaceChange={chat.setCurrentWorkspace}
             onCreateWorkspace={handleCreateWorkspace}
+            onReplaySession={handleReplaySession}
           />
         );
       case 'settings':
-        return <Settings open={true} onClose={() => setActiveView('chat')} />;
+        return <Settings open={true} onClose={() => setActiveView('chat')} isAdmin={isAdmin} />;
       case 'dashboard':
         return (
           <Dashboard
             workspaces={chat.workspaces}
             onRefresh={chat.fetchWorkspaces}
             onViewSessions={handleViewSessions}
+          />
+        );
+      case 'files':
+        return (
+          <FileBrowser
+            workspaces={chat.workspaces}
+            currentWorkspace={chat.currentWorkspace}
           />
         );
       case 'terminal':
@@ -111,10 +141,10 @@ function App() {
             {navTabs.map((tab) => (
               <button
                 key={tab.id}
-                onClick={() => setActiveView(tab.id)}
+                onClick={() => { setActiveView(tab.id); setReplaySessionId(null); }}
                 disabled={tab.id === 'terminal' && !chat.currentSession}
                 className={`px-4 py-2 rounded-lg text-base font-medium transition-colors ${
-                  activeView === tab.id
+                  activeView === tab.id && !replaySessionId
                     ? 'bg-primary text-primary-foreground'
                     : 'text-muted-foreground hover:bg-background/60 hover:text-foreground disabled:opacity-40 disabled:cursor-not-allowed'
                 }`}
@@ -138,7 +168,7 @@ function App() {
               {chat.isConnected ? 'Connected' : 'Disconnected'}
             </span>
           </div>
-          <span className="text-base text-muted-foreground font-medium">admin</span>
+          <span className="text-base text-muted-foreground font-medium">{username}</span>
           <button
             onClick={logout}
             className="text-base px-4 py-2 rounded-lg border border-border hover:bg-background/60 transition-colors font-medium"
@@ -153,10 +183,10 @@ function App() {
         {navTabs.map((tab) => (
           <button
             key={tab.id}
-            onClick={() => setActiveView(tab.id)}
+            onClick={() => { setActiveView(tab.id); setReplaySessionId(null); }}
             disabled={tab.id === 'terminal' && !chat.currentSession}
             className={`flex-1 py-2 text-sm font-medium transition-colors ${
-              activeView === tab.id
+              activeView === tab.id && !replaySessionId
                 ? 'border-b-2 border-primary text-foreground'
                 : 'text-muted-foreground disabled:opacity-40'
             }`}

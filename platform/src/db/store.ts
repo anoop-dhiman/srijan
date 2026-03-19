@@ -26,6 +26,9 @@ export function getDb(): Database.Database {
     // Migrations for existing databases
     try { db.exec(`ALTER TABLE sessions ADD COLUMN workspace_name TEXT`); } catch {}
     try { db.exec(`ALTER TABLE apps ADD COLUMN workspace_name TEXT`); } catch {}
+    try { db.exec(`ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'admin'`); } catch {}
+    try { db.exec(`ALTER TABLE users ADD COLUMN totp_secret TEXT`); } catch {}
+    try { db.exec(`ALTER TABLE users ADD COLUMN totp_enabled INTEGER NOT NULL DEFAULT 0`); } catch {}
   }
   return db;
 }

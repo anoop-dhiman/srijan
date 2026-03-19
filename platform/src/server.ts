@@ -19,6 +19,9 @@ import gitRouter from './routes/git.js';
 import costRouter from './routes/cost.js';
 import containersRouter from './routes/containers.js';
 import workspacesRouter from './routes/workspaces.js';
+import filesRouter from './routes/files.js';
+import sessionsRouter from './routes/sessions.js';
+import usersRouter from './routes/users.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -46,6 +49,9 @@ app.use('/api/git', gitRouter);
 app.use('/api/sessions/:id/cost', costRouter);
 app.use('/api/containers', containersRouter);
 app.use('/api/workspaces', workspacesRouter);
+app.use('/api/workspaces', filesRouter);
+app.use('/api/sessions', sessionsRouter);
+app.use('/api/users', usersRouter);
 
 // Health check
 app.get('/health', (_req, res) => {

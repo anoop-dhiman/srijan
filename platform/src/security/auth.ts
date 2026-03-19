@@ -3,13 +3,21 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '../db/store.js';
+import * as OTPAuth from 'otpauth';
 
 const JWT_SECRET = process.env.SRIJAN_JWT_SECRET || 'srijan-dev-secret-change-me';
 const JWT_EXPIRY = '24h';
+const CHALLENGE_EXPIRY = '15m';
 
-interface JwtPayload {
+export interface JwtPayload {
   userId: string;
   username: string;
+  role: string;
+}
+
+interface ChallengePayload {
+  userId: string;
+  purpose: 'totp';
 }
 
 export function setupAdmin(password: string): void {
@@ -18,31 +26,59 @@ export function setupAdmin(password: string): void {
   if (existing) return;
 
   const hash = bcrypt.hashSync(password, 12);
-  db.prepare('INSERT INTO users (id, username, password_hash) VALUES (?, ?, ?)').run(
+  db.prepare('INSERT INTO users (id, username, password_hash, role) VALUES (?, ?, ?, ?)').run(
     uuidv4(),
     'admin',
-    hash
+    hash,
+    'admin'
   );
 }
 
-export function login(username: string, password: string): string | null {
+export type LoginResult =
+  | { token: string }
+  | { requires_totp: true; challenge_token: string }
+  | null;
+
+export function login(username: string, password: string): LoginResult {
   const db = getDb();
   const user = db
-    .prepare('SELECT id, username, password_hash FROM users WHERE username = ?')
-    .get(username) as { id: string; username: string; password_hash: string } | undefined;
+    .prepare('SELECT id, username, password_hash, role, totp_enabled, totp_secret FROM users WHERE username = ?')
+    .get(username) as {
+      id: string;
+      username: string;
+      password_hash: string;
+      role: string;
+      totp_enabled: number;
+      totp_secret: string | null;
+    } | undefined;
 
   if (!user || !bcrypt.compareSync(password, user.password_hash)) {
     return null;
   }
 
-  return jwt.sign({ userId: user.id, username: user.username } satisfies JwtPayload, JWT_SECRET, {
-    expiresIn: JWT_EXPIRY,
-  });
+  if (user.totp_enabled && user.totp_secret) {
+    const challengeToken = jwt.sign(
+      { userId: user.id, purpose: 'totp' } satisfies ChallengePayload,
+      JWT_SECRET,
+      { expiresIn: CHALLENGE_EXPIRY }
+    );
+    return { requires_totp: true, challenge_token: challengeToken };
+  }
+
+  const token = jwt.sign(
+    { userId: user.id, username: user.username, role: user.role } satisfies JwtPayload,
+    JWT_SECRET,
+    { expiresIn: JWT_EXPIRY }
+  );
+  return { token };
 }
 
 export function verifyToken(token: string): JwtPayload | null {
   try {
-    return jwt.verify(token, JWT_SECRET) as JwtPayload;
+    const payload = jwt.verify(token, JWT_SECRET) as any;
+    // Reject challenge tokens (they have a 'purpose' claim)
+    if (payload.purpose) return null;
+    return payload as JwtPayload;
   } catch {
     return null;
   }
@@ -63,4 +99,121 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction):
 
   (req as any).user = payload;
   next();
+}
+
+export function requireAdmin(req: Request, res: Response, next: NextFunction): void {
+  const user = (req as any).user as JwtPayload;
+  if (user?.role !== 'admin') {
+    res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Admin access required' } });
+    return;
+  }
+  next();
+}
+
+// --- TOTP functions ---
+
+export function generateTotpSecret(username: string): { secret: string; uri: string } {
+  const totp = new OTPAuth.TOTP({
+    issuer: 'Srijan',
+    label: username,
+    algorithm: 'SHA1',
+    digits: 6,
+    period: 30,
+    secret: new OTPAuth.Secret(),
+  });
+  return { secret: totp.secret.base32, uri: totp.toString() };
+}
+
+export function verifyTotpCode(secret: string, code: string): boolean {
+  try {
+    const totp = new OTPAuth.TOTP({
+      algorithm: 'SHA1',
+      digits: 6,
+      period: 30,
+      secret: OTPAuth.Secret.fromBase32(secret),
+    });
+    const delta = totp.validate({ token: code, window: 1 });
+    return delta !== null;
+  } catch {
+    return false;
+  }
+}
+
+export function enableTotp(userId: string, secret: string, code: string): boolean {
+  if (!verifyTotpCode(secret, code)) return false;
+  const db = getDb();
+  db.prepare('UPDATE users SET totp_secret = ?, totp_enabled = 1 WHERE id = ?').run(secret, userId);
+  return true;
+}
+
+export function disableTotp(userId: string, code: string): boolean {
+  const db = getDb();
+  const user = db
+    .prepare('SELECT totp_secret FROM users WHERE id = ?')
+    .get(userId) as { totp_secret: string | null } | undefined;
+  if (!user?.totp_secret) return false;
+  if (!verifyTotpCode(user.totp_secret, code)) return false;
+  db.prepare('UPDATE users SET totp_secret = NULL, totp_enabled = 0 WHERE id = ?').run(userId);
+  return true;
+}
+
+export function getTotpStatus(userId: string): boolean {
+  const db = getDb();
+  const user = db
+    .prepare('SELECT totp_enabled FROM users WHERE id = ?')
+    .get(userId) as { totp_enabled: number } | undefined;
+  return !!(user?.totp_enabled);
+}
+
+export function verifyTotpChallenge(challengeToken: string, code: string): string | null {
+  try {
+    const payload = jwt.verify(challengeToken, JWT_SECRET) as any;
+    if (payload.purpose !== 'totp') return null;
+
+    const db = getDb();
+    const user = db
+      .prepare('SELECT id, username, role, totp_secret FROM users WHERE id = ?')
+      .get(payload.userId) as { id: string; username: string; role: string; totp_secret: string | null } | undefined;
+
+    if (!user?.totp_secret) return null;
+    if (!verifyTotpCode(user.totp_secret, code)) return null;
+
+    return jwt.sign(
+      { userId: user.id, username: user.username, role: user.role } satisfies JwtPayload,
+      JWT_SECRET,
+      { expiresIn: JWT_EXPIRY }
+    );
+  } catch {
+    return null;
+  }
+}
+
+// --- User management ---
+
+export function createUser(username: string, password: string, role: string): { id: string } {
+  const db = getDb();
+  const id = uuidv4();
+  const hash = bcrypt.hashSync(password, 12);
+  db.prepare('INSERT INTO users (id, username, password_hash, role) VALUES (?, ?, ?, ?)').run(
+    id, username, hash, role
+  );
+  return { id };
+}
+
+export function deleteUser(id: string): void {
+  const db = getDb();
+  db.prepare('DELETE FROM users WHERE id = ?').run(id);
+}
+
+export function changePassword(userId: string, newPassword: string): void {
+  const db = getDb();
+  const hash = bcrypt.hashSync(newPassword, 12);
+  db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hash, userId);
+}
+
+export function listUsers(): { id: string; username: string; role: string; createdAt: string }[] {
+  const db = getDb();
+  return db
+    .prepare('SELECT id, username, role, created_at as createdAt FROM users ORDER BY created_at ASC')
+    .all() as any[];
 }

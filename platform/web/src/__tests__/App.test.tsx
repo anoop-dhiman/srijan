@@ -6,6 +6,7 @@ vi.mock('../lib/api', () => ({
   isAuthenticated: vi.fn(),
   logout: vi.fn(),
   apiFetch: vi.fn().mockResolvedValue({ name: 'test', path: '/tmp/test' }),
+  getCurrentUser: vi.fn().mockReturnValue({ userId: 'u1', username: 'admin', role: 'admin' }),
 }));
 
 vi.mock('../hooks/useChat', () => ({
@@ -13,12 +14,16 @@ vi.mock('../hooks/useChat', () => ({
 }));
 
 vi.mock('../components/Chat', () => ({
-  Chat: () => <div data-testid="chat" />,
+  Chat: ({ onReplaySession }: { onReplaySession?: (id: string) => void }) => (
+    <div data-testid="chat">
+      <button onClick={() => onReplaySession?.('sess-1')}>Replay</button>
+    </div>
+  ),
 }));
 
 vi.mock('../components/Settings', () => ({
-  Settings: ({ open }: { open: boolean }) =>
-    open ? <div data-testid="settings-panel" /> : null,
+  Settings: ({ open, isAdmin }: { open: boolean; isAdmin?: boolean }) =>
+    open ? <div data-testid="settings-panel" data-is-admin={isAdmin} /> : null,
 }));
 
 vi.mock('../components/Login', () => ({
@@ -39,7 +44,19 @@ vi.mock('../components/WorkspaceEmptyState', () => ({
   ),
 }));
 
-import { isAuthenticated, logout } from '../lib/api';
+vi.mock('../components/FileBrowser', () => ({
+  FileBrowser: () => <div data-testid="file-browser" />,
+}));
+
+vi.mock('../components/SessionRecording', () => ({
+  SessionRecording: ({ onClose }: { onClose: () => void }) => (
+    <div data-testid="session-recording">
+      <button onClick={onClose}>Close</button>
+    </div>
+  ),
+}));
+
+import { isAuthenticated, logout, getCurrentUser } from '../lib/api';
 import { useChat } from '../hooks/useChat';
 import App from '../App';
 
@@ -232,6 +249,64 @@ describe('App', () => {
       await waitFor(() => {
         expect(screen.getByTestId('chat')).toBeInTheDocument();
       });
+    });
+  });
+
+  describe('username from token', () => {
+    beforeEach(() => {
+      vi.mocked(isAuthenticated).mockReturnValue(true);
+    });
+
+    it('shows username from getCurrentUser', () => {
+      vi.mocked(getCurrentUser).mockReturnValue({ userId: 'u1', username: 'alice', role: 'user' });
+      render(<App />);
+      expect(screen.getByText('alice')).toBeInTheDocument();
+    });
+
+    it('passes isAdmin=true to Settings when role is admin', () => {
+      vi.mocked(getCurrentUser).mockReturnValue({ userId: 'u1', username: 'admin', role: 'admin' });
+      render(<App />);
+      fireEvent.click(screen.getAllByRole('button', { name: 'Settings' })[0]);
+      const settingsPanel = screen.getByTestId('settings-panel');
+      expect(settingsPanel.getAttribute('data-is-admin')).toBe('true');
+    });
+  });
+
+  describe('Files tab', () => {
+    beforeEach(() => {
+      vi.mocked(isAuthenticated).mockReturnValue(true);
+    });
+
+    it('Files tab is in the nav', () => {
+      render(<App />);
+      expect(screen.getAllByRole('button', { name: 'Files' }).length).toBeGreaterThan(0);
+    });
+
+    it('switches to FileBrowser when Files tab is clicked', () => {
+      render(<App />);
+      fireEvent.click(screen.getAllByRole('button', { name: 'Files' })[0]);
+      expect(screen.getByTestId('file-browser')).toBeInTheDocument();
+    });
+  });
+
+  describe('session recording', () => {
+    beforeEach(() => {
+      vi.mocked(isAuthenticated).mockReturnValue(true);
+    });
+
+    it('shows SessionRecording when replay is triggered from Chat', () => {
+      render(<App />);
+      const replayBtn = screen.getByText('Replay');
+      fireEvent.click(replayBtn);
+      expect(screen.getByTestId('session-recording')).toBeInTheDocument();
+    });
+
+    it('returns to chat view when SessionRecording is closed', () => {
+      render(<App />);
+      fireEvent.click(screen.getByText('Replay'));
+      expect(screen.getByTestId('session-recording')).toBeInTheDocument();
+      fireEvent.click(screen.getByText('Close'));
+      expect(screen.getByTestId('chat')).toBeInTheDocument();
     });
   });
 });

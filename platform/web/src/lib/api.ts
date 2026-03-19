@@ -43,6 +43,20 @@ export async function apiFetch(path: string, options: RequestInit = {}): Promise
   return data;
 }
 
+export function getCurrentUser(): { userId: string; username: string; role: string } | null {
+  const token = getToken();
+  if (!token) return null;
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    const payload = JSON.parse(atob(parts[1]));
+    if (!payload.userId || !payload.username) return null;
+    return { userId: payload.userId, username: payload.username, role: payload.role || 'admin' };
+  } catch {
+    return null;
+  }
+}
+
 export function createChatSocket(): WebSocket {
   const token = getToken();
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';

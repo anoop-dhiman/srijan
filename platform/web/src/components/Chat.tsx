@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback, FormEvent } from 'react';
 import {
-  Send, Plus, Menu, Loader2, Trash2,
+  Send, Plus, Menu, Loader2, Trash2, PlayCircle,
   PanelLeftClose, PanelLeftOpen, CheckCircle2, XCircle, Terminal,
   FileText, Search, FolderSearch, Bot, ChevronDown, ChevronRight,
 } from 'lucide-react';
@@ -24,6 +24,7 @@ interface ChatProps {
   onDeleteSession: (sessionId: string) => void;
   onWorkspaceChange: (name: string) => void;
   onCreateWorkspace: (name: string) => Promise<void>;
+  onReplaySession: (sessionId: string) => void;
 }
 
 const MIN_WIDTH = 180;
@@ -259,6 +260,7 @@ export function Chat({
   onDeleteSession,
   onWorkspaceChange,
   onCreateWorkspace,
+  onReplaySession,
 }: ChatProps) {
   const [input, setInput] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -396,6 +398,16 @@ export function Chat({
                       <span className="text-[10px] text-muted-foreground/70 font-mono">${sessionCosts[s.id].toFixed(4)}</span>
                     )}
                   </div>
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onReplaySession(s.id);
+                  }}
+                  className="shrink-0 p-2 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-primary transition-all"
+                  title="Replay session"
+                >
+                  <PlayCircle size={14} />
                 </button>
                 <button
                   onClick={(e) => {
