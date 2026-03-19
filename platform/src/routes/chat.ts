@@ -9,7 +9,7 @@ export const chatWss = new WebSocketServer({ noServer: true });
 
 // Called by server.ts upgrade dispatcher after auth is verified
 export function setupWebSocket(): void {
-  chatWss.on('connection', (ws: WebSocket, _req: IncomingMessage, user: any, sessionToken: string) => {
+  chatWss.on('connection', (ws: WebSocket, _req: IncomingMessage, user: any) => {
     let currentSessionId: string | null = null;
     const forwarders = new Map<string, (evt: any) => void>();
 
@@ -115,7 +115,6 @@ export function setupWebSocket(): void {
               workspaceName: session.workspaceName || undefined,
               apiKey,
               model: getModel(),
-              sessionToken,
               vertexConfig,
               litellmConfig,
             });

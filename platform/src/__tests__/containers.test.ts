@@ -1,17 +1,16 @@
 import { describe, it, expect, vi, beforeAll } from 'vitest';
 import request from 'supertest';
 import express from 'express';
-import { getDb } from '../db/store.js';
 import { setupAdmin } from '../security/auth.js';
 import authRouter from '../routes/auth.js';
-import { v4 as uuidv4 } from 'uuid';
 
 // Mock the Docker manager so tests don't need a Docker daemon
+// Container name uses docker-compose convention: <workspace>-<service>-<index>
 vi.mock('../docker/manager.js', () => ({
   listContainers: vi.fn().mockResolvedValue([
     {
       Id: 'abc123',
-      Names: ['/my-app'],
+      Names: ['/test-workspace-my-app-1'],
       Image: 'my-app:latest',
       State: 'running',
       Status: 'Up 5 minutes',
@@ -38,14 +37,8 @@ describe('Containers API', () => {
   let token: string;
 
   beforeAll(async () => {
-    const db = getDb();
     setupAdmin('testpass');
     app = createApp();
-
-    // Register an app with the known container ID so it appears in the filtered list
-    db.prepare(
-      `INSERT OR IGNORE INTO apps (id, name, path, port, container_id, workspace_name, status) VALUES (?, ?, ?, ?, ?, ?, 'running')`
-    ).run(uuidv4(), 'my-app', '/my-app', 8080, 'abc123', 'test-workspace');
 
     const res = await request(app)
       .post('/api/auth/login')
@@ -53,7 +46,7 @@ describe('Containers API', () => {
     token = res.body.token;
   });
 
-  it('should list containers (filtered to registered apps)', async () => {
+  it('should list all containers when no workspace filter', async () => {
     const res = await request(app)
       .get('/api/containers')
       .set('Authorization', `Bearer ${token}`);
@@ -70,7 +63,7 @@ describe('Containers API', () => {
     expect(res.body[0].Id).toBe('abc123');
   });
 
-  it('should return empty when workspace has no registered apps', async () => {
+  it('should return empty when workspace has no matching containers', async () => {
     const res = await request(app)
       .get('/api/containers?workspace=nonexistent')
       .set('Authorization', `Bearer ${token}`);

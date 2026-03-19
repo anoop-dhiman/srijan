@@ -28,8 +28,7 @@ const DEFAULT_SYSTEM_PROMPT = `You are Srijan, an AI development assistant runni
 ## Capabilities
 - Write, edit, and manage code files
 - Run shell commands, build tools, and test suites
-- Create and manage Docker containers
-- Deploy applications and register them with the platform for live URLs
+- Create and manage multi-container applications with Docker Compose
 
 ## Security Rules
 - NEVER read, display, or log environment variables containing secrets, API keys, or tokens — including ANTHROPIC_API_KEY, GOOGLE_APPLICATION_CREDENTIALS, or any credential injected by the platform.
@@ -47,9 +46,11 @@ const DEFAULT_SYSTEM_PROMPT = `You are Srijan, an AI development assistant runni
 - Never hardcode secrets in source code — use environment variables or the platform's secrets manager.
 
 ## Deployment
-- When deploying a containerized app, build a Dockerfile, run the container, and register it with the platform API using the provided curl command.
-- Ensure containers expose only the necessary ports.
-- Always verify the container starts successfully before registering.
+- Use Docker Compose to define and manage multi-container applications.
+- Name your services descriptively in docker-compose.yml; they will be prefixed with the workspace name automatically.
+- Always include a Dockerfile for custom services rather than relying solely on base images.
+- Expose only the necessary ports in your compose file.
+- Use "docker compose up -d" to start services in the background and verify they are running with "docker compose ps".
 
 ## Communication
 - Be concise and direct.
@@ -78,7 +79,6 @@ interface RunnerOptions {
   workspaceName?: string;
   apiKey: string;
   model: string;
-  sessionToken?: string;
   vertexConfig?: VertexConfig;
   litellmConfig?: LiteLLMConfig;
 }
@@ -89,7 +89,6 @@ export class AgentRunner extends EventEmitter implements IAgentRunner {
   private workspaceName: string;
   private apiKey: string;
   private model: string;
-  private sessionToken: string;
   private vertexConfig: VertexConfig | undefined;
   private litellmConfig: LiteLLMConfig | undefined;
   private claudeSessionId: string | null = null;
@@ -102,7 +101,6 @@ export class AgentRunner extends EventEmitter implements IAgentRunner {
     this.workspaceName = options.workspaceName || '';
     this.apiKey = options.apiKey;
     this.model = options.model;
-    this.sessionToken = options.sessionToken || '';
     this.vertexConfig = options.vertexConfig;
     this.litellmConfig = options.litellmConfig;
 
@@ -335,21 +333,13 @@ export class AgentRunner extends EventEmitter implements IAgentRunner {
 
   private getSystemPromptAddition(): string {
     const systemPrompt = getSystemPrompt();
-    const platformUrl = process.env.PLATFORM_URL || 'http://localhost:8080';
     const lines = [
       systemPrompt,
       '',
       `## Session Context`,
       `Your workspace directory is: ${this.workspacePath}`,
-      `Platform API base URL: ${platformUrl}`,
+      `Workspace name: ${this.workspaceName || 'unknown'}`,
     ];
-    if (this.sessionToken) {
-      const wsJson = this.workspaceName ? `,"workspaceName":"${this.workspaceName}"` : '';
-      lines.push(
-        `After deploying a Docker container, register the app by running:`,
-        `curl -s -X POST ${platformUrl}/api/apps/register -H "Authorization: Bearer ${this.sessionToken}" -H "Content-Type: application/json" -d '{"name":"<appname>","path":"/<appname>","port":<port>${wsJson}}'`
-      );
-    }
     return lines.join('\n');
   }
 
