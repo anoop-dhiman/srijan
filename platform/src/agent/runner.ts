@@ -49,8 +49,8 @@ const DEFAULT_SYSTEM_PROMPT = `You are Srijan, an AI development assistant runni
 - Use Docker Compose to define and manage multi-container applications.
 - Name your services descriptively in docker-compose.yml; they will be prefixed with the workspace name automatically.
 - Always include a Dockerfile for custom services rather than relying solely on base images.
-- Expose only the necessary ports in your compose file.
 - Use "docker compose up -d" to start services in the background and verify they are running with "docker compose ps".
+- Apps run on internal ports by default. Only register an app for a public URL when the user explicitly asks for one — use the registration curl command provided in the session context.
 
 ## Communication
 - Be concise and direct.
@@ -79,6 +79,7 @@ interface RunnerOptions {
   workspaceName?: string;
   apiKey: string;
   model: string;
+  sessionToken?: string;
   vertexConfig?: VertexConfig;
   litellmConfig?: LiteLLMConfig;
 }
@@ -89,6 +90,7 @@ export class AgentRunner extends EventEmitter implements IAgentRunner {
   private workspaceName: string;
   private apiKey: string;
   private model: string;
+  private sessionToken: string;
   private vertexConfig: VertexConfig | undefined;
   private litellmConfig: LiteLLMConfig | undefined;
   private claudeSessionId: string | null = null;
@@ -101,6 +103,7 @@ export class AgentRunner extends EventEmitter implements IAgentRunner {
     this.workspaceName = options.workspaceName || '';
     this.apiKey = options.apiKey;
     this.model = options.model;
+    this.sessionToken = options.sessionToken || '';
     this.vertexConfig = options.vertexConfig;
     this.litellmConfig = options.litellmConfig;
 
@@ -333,6 +336,7 @@ export class AgentRunner extends EventEmitter implements IAgentRunner {
 
   private getSystemPromptAddition(): string {
     const systemPrompt = getSystemPrompt();
+    const platformUrl = process.env.PLATFORM_URL || 'http://localhost:8080';
     const lines = [
       systemPrompt,
       '',
@@ -340,6 +344,14 @@ export class AgentRunner extends EventEmitter implements IAgentRunner {
       `Your workspace directory is: ${this.workspacePath}`,
       `Workspace name: ${this.workspaceName || 'unknown'}`,
     ];
+    if (this.sessionToken) {
+      const wsJson = this.workspaceName ? `,"workspaceName":"${this.workspaceName}"` : '';
+      lines.push(
+        ``,
+        `To give a service a public URL (only when the user explicitly requests it), register it after the container is running:`,
+        `curl -s -X POST ${platformUrl}/api/apps/register -H "Authorization: Bearer ${this.sessionToken}" -H "Content-Type: application/json" -d '{"name":"<appname>","path":"/<appname>","port":<port>${wsJson}}'`,
+      );
+    }
     return lines.join('\n');
   }
 

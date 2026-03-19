@@ -95,7 +95,7 @@ server.on('upgrade', (request: IncomingMessage, socket, head) => {
 
   if (pathname === '/api/chat') {
     chatWss.handleUpgrade(request, socket, head, (ws) => {
-      chatWss.emit('connection', ws, request, payload);
+      chatWss.emit('connection', ws, request, payload, token);
     });
   } else if (pathname === '/api/terminal') {
     const sessionId = query.sessionId as string || '';
