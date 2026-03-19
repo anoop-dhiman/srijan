@@ -16,6 +16,11 @@ export function isAuthenticated(): boolean {
   return !!getToken();
 }
 
+export function logout(): void {
+  clearToken();
+  window.location.reload();
+}
+
 export async function apiFetch(path: string, options: RequestInit = {}): Promise<any> {
   const token = getToken();
   const res = await fetch(`${BASE_URL}${path}`, {

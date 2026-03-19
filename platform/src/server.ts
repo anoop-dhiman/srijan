@@ -13,6 +13,7 @@ import authRouter from './routes/auth.js';
 import configRouter from './routes/config.js';
 import secretsRouter from './routes/secrets.js';
 import appsRouter from './routes/apps.js';
+import gitRouter from './routes/git.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -36,6 +37,7 @@ app.use('/api/auth', authRouter);
 app.use('/api/config', configRouter);
 app.use('/api/secrets', secretsRouter);
 app.use('/api/apps', appsRouter);
+app.use('/api/git', gitRouter);
 
 // Health check
 app.get('/health', (_req, res) => {

@@ -1,0 +1,56 @@
+version: "3.8"
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: srijan-caddy-dev
+    ports:
+      - "80:80"
+      - "443:443"
+      - "2019:2019"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    environment:
+      - SRIJAN_DOMAIN=${SRIJAN_DOMAIN:-localhost}
+    networks:
+      - srijan
+
+  platform:
+    image: node:20-alpine
+    container_name: srijan-platform-dev
+    working_dir: /app
+    command: sh -c "npm install && npm run dev"
+    ports:
+      - "8080:8080"
+    volumes:
+      - ../platform:/app
+      - /var/run/docker.sock:/var/run/docker.sock
+      - srijan_workspaces:/workspaces
+      - srijan_data:/data
+    environment:
+      - PORT=8080
+      - NODE_ENV=development
+      - SRIJAN_ADMIN_PASSWORD=${SRIJAN_ADMIN_PASSWORD:-admin}
+      - SRIJAN_JWT_SECRET=${SRIJAN_JWT_SECRET:-srijan-dev-secret}
+      - SRIJAN_SECRETS_KEY=${SRIJAN_SECRETS_KEY:-dev-key-32-bytes-long-pad-here!}
+      - SRIJAN_DATA_DIR=/data
+      - WORKSPACE_ROOT=/workspaces
+      - SRIJAN_DOMAIN=${SRIJAN_DOMAIN:-localhost}
+      - CADDY_ADMIN_URL=http://caddy:2019
+      - PLATFORM_URL=http://localhost:8080
+    depends_on:
+      - caddy
+    networks:
+      - srijan
+
+volumes:
+  caddy_data:
+  caddy_config:
+  srijan_workspaces:
+  srijan_data:
+
+networks:
+  srijan:
+    driver: bridge

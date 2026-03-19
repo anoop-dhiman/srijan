@@ -30,35 +30,33 @@ export function Login({ onLogin }: LoginProps) {
   };
 
   return (
-    <div className="min-h-dvh flex items-center justify-center p-4">
-      <div className="w-full max-w-sm space-y-6">
-        <div className="text-center">
-          <h1 className="text-3xl font-bold tracking-tight">Srijan</h1>
-          <p className="text-muted-foreground mt-2 text-sm">Cloud AI Development Environment</p>
+    <div className="min-h-dvh flex items-center justify-center p-6">
+      <div className="w-full max-w-sm space-y-8">
+        <div className="text-center space-y-2">
+          <h1 className="text-4xl font-bold tracking-tight">Srijan</h1>
+          <p className="text-muted-foreground text-base">Cloud AI Development Environment</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <input
-              type="password"
-              placeholder="Password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-lg border border-border bg-muted px-4 py-3 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-              autoFocus
-            />
-          </div>
+          <input
+            type="password"
+            placeholder="Password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="w-full rounded-xl border border-border bg-muted px-4 py-3.5 text-base text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+            autoFocus
+          />
 
           {error && (
-            <p className="text-sm text-destructive">{error}</p>
+            <p className="text-base text-destructive">{error}</p>
           )}
 
           <button
             type="submit"
             disabled={loading || !password}
-            className="w-full rounded-lg bg-primary px-4 py-3 font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+            className="w-full rounded-xl bg-primary px-4 py-3.5 text-base font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
           >
-            {loading ? 'Signing in...' : 'Sign In'}
+            {loading ? 'Signing in…' : 'Sign In'}
           </button>
         </form>
       </div>

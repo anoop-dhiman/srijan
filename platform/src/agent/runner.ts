@@ -1,16 +1,24 @@
+import { spawn } from 'child_process';
 import { EventEmitter } from 'events';
-import { createEvent, AgentEvent } from './events.js';
+import { fileURLToPath } from 'url';
+import { dirname, resolve } from 'path';
+import { existsSync, mkdirSync } from 'fs';
+import { createEvent } from './events.js';
 import { saveEvent } from './session.js';
 import { getDb } from '../db/store.js';
 
-// Claude Agent SDK will be integrated here
-// For now, we use the Anthropic Messages API directly as the SDK bridge
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// Resolve the claude CLI binary relative to this file's location
+const CLAUDE_BIN = resolve(__dirname, '../../node_modules/@anthropic-ai/claude-code/cli.js');
 
 interface RunnerOptions {
   sessionId: string;
   workspacePath: string;
   apiKey: string;
   model: string;
+  sessionToken?: string;
 }
 
 export class AgentRunner extends EventEmitter {
@@ -18,8 +26,9 @@ export class AgentRunner extends EventEmitter {
   private workspacePath: string;
   private apiKey: string;
   private model: string;
-  private conversationHistory: Array<{ role: string; content: string }> = [];
-  private abortController: AbortController | null = null;
+  private sessionToken: string;
+  private claudeSessionId: string | null = null;
+  private subprocess: ReturnType<typeof spawn> | null = null;
 
   constructor(options: RunnerOptions) {
     super();
@@ -27,131 +36,178 @@ export class AgentRunner extends EventEmitter {
     this.workspacePath = options.workspacePath;
     this.apiKey = options.apiKey;
     this.model = options.model;
+    this.sessionToken = options.sessionToken || '';
+
+    if (!existsSync(this.workspacePath)) {
+      mkdirSync(this.workspacePath, { recursive: true });
+    }
   }
 
   async sendMessage(message: string): Promise<void> {
-    // Save user message event
     const userEvent = createEvent(this.sessionId, 'user_message', { content: message });
     saveEvent(userEvent);
     this.emit('event', userEvent);
 
-    this.conversationHistory.push({ role: 'user', content: message });
+    return new Promise((resolve, reject) => {
+      const args = [
+        CLAUDE_BIN,
+        '-p',
+        '--output-format', 'stream-json',
+        '--permission-mode', 'bypassPermissions',
+        '--model', this.model,
+        '--append-system-prompt', this.getSystemPromptAddition(),
+      ];
 
-    try {
-      this.abortController = new AbortController();
-
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': this.apiKey,
-          'anthropic-version': '2023-06-01',
-        },
-        body: JSON.stringify({
-          model: this.model,
-          max_tokens: 8192,
-          system: this.getSystemPrompt(),
-          messages: this.conversationHistory.map((m) => ({
-            role: m.role,
-            content: m.content,
-          })),
-          stream: true,
-        }),
-        signal: this.abortController.signal,
-      });
-
-      if (!response.ok) {
-        const errBody = await response.text();
-        throw new Error(`Anthropic API error: ${response.status} ${errBody}`);
+      if (this.claudeSessionId) {
+        args.push('--resume', this.claudeSessionId);
       }
 
-      await this.handleStream(response);
-    } catch (err: any) {
-      if (err.name === 'AbortError') return;
-      const errorEvent = createEvent(this.sessionId, 'error', { message: err.message });
-      saveEvent(errorEvent);
-      this.emit('event', errorEvent);
-    } finally {
-      this.abortController = null;
-    }
+      args.push(message);
+
+      const proc = spawn(process.execPath, args, {
+        cwd: this.workspacePath,
+        env: {
+          ...process.env,
+          ANTHROPIC_API_KEY: this.apiKey,
+        },
+      });
+
+      this.subprocess = proc;
+      let buffer = '';
+
+      proc.stdout.on('data', (chunk: Buffer) => {
+        buffer += chunk.toString();
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed) continue;
+          try {
+            this.handleSdkMessage(JSON.parse(trimmed));
+          } catch {
+            // skip non-JSON lines
+          }
+        }
+      });
+
+      proc.on('close', (code: number | null) => {
+        if (buffer.trim()) {
+          try {
+            this.handleSdkMessage(JSON.parse(buffer.trim()));
+          } catch {}
+        }
+        this.subprocess = null;
+        if (code !== 0 && code !== null) {
+          const errEvent = createEvent(this.sessionId, 'error', {
+            message: `Agent process exited with code ${code}`,
+          });
+          saveEvent(errEvent);
+          this.emit('event', errEvent);
+        }
+        resolve();
+      });
+
+      proc.on('error', (err: Error) => {
+        this.subprocess = null;
+        const errEvent = createEvent(this.sessionId, 'error', { message: err.message });
+        saveEvent(errEvent);
+        this.emit('event', errEvent);
+        resolve();
+      });
+    });
   }
 
-  private async handleStream(response: Response): Promise<void> {
-    const reader = response.body?.getReader();
-    if (!reader) throw new Error('No response body');
+  private handleSdkMessage(msg: any): void {
+    switch (msg.type) {
+      case 'system': {
+        if (msg.subtype === 'init' && msg.session_id) {
+          this.claudeSessionId = msg.session_id;
+          const event = createEvent(this.sessionId, 'session_start', {
+            claudeSessionId: msg.session_id,
+            tools: msg.tools || [],
+          });
+          saveEvent(event);
+          this.emit('event', event);
+        }
+        break;
+      }
 
-    const decoder = new TextDecoder();
-    let buffer = '';
-    let fullResponse = '';
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
-
-      for (const line of lines) {
-        if (!line.startsWith('data: ')) continue;
-        const data = line.slice(6).trim();
-        if (data === '[DONE]') continue;
-
-        try {
-          const parsed = JSON.parse(data);
-
-          if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
-            fullResponse += parsed.delta.text;
-            const chunkEvent = createEvent(this.sessionId, 'agent_response', {
-              content: parsed.delta.text,
-              streaming: true,
-            });
-            this.emit('event', chunkEvent);
-          }
-
-          if (parsed.type === 'message_stop') {
-            this.conversationHistory.push({ role: 'assistant', content: fullResponse });
-            const doneEvent = createEvent(this.sessionId, 'agent_response', {
-              content: fullResponse,
+      case 'assistant': {
+        const content = msg.message?.content || [];
+        for (const block of content) {
+          if (block.type === 'text' && block.text) {
+            const event = createEvent(this.sessionId, 'agent_response', {
+              content: block.text,
               streaming: false,
               done: true,
             });
-            saveEvent(doneEvent);
-            this.emit('event', doneEvent);
+            saveEvent(event);
+            this.emit('event', event);
+          } else if (block.type === 'tool_use') {
+            const event = createEvent(this.sessionId, 'tool_use', {
+              id: block.id,
+              name: block.name,
+              input: block.input,
+            });
+            saveEvent(event);
+            this.emit('event', event);
           }
-        } catch {
-          // Skip unparseable lines
         }
+        break;
+      }
+
+      case 'user': {
+        const content = Array.isArray(msg.message?.content) ? msg.message.content : [];
+        for (const block of content) {
+          if (block.type === 'tool_result') {
+            const event = createEvent(this.sessionId, 'tool_result', {
+              id: block.tool_use_id,
+              content: Array.isArray(block.content)
+                ? block.content.map((c: any) => c.text || '').join('')
+                : String(block.content || ''),
+              isError: block.is_error || false,
+            });
+            saveEvent(event);
+            this.emit('event', event);
+          }
+        }
+        break;
+      }
+
+      case 'result': {
+        if (msg.is_error) {
+          const event = createEvent(this.sessionId, 'error', {
+            message: msg.result || 'Agent execution failed',
+            subtype: msg.subtype,
+          });
+          saveEvent(event);
+          this.emit('event', event);
+        }
+        break;
       }
     }
   }
 
-  private getSystemPrompt(): string {
-    return `You are Srijan, an AI coding agent running in a cloud development environment.
-
-You have access to a workspace at: ${this.workspacePath}
-
-You can help the user:
-- Write and edit code
-- Build Docker images and deploy containers
-- Manage git repositories
-- Debug and fix issues
-
-When the user asks you to build and deploy an app:
-1. Create the project files
-2. Write a Dockerfile
-3. Suggest docker commands to build and run
-4. The platform will handle routing automatically
-
-Be concise and action-oriented. Show code, not explanations unless asked.`;
+  private getSystemPromptAddition(): string {
+    const platformUrl = process.env.PLATFORM_URL || 'http://localhost:8080';
+    const lines = [
+      `Your workspace directory is: ${this.workspacePath}`,
+      `Platform API base URL: ${platformUrl}`,
+    ];
+    if (this.sessionToken) {
+      lines.push(
+        `After deploying a Docker container, register the app by running:`,
+        `curl -s -X POST ${platformUrl}/api/apps/register -H "Authorization: Bearer ${this.sessionToken}" -H "Content-Type: application/json" -d '{"name":"<appname>","path":"/<appname>","port":<port>}'`
+      );
+    }
+    return lines.join('\n');
   }
 
   abort(): void {
-    this.abortController?.abort();
-  }
-
-  getHistory(): Array<{ role: string; content: string }> {
-    return [...this.conversationHistory];
+    if (this.subprocess) {
+      this.subprocess.kill('SIGTERM');
+      this.subprocess = null;
+    }
   }
 }
 
@@ -180,7 +236,6 @@ export function removeRunner(sessionId: string): void {
 }
 
 function getApiKey(): string {
-  // Platform holds the real API key — agent never sees it
   const db = getDb();
   const row = db.prepare("SELECT value FROM config WHERE key = 'llm'").get() as { value: string } | undefined;
   if (row) {

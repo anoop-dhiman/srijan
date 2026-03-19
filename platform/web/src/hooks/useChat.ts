@@ -89,11 +89,21 @@ export function useChat() {
               });
             }
             if (evt.data.done) {
+              const finalContent = streamBufferRef.current || evt.data.content || '';
               streamBufferRef.current = '';
               setMessages((prev) => {
                 const last = prev[prev.length - 1];
                 if (last?.streaming) {
-                  return [...prev.slice(0, -1), { ...last, streaming: false }];
+                  return [...prev.slice(0, -1), { ...last, content: finalContent, streaming: false }];
+                }
+                if (finalContent) {
+                  return [...prev, {
+                    id: `msg-${Date.now()}`,
+                    role: 'assistant' as const,
+                    content: finalContent,
+                    streaming: false,
+                    timestamp: Date.now(),
+                  }];
                 }
                 return prev;
               });

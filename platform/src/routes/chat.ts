@@ -1,6 +1,7 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import { IncomingMessage, Server } from 'http';
 import { parse } from 'url';
+import { join } from 'path';
 import { verifyToken } from '../security/auth.js';
 import { createSession, getSession, listSessions, getSessionEvents } from '../agent/session.js';
 import { getOrCreateRunner, getApiKey, getModel } from '../agent/runner.js';
@@ -33,11 +34,11 @@ export function setupWebSocket(server: Server): void {
     }
 
     wss.handleUpgrade(request, socket, head, (ws) => {
-      wss.emit('connection', ws, request, payload);
+      wss.emit('connection', ws, request, payload, token);
     });
   });
 
-  wss.on('connection', (ws: WebSocket, _req: IncomingMessage, user: any) => {
+  wss.on('connection', (ws: WebSocket, _req: IncomingMessage, user: any, sessionToken: string) => {
     let currentSessionId: string | null = null;
 
     ws.on('message', async (data: Buffer) => {
@@ -91,9 +92,10 @@ export function setupWebSocket(server: Server): void {
 
             const runner = getOrCreateRunner({
               sessionId: currentSessionId,
-              workspacePath: getWorkspaceRoot(),
+              workspacePath: join(getWorkspaceRoot(), currentSessionId),
               apiKey,
               model: getModel(),
+              sessionToken,
             });
 
             // Pipe agent events to WebSocket
