@@ -241,7 +241,7 @@ export function Dashboard({ workspaces, onRefresh, onViewSessions }: DashboardPr
             No workspaces yet. Create one to get started.
           </div>
         ) : (
-          <div className="max-w-3xl mx-auto space-y-4">
+          <div className="max-w-5xl mx-auto space-y-4">
             {workspaces.map(ws => (
               <WorkspaceCard
                 key={ws.name}

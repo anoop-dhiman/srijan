@@ -75,6 +75,7 @@ interface LiteLLMConfig {
 interface RunnerOptions {
   sessionId: string;
   workspacePath: string;
+  workspaceName?: string;
   apiKey: string;
   model: string;
   sessionToken?: string;
@@ -85,6 +86,7 @@ interface RunnerOptions {
 export class AgentRunner extends EventEmitter implements IAgentRunner {
   readonly sessionId: string;
   private workspacePath: string;
+  private workspaceName: string;
   private apiKey: string;
   private model: string;
   private sessionToken: string;
@@ -97,6 +99,7 @@ export class AgentRunner extends EventEmitter implements IAgentRunner {
     super();
     this.sessionId = options.sessionId;
     this.workspacePath = options.workspacePath;
+    this.workspaceName = options.workspaceName || '';
     this.apiKey = options.apiKey;
     this.model = options.model;
     this.sessionToken = options.sessionToken || '';
@@ -341,9 +344,10 @@ export class AgentRunner extends EventEmitter implements IAgentRunner {
       `Platform API base URL: ${platformUrl}`,
     ];
     if (this.sessionToken) {
+      const wsJson = this.workspaceName ? `,"workspaceName":"${this.workspaceName}"` : '';
       lines.push(
         `After deploying a Docker container, register the app by running:`,
-        `curl -s -X POST ${platformUrl}/api/apps/register -H "Authorization: Bearer ${this.sessionToken}" -H "Content-Type: application/json" -d '{"name":"<appname>","path":"/<appname>","port":<port>}'`
+        `curl -s -X POST ${platformUrl}/api/apps/register -H "Authorization: Bearer ${this.sessionToken}" -H "Content-Type: application/json" -d '{"name":"<appname>","path":"/<appname>","port":<port>${wsJson}}'`
       );
     }
     return lines.join('\n');

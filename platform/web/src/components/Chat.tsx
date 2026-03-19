@@ -385,15 +385,7 @@ export function Chat({
                     isActive ? 'text-foreground' : 'text-muted-foreground'
                   }`}
                 >
-                  <div className="flex items-center gap-2">
-                    <span className="truncate flex-1">{s.title}</span>
-                    {activity?.isLoading && (
-                      <Loader2 size={13} className="animate-spin text-primary shrink-0" />
-                    )}
-                    {!isActive && activity?.hasUnread && !activity?.isLoading && (
-                      <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
-                    )}
-                  </div>
+                  <span className="truncate block">{s.title}</span>
                   <div className="flex items-center gap-2 mt-0.5">
                     <span className="text-xs text-muted-foreground">{new Date(s.createdAt).toLocaleDateString()}</span>
                     {(sessionCosts[s.id] ?? 0) > 0 && (
@@ -401,6 +393,13 @@ export function Chat({
                     )}
                   </div>
                 </button>
+                {/* Status indicators — always visible, vertically centred */}
+                {activity?.isLoading && (
+                  <Loader2 size={13} className="shrink-0 animate-spin text-primary mr-1" />
+                )}
+                {!isActive && activity?.hasUnread && !activity?.isLoading && (
+                  <span className="shrink-0 w-2 h-2 rounded-full bg-blue-500 mr-1" />
+                )}
                 <button
                   onClick={(e) => {
                     e.stopPropagation();

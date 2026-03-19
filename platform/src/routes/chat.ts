@@ -112,6 +112,7 @@ export function setupWebSocket(): void {
             const runner = getOrCreateRunner({
               sessionId: currentSessionId,
               workspacePath: join(getWorkspaceRoot(), wsName),
+              workspaceName: session.workspaceName || undefined,
               apiKey,
               model: getModel(),
               sessionToken,
