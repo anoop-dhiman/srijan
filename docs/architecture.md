@@ -288,21 +288,34 @@ Browser -> Caddy (HTTPS, auto-TLS) -> Platform API
 
 ---
 
+## MVP Decision Log
+
+| # | Decision | Choice | Rationale |
+|---|----------|--------|-----------|
+| 1 | Backend language | Node.js + Express + TypeScript | Single language across stack, native Claude SDK, WebSocket support |
+| 2 | Agent execution | Claude Agent SDK (programmatic) | Structured events, action interception, session control |
+| 3 | Secret handling | Middle ground | Platform calls LLM directly; agent never holds API key. Full proxy in Phase 2 |
+| 4 | Agent ↔ Docker | Hybrid | Agent runs Docker CLI (natural workflow), platform tracks state via dockerode |
+| 5 | URL routing | Path-based | `/forge` for platform, `/app-name` for apps. Single DNS record, no wildcard needed |
+| 6 | Code structure | Nested monorepo | `platform/src/` (backend) + `platform/web/` (frontend). Single package.json, single Dockerfile |
+| 7 | UI framework | shadcn/ui (Tailwind + Radix) | Lightweight, accessible components, mobile-first utilities, no framework lock-in |
+
+---
+
 ## Tech Stack
 
 ### Platform Container
 
 | Component | Technology | Rationale |
 |-----------|-----------|-----------|
-| API Server | **Node.js + Express** | Fast WebSocket support, npm ecosystem for agent SDKs |
-| Web UI | **React + Vite** | Lightweight, mobile-responsive, fast HMR |
-| Agent SDKs | **Claude Agent SDK, OpenCode CLI** | Primary agent backends |
-| LLM Routing | **LiteLLM** (Python sidecar) or direct SDK | Multi-provider support |
-| Secret Proxy | **mitmproxy** or custom Node.js proxy | Outbound HTTP interception |
+| API Server | **Node.js + Express + TypeScript** | Single language across stack, native WebSocket support |
+| Web UI | **React + Vite + shadcn/ui** | Tailwind utilities for mobile-first, Radix for accessibility |
+| Agent SDK | **@anthropic-ai/claude-code** | Programmatic control, structured events, action interception |
+| LLM Calls | **Anthropic SDK (direct)** | Platform calls LLM on behalf of agent; LiteLLM in Phase 2 |
 | State Store | **SQLite** (via better-sqlite3) | Zero-config, single-file DB |
-| Terminal | **node-pty + xterm.js** | PTY for agent, xterm.js for browser |
-| Docker Client | **dockerode** (Node.js Docker SDK) | Programmatic container management |
-| Git | **simple-git** (Node.js) | Git operations from API |
+| Terminal | **node-pty + xterm.js** | PTY for agent, xterm.js for browser (Phase 2) |
+| Docker Client | **dockerode** | App state tracking, port management, Caddy route registration |
+| Git | **simple-git** | Git operations from API |
 
 ### Host Layer
 
@@ -311,21 +324,6 @@ Browser -> Caddy (HTTPS, auto-TLS) -> Platform API
 | Reverse Proxy + SSL | **Caddy** (Docker container) | Auto HTTPS, Admin REST API for dynamic routing, no certbot needed |
 | Container Runtime | **Docker Engine** | Standard, widely available |
 | OS | **Ubuntu 22.04+ / Debian 12+** | Stable, well-supported |
-
-### Alternative: Python Stack
-
-If we want the agent runner in Python (closer to OpenHands/LiteLLM ecosystem):
-
-| Component | Technology |
-|-----------|-----------|
-| API Server | FastAPI + uvicorn |
-| WebSocket | FastAPI WebSocket |
-| Agent SDKs | Claude Agent SDK (Python), OpenCode CLI (subprocess) |
-| LLM Routing | LiteLLM (native Python) |
-| Secret Proxy | mitmproxy (Python) |
-| State Store | SQLite (via aiosqlite) |
-| Docker Client | docker-py |
-| Git | gitpython |
 
 ---
 

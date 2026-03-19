@@ -1,0 +1,58 @@
+version: "3.8"
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: srijan-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    environment:
+      - SRIJAN_DOMAIN=${SRIJAN_DOMAIN:-localhost}
+    networks:
+      - srijan
+
+  platform:
+    image: srijan/platform:latest
+    container_name: srijan-platform
+    restart: unless-stopped
+    expose:
+      - "8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - srijan_workspaces:/workspaces
+      - srijan_data:/data
+    environment:
+      - PORT=8080
+      - SRIJAN_ADMIN_PASSWORD=${SRIJAN_ADMIN_PASSWORD:-admin}
+      - SRIJAN_JWT_SECRET=${SRIJAN_JWT_SECRET}
+      - SRIJAN_SECRETS_KEY=${SRIJAN_SECRETS_KEY}
+      - SRIJAN_DATA_DIR=/data
+      - WORKSPACE_ROOT=/workspaces
+      - SRIJAN_DOMAIN=${SRIJAN_DOMAIN:-localhost}
+      - CADDY_ADMIN_URL=http://caddy:2019
+    depends_on:
+      - caddy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - srijan
+
+volumes:
+  caddy_data:
+  caddy_config:
+  srijan_workspaces:
+  srijan_data:
+
+networks:
+  srijan:
+    driver: bridge

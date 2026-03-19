@@ -1,0 +1,46 @@
+const BASE_URL = '/api';
+
+function getToken(): string | null {
+  return localStorage.getItem('srijan_token');
+}
+
+export function setToken(token: string): void {
+  localStorage.setItem('srijan_token', token);
+}
+
+export function clearToken(): void {
+  localStorage.removeItem('srijan_token');
+}
+
+export function isAuthenticated(): boolean {
+  return !!getToken();
+}
+
+export async function apiFetch(path: string, options: RequestInit = {}): Promise<any> {
+  const token = getToken();
+  const res = await fetch(`${BASE_URL}${path}`, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...options.headers,
+    },
+  });
+
+  if (res.status === 401) {
+    clearToken();
+    window.location.reload();
+    throw new Error('Unauthorized');
+  }
+
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error?.message || 'Request failed');
+  return data;
+}
+
+export function createChatSocket(): WebSocket {
+  const token = getToken();
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const host = window.location.host;
+  return new WebSocket(`${protocol}//${host}/api/chat?token=${token}`);
+}

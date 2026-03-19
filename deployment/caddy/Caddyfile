@@ -1,0 +1,21 @@
+{$SRIJAN_DOMAIN:localhost} {
+	handle /forge/* {
+		reverse_proxy srijan-platform:8080
+	}
+
+	handle /forge {
+		reverse_proxy srijan-platform:8080
+	}
+
+	handle /api/* {
+		reverse_proxy srijan-platform:8080
+	}
+
+	handle /health {
+		reverse_proxy srijan-platform:8080
+	}
+
+	handle {
+		reverse_proxy srijan-platform:8080
+	}
+}
