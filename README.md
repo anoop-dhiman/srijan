@@ -108,7 +108,7 @@ cd web && npx vitest run     # 56 frontend tests
 
 | Phase | Focus | Status |
 |-------|-------|--------|
-| Phase 1 (MVP) | Chat UI, Claude Code agent, Docker deploy, Caddy routing, auth | **Done** |
+| Phase 1 (MVP) | Chat UI, Claude Code agent, Docker deploy, Caddy routing, auth, setup script | **Done** |
 | Phase 1.5 | Vertex AI provider, system prompt, session UX, real-time feedback | **Done** |
 | Phase 2 | Multi-repo, secret proxy, agent boundaries, app dashboard | Planned |
 | Phase 3 | Session snapshots, pause/resume, cost tracking | Planned |

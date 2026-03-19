@@ -18,7 +18,7 @@
 | 5 | Secret Management | Encrypted storage (AES-256), write-once display, CRUD via UI | **Done** |
 | 6 | LLM Config | Anthropic API + Vertex AI provider toggle, model selection via UI | **Done** |
 | 7 | Git Support | Clone, init, pull, status operations via REST API | **Done** |
-| 8 | Shell Script Deploy | `curl \| bash` to set up on any VM with domain + SSL | Planned |
+| 8 | Shell Script Deploy | `curl \| bash` to set up on any VM with domain + SSL | **Done** |
 | 9 | Auth | Password-based login with JWT session tokens | **Done** |
 | 10 | HTTPS | Automatic TLS via Caddy (built-in ACME) | **Done** (Caddy config ready) |
 | 11 | System Prompt | Configurable agent instructions with security rules, editable from UI | **Done** |

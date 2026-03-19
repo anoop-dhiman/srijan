@@ -1,3 +1,7 @@
+{
+	email {$ACME_EMAIL:}
+}
+
 {$SRIJAN_DOMAIN:localhost} {
 	handle /forge/* {
 		reverse_proxy srijan-platform:8080

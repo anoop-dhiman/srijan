@@ -15,6 +15,7 @@ services:
       - caddy_config:/config
     environment:
       - SRIJAN_DOMAIN=${SRIJAN_DOMAIN:-localhost}
+      - ACME_EMAIL=${ACME_EMAIL:-}
     networks:
       - srijan
 
