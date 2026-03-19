@@ -7,6 +7,10 @@ vi.mock('../lib/api', () => ({
   apiFetch: vi.fn(),
 }));
 
+vi.mock('qrcode.react', () => ({
+  QRCodeSVG: ({ value }: { value: string }) => <div data-testid="qrcode" data-value={value} />,
+}));
+
 import { apiFetch } from '../lib/api';
 
 describe('Settings', () => {

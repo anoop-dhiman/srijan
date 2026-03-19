@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { QRCodeSVG } from 'qrcode.react';
 import { Eye, EyeOff, Plus, Trash2, Save, RotateCcw, Shield, Lock, Users as UsersIcon, Copy, Check, Bot, Terminal } from 'lucide-react';
 import { apiFetch } from '../lib/api';
 
@@ -606,10 +607,16 @@ export function Settings({ open, onClose, isAdmin = false }: SettingsProps) {
                     </button>
                   </div>
                 ) : (
-                  <div className="space-y-3">
+                  <div className="space-y-4">
                     <p className="text-sm text-muted-foreground">
-                      Enter this key in your authenticator app (Google Authenticator, Authy, 1Password, etc.):
+                      Scan this QR code with your authenticator app (Google Authenticator, Authy, 1Password, etc.):
                     </p>
+                    {totpSetupUri && (
+                      <div className="inline-block p-3 rounded-xl bg-white">
+                        <QRCodeSVG value={totpSetupUri} size={160} />
+                      </div>
+                    )}
+                    <p className="text-xs text-muted-foreground">Or enter this key manually:</p>
                     <div className="flex items-center gap-2">
                       <code className="flex-1 rounded-xl border border-border bg-muted px-4 py-3 text-sm font-mono break-all">
                         {totpSetupSecret}
