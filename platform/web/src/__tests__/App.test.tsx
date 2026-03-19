@@ -36,11 +36,14 @@ const mockChat = {
   currentSession: null,
   isConnected: true,
   isLoading: false,
+  agentStatus: '',
+  sessionCosts: {},
   connect: vi.fn(),
   disconnect: vi.fn(),
   sendMessage: vi.fn(),
   joinSession: vi.fn(),
   newSession: vi.fn(),
+  deleteSession: vi.fn(),
 };
 
 describe('App', () => {

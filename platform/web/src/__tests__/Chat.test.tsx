@@ -8,6 +8,10 @@ vi.mock('react-markdown', () => ({
   default: ({ children }: { children: string }) => <span>{children}</span>,
 }));
 
+vi.mock('../lib/api', () => ({
+  apiFetch: vi.fn().mockResolvedValue([]),
+}));
+
 // jsdom does not implement scrollIntoView
 window.HTMLElement.prototype.scrollIntoView = vi.fn();
 
@@ -18,6 +22,7 @@ const defaultProps = {
   isLoading: false,
   agentStatus: '',
   settingsOpen: false,
+  sessionCosts: {} as Record<string, number>,
   onSendMessage: vi.fn(),
   onNewSession: vi.fn(),
   onJoinSession: vi.fn(),
@@ -30,6 +35,7 @@ const mockSession: Session = {
   id: 'session-1',
   title: 'Test Session',
   status: 'active',
+  workspaceName: null,
   createdAt: '2024-01-01T00:00:00.000Z',
 };
 
@@ -83,7 +89,7 @@ describe('Chat', () => {
     });
 
     it('applies muted styling to inactive sessions', () => {
-      const otherSession: Session = { ...mockSession, id: 'session-2', title: 'Other Session' };
+      const otherSession: Session = { ...mockSession, id: 'session-2', title: 'Other Session', workspaceName: null };
       render(
         <Chat {...defaultProps} sessions={[mockSession, otherSession]} currentSession={otherSession} />
       );

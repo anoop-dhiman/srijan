@@ -7,6 +7,7 @@ import { tmpdir } from 'os';
 import { createEvent } from './events.js';
 import { saveEvent } from './session.js';
 import { getDb } from '../db/store.js';
+import { decrypt } from '../lib/crypto.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -100,12 +101,13 @@ export class AgentRunner extends EventEmitter {
     this.emit('event', userEvent);
 
     return new Promise((resolve, reject) => {
+      const mode = getAgentMode();
       const args = [
         CLAUDE_BIN,
         '-p',
         '--output-format', 'stream-json',
         '--verbose',
-        '--permission-mode', 'bypassPermissions',
+        '--permission-mode', mode === 'confirm' ? 'default' : 'bypassPermissions',
         '--model', this.model,
         '--append-system-prompt', this.getSystemPromptAddition(),
       ];
@@ -117,6 +119,9 @@ export class AgentRunner extends EventEmitter {
       args.push(message);
 
       const env: Record<string, string> = { ...(process.env as any) };
+
+      // Inject decrypted secrets as env vars
+      Object.assign(env, loadSecrets());
 
       const vertexCfg = this.vertexConfig;
       if (vertexCfg?.useVertex) {
@@ -223,6 +228,22 @@ export class AgentRunner extends EventEmitter {
             saveEvent(event);
             this.emit('event', event);
           } else if (block.type === 'tool_use') {
+            // Agent boundary check for Bash commands
+            if (block.name === 'Bash') {
+              const cmd: string = block.input?.command || '';
+              const blocked = getBoundaryBlocklist().find((p) => cmd.includes(p));
+              if (blocked) {
+                this.subprocess?.kill('SIGKILL');
+                this.subprocess = null;
+                const errEvt = createEvent(this.sessionId, 'error', {
+                  message: `Blocked dangerous command: "${blocked}"`,
+                  blockedCommand: cmd,
+                });
+                saveEvent(errEvt);
+                this.emit('event', errEvt);
+                return;
+              }
+            }
             const event = createEvent(this.sessionId, 'tool_use', {
               id: block.id,
               name: block.name,
@@ -254,6 +275,23 @@ export class AgentRunner extends EventEmitter {
       }
 
       case 'result': {
+        // Track token usage and cost
+        const usage = msg.usage as { input_tokens?: number; output_tokens?: number } | undefined;
+        if (usage || typeof msg.cost_usd === 'number') {
+          try {
+            getDb().prepare(
+              `INSERT INTO token_usage (session_id, input_tokens, output_tokens, cost_usd, model)
+               VALUES (?, ?, ?, ?, ?)`
+            ).run(
+              this.sessionId,
+              usage?.input_tokens ?? 0,
+              usage?.output_tokens ?? 0,
+              msg.cost_usd ?? null,
+              this.model,
+            );
+          } catch { /* non-fatal */ }
+        }
+
         if (msg.is_error) {
           const event = createEvent(this.sessionId, 'error', {
             message: msg.result || 'Agent execution failed',
@@ -373,4 +411,45 @@ function getSystemPrompt(): string {
   return DEFAULT_SYSTEM_PROMPT;
 }
 
-export { getApiKey, getModel, getVertexConfig, getSystemPrompt, DEFAULT_SYSTEM_PROMPT };
+function loadSecrets(): Record<string, string> {
+  const db = getDb();
+  const rows = db.prepare('SELECT name, encrypted_value FROM secrets').all() as
+    { name: string; encrypted_value: string }[];
+  const result: Record<string, string> = {};
+  for (const row of rows) {
+    try {
+      result[`SRIJAN_SECRET_${row.name}`] = decrypt(row.encrypted_value);
+    } catch { /* skip malformed rows */ }
+  }
+  return result;
+}
+
+const DEFAULT_BLOCKLIST = [
+  'rm -rf /', 'rm -rf /*',
+  'docker rm srijan-', 'docker stop srijan-', 'docker kill srijan-',
+  'kill -9 1', 'dd if=', 'mkfs', 'chmod -R 777 /',
+];
+
+function getBoundaryBlocklist(): string[] {
+  const row = getDb().prepare("SELECT value FROM config WHERE key='agent_boundaries'").get() as any;
+  if (row) {
+    try {
+      const v = JSON.parse(row.value);
+      if (Array.isArray(v)) return v;
+    } catch {}
+  }
+  return DEFAULT_BLOCKLIST;
+}
+
+function getAgentMode(): 'auto' | 'confirm' {
+  const row = getDb().prepare("SELECT value FROM config WHERE key='agentMode'").get() as any;
+  if (row) {
+    try {
+      const v = JSON.parse(row.value);
+      if (v === 'confirm') return 'confirm';
+    } catch {}
+  }
+  return 'auto';
+}
+
+export { getApiKey, getModel, getVertexConfig, getSystemPrompt, DEFAULT_SYSTEM_PROMPT, getAgentMode };

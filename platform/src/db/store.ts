@@ -22,6 +22,9 @@ export function getDb(): Database.Database {
 
     const schema = readFileSync(join(__dirname, 'schema.sql'), 'utf-8');
     db.exec(schema);
+
+    // Migrations for existing databases
+    try { db.exec(`ALTER TABLE sessions ADD COLUMN workspace_name TEXT`); } catch {}
   }
   return db;
 }

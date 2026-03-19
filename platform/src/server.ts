@@ -1,19 +1,24 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
-import { createServer } from 'http';
+import { createServer, IncomingMessage } from 'http';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { existsSync, mkdirSync } from 'fs';
+import { parse } from 'url';
 
 import { getDb, closeDb } from './db/store.js';
-import { setupAdmin } from './security/auth.js';
-import { setupWebSocket } from './routes/chat.js';
+import { setupAdmin, verifyToken } from './security/auth.js';
+import { setupWebSocket, chatWss } from './routes/chat.js';
+import { setupTerminal, terminalWss } from './routes/terminal.js';
 import authRouter from './routes/auth.js';
 import configRouter from './routes/config.js';
 import secretsRouter from './routes/secrets.js';
 import appsRouter from './routes/apps.js';
 import gitRouter from './routes/git.js';
+import costRouter from './routes/cost.js';
+import containersRouter from './routes/containers.js';
+import workspacesRouter from './routes/workspaces.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -38,6 +43,9 @@ app.use('/api/config', configRouter);
 app.use('/api/secrets', secretsRouter);
 app.use('/api/apps', appsRouter);
 app.use('/api/git', gitRouter);
+app.use('/api/sessions/:id/cost', costRouter);
+app.use('/api/containers', containersRouter);
+app.use('/api/workspaces', workspacesRouter);
 
 // Health check
 app.get('/health', (_req, res) => {
@@ -58,7 +66,40 @@ const db = getDb();
 setupAdmin(ADMIN_PASSWORD);
 
 const server = createServer(app);
-setupWebSocket(server);
+setupWebSocket();
+setupTerminal();
+
+// Single WebSocket upgrade dispatcher (R2)
+server.on('upgrade', (request: IncomingMessage, socket, head) => {
+  const { pathname, query } = parse(request.url || '', true);
+
+  const token = query.token as string;
+  if (!token) {
+    socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+    socket.destroy();
+    return;
+  }
+
+  const payload = verifyToken(token);
+  if (!payload) {
+    socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+    socket.destroy();
+    return;
+  }
+
+  if (pathname === '/api/chat') {
+    chatWss.handleUpgrade(request, socket, head, (ws) => {
+      chatWss.emit('connection', ws, request, payload, token);
+    });
+  } else if (pathname === '/api/terminal') {
+    const sessionId = query.sessionId as string || '';
+    terminalWss.handleUpgrade(request, socket, head, (ws) => {
+      terminalWss.emit('connection', ws, request, payload, sessionId);
+    });
+  } else {
+    socket.destroy();
+  }
+});
 
 server.listen(PORT, () => {
   console.log(`Srijan platform running on http://localhost:${PORT}`);

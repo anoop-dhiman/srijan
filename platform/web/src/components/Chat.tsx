@@ -2,11 +2,12 @@ import { useState, useRef, useEffect, useCallback, FormEvent } from 'react';
 import {
   Send, Plus, Menu, Settings as SettingsIcon, Loader2, Trash2,
   PanelLeftClose, PanelLeftOpen, CheckCircle2, XCircle, Terminal,
-  FileText, Search, FolderSearch, Bot, ChevronDown, ChevronRight,
+  FileText, Search, FolderSearch, Bot, ChevronDown, ChevronRight, FolderOpen,
 } from 'lucide-react';
 import type { ChatMessage, Session } from '../hooks/useChat';
 import ReactMarkdown from 'react-markdown';
 import { Settings } from './Settings';
+import { apiFetch } from '../lib/api';
 
 interface ChatProps {
   messages: ChatMessage[];
@@ -15,8 +16,9 @@ interface ChatProps {
   isLoading: boolean;
   agentStatus: string;
   settingsOpen: boolean;
+  sessionCosts: Record<string, number>;
   onSendMessage: (content: string) => void;
-  onNewSession: () => void;
+  onNewSession: (workspaceName?: string) => void;
   onJoinSession: (sessionId: string) => void;
   onDeleteSession: (sessionId: string) => void;
   onOpenSettings: () => void;
@@ -118,6 +120,7 @@ export function Chat({
   isLoading,
   agentStatus,
   settingsOpen,
+  sessionCosts,
   onSendMessage,
   onNewSession,
   onJoinSession,
@@ -129,9 +132,20 @@ export function Chat({
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_WIDTH);
+  const [workspacePicker, setWorkspacePicker] = useState(false);
+  const [workspaces, setWorkspaces] = useState<string[]>([]);
+  const [newWorkspaceName, setNewWorkspaceName] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const isResizing = useRef(false);
+
+  const openWorkspacePicker = useCallback(async () => {
+    try {
+      const list = await apiFetch('/workspaces');
+      setWorkspaces(list);
+    } catch { setWorkspaces([]); }
+    setWorkspacePicker(true);
+  }, []);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -199,17 +213,67 @@ export function Chat({
         style={sidebarCollapsed ? undefined : { width: `${sidebarWidth}px` }}
       >
         {/* New Chat button */}
-        <div className="p-3 border-b border-border shrink-0">
-          <button
-            onClick={() => {
-              onNewSession();
-              setSidebarOpen(false);
-            }}
-            className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg bg-primary text-primary-foreground text-base font-medium hover:bg-primary/90 transition-colors"
-          >
-            <Plus size={16} />
-            New Chat
-          </button>
+        <div className="p-3 border-b border-border shrink-0 relative">
+          <div className="flex gap-1">
+            <button
+              onClick={() => { onNewSession(); setSidebarOpen(false); }}
+              className="flex-1 flex items-center gap-2 px-3 py-2.5 rounded-lg bg-primary text-primary-foreground text-base font-medium hover:bg-primary/90 transition-colors"
+            >
+              <Plus size={16} />
+              New Chat
+            </button>
+            <button
+              onClick={openWorkspacePicker}
+              title="Choose workspace"
+              className="flex items-center justify-center px-2.5 rounded-lg bg-primary/20 text-primary hover:bg-primary/30 transition-colors"
+            >
+              <FolderOpen size={16} />
+            </button>
+          </div>
+
+          {/* Workspace picker popover */}
+          {workspacePicker && (
+            <div className="absolute left-3 right-3 top-full mt-1 z-50 rounded-xl border border-border bg-background shadow-lg p-3 space-y-2">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Choose Workspace</p>
+              <button
+                onClick={() => { onNewSession(); setWorkspacePicker(false); setSidebarOpen(false); }}
+                className="w-full text-left px-3 py-2 rounded-lg text-sm hover:bg-muted transition-colors"
+              >
+                Default (session ID)
+              </button>
+              {workspaces.map((ws) => (
+                <button
+                  key={ws}
+                  onClick={() => { onNewSession(ws); setWorkspacePicker(false); setSidebarOpen(false); }}
+                  className="w-full text-left px-3 py-2 rounded-lg text-sm font-mono hover:bg-muted transition-colors"
+                >
+                  {ws}
+                </button>
+              ))}
+              <div className="flex gap-1 pt-1 border-t border-border">
+                <input
+                  type="text"
+                  value={newWorkspaceName}
+                  onChange={(e) => setNewWorkspaceName(e.target.value)}
+                  placeholder="New workspace name…"
+                  className="flex-1 rounded-lg border border-border bg-muted px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && newWorkspaceName.trim()) {
+                      apiFetch('/workspaces', { method: 'POST', body: JSON.stringify({ name: newWorkspaceName.trim() }) })
+                        .then(() => { onNewSession(newWorkspaceName.trim()); setWorkspacePicker(false); setNewWorkspaceName(''); setSidebarOpen(false); })
+                        .catch(() => {});
+                    }
+                  }}
+                />
+                <button
+                  onClick={() => setWorkspacePicker(false)}
+                  className="px-2 py-1.5 text-xs text-muted-foreground hover:text-foreground"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Sessions list */}
@@ -231,8 +295,11 @@ export function Chat({
                 }`}
               >
                 <div className="truncate">{s.title}</div>
-                <div className="text-xs text-muted-foreground mt-0.5">
-                  {new Date(s.createdAt).toLocaleDateString()}
+                <div className="flex items-center gap-2 mt-0.5">
+                  <span className="text-xs text-muted-foreground">{new Date(s.createdAt).toLocaleDateString()}</span>
+                  {(sessionCosts[s.id] ?? 0) > 0 && (
+                    <span className="text-[10px] text-muted-foreground/70 font-mono">${sessionCosts[s.id].toFixed(4)}</span>
+                  )}
                 </div>
               </button>
               <button

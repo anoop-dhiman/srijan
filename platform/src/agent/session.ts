@@ -7,18 +7,19 @@ export interface Session {
   userId: string;
   title: string;
   status: string;
+  workspaceName: string | null;
   createdAt: string;
   updatedAt: string;
 }
 
-const SESSION_COLS = `id, user_id as userId, title, status, created_at as createdAt, updated_at as updatedAt`;
+const SESSION_COLS = `id, user_id as userId, title, status, workspace_name as workspaceName, created_at as createdAt, updated_at as updatedAt`;
 
-export function createSession(userId: string, title?: string): Session {
+export function createSession(userId: string, title?: string, workspaceName?: string): Session {
   const db = getDb();
   const id = uuidv4();
   db.prepare(
-    `INSERT INTO sessions (id, user_id, title) VALUES (?, ?, ?)`
-  ).run(id, userId, title || 'New Session');
+    `INSERT INTO sessions (id, user_id, title, workspace_name) VALUES (?, ?, ?, ?)`
+  ).run(id, userId, title || 'New Session', workspaceName ?? null);
 
   return db.prepare(`SELECT ${SESSION_COLS} FROM sessions WHERE id = ?`).get(id) as Session;
 }

@@ -2,29 +2,10 @@ import { Router, Request, Response } from 'express';
 import { authMiddleware } from '../security/auth.js';
 import { getDb } from '../db/store.js';
 import { v4 as uuidv4 } from 'uuid';
-import crypto from 'crypto';
+import { encrypt, decrypt } from '../lib/crypto.js';
 
 const router = Router();
 router.use(authMiddleware);
-
-const ENCRYPTION_KEY = process.env.SRIJAN_SECRETS_KEY || 'dev-key-32-bytes-long-change-me!';
-
-function encrypt(text: string): string {
-  const iv = crypto.randomBytes(16);
-  const cipher = crypto.createCipheriv('aes-256-cbc', Buffer.from(ENCRYPTION_KEY.padEnd(32).slice(0, 32)), iv);
-  let encrypted = cipher.update(text, 'utf8', 'hex');
-  encrypted += cipher.final('hex');
-  return iv.toString('hex') + ':' + encrypted;
-}
-
-function decrypt(text: string): string {
-  const [ivHex, encrypted] = text.split(':');
-  const iv = Buffer.from(ivHex, 'hex');
-  const decipher = crypto.createDecipheriv('aes-256-cbc', Buffer.from(ENCRYPTION_KEY.padEnd(32).slice(0, 32)), iv);
-  let decrypted = decipher.update(encrypted, 'hex', 'utf8');
-  decrypted += decipher.final('utf8');
-  return decrypted;
-}
 
 router.get('/', (_req: Request, res: Response) => {
   const db = getDb();
@@ -65,5 +46,4 @@ router.delete('/:id', (req: Request, res: Response) => {
   res.json({ deleted: true });
 });
 
-export { decrypt };
 export default router;

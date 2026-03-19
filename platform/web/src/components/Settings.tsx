@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Eye, EyeOff, Plus, Trash2, Save, RotateCcw } from 'lucide-react';
+import { X, Eye, EyeOff, Plus, Trash2, Save, RotateCcw, Shield } from 'lucide-react';
 import { apiFetch } from '../lib/api';
 
 interface SettingsProps {
@@ -27,6 +27,10 @@ export function Settings({ open, onClose }: SettingsProps) {
   const [newSecretValue, setNewSecretValue] = useState('');
   const [systemPrompt, setSystemPrompt] = useState('');
   const [defaultSystemPrompt, setDefaultSystemPrompt] = useState('');
+  const [agentMode, setAgentMode] = useState<'auto' | 'confirm'>('auto');
+  const [blocklist, setBlocklist] = useState('');
+  const [savingMode, setSavingMode] = useState(false);
+  const [modeMessage, setModeMessage] = useState('');
   const [saving, setSaving] = useState(false);
   const [savingPrompt, setSavingPrompt] = useState(false);
   const [message, setMessage] = useState('');
@@ -51,8 +55,34 @@ export function Settings({ open, onClose }: SettingsProps) {
       }
       setSystemPrompt(config.system_prompt || '');
       setDefaultSystemPrompt(config.default_system_prompt || '');
+      if (config.agentMode) setAgentMode(config.agentMode === 'confirm' ? 'confirm' : 'auto');
+      if (config.agent_boundaries) {
+        try { setBlocklist(JSON.parse(config.agent_boundaries).join('\n')); } catch {}
+      }
     } catch {
       // Config might not exist yet
+    }
+  };
+
+  const saveSecuritySettings = async () => {
+    setSavingMode(true);
+    setModeMessage('');
+    try {
+      await apiFetch('/config/agentMode', {
+        method: 'PUT',
+        body: JSON.stringify({ value: agentMode }),
+      });
+      const lines = blocklist.split('\n').map((l) => l.trim()).filter(Boolean);
+      await apiFetch('/config/agent_boundaries', {
+        method: 'PUT',
+        body: JSON.stringify({ value: lines }),
+      });
+      setModeMessage('Security settings saved');
+      setTimeout(() => setModeMessage(''), 2000);
+    } catch (err: any) {
+      setModeMessage(err.message);
+    } finally {
+      setSavingMode(false);
     }
   };
 
@@ -302,6 +332,66 @@ export function Settings({ open, onClose }: SettingsProps) {
             {promptMessage && (
               <p className="text-sm text-secondary-foreground">{promptMessage}</p>
             )}
+          </section>
+
+          {/* Security */}
+          <section className="space-y-4">
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Security</h3>
+
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Agent Mode</label>
+              <div className="flex rounded-xl border border-border bg-muted p-1 gap-1">
+                <button
+                  type="button"
+                  onClick={() => setAgentMode('auto')}
+                  className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                    agentMode === 'auto'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-muted-foreground hover:bg-background hover:text-foreground'
+                  }`}
+                >
+                  Auto (bypass all)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAgentMode('confirm')}
+                  className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                    agentMode === 'confirm'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-muted-foreground hover:bg-background hover:text-foreground'
+                  }`}
+                >
+                  Confirm (approve each)
+                </button>
+              </div>
+              <p className="text-xs text-muted-foreground">In Confirm mode, the agent will use <code>--permission-mode default</code>.</p>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium flex items-center gap-1.5">
+                <Shield size={14} />
+                Command Blocklist
+              </label>
+              <textarea
+                rows={5}
+                value={blocklist}
+                onChange={(e) => setBlocklist(e.target.value)}
+                placeholder={'rm -rf /\ndocker rm srijan-\n...'}
+                className="w-full rounded-xl border border-border bg-muted px-4 py-3 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary resize-y"
+              />
+              <p className="text-xs text-muted-foreground">One pattern per line. Agent will be killed if it runs a Bash command containing any of these.</p>
+            </div>
+
+            <button
+              onClick={saveSecuritySettings}
+              disabled={savingMode}
+              className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-base font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+            >
+              <Save size={16} />
+              {savingMode ? 'Saving…' : 'Save Security Settings'}
+            </button>
+
+            {modeMessage && <p className="text-sm text-secondary-foreground">{modeMessage}</p>}
           </section>
 
           {/* Secrets */}

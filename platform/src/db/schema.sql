@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS sessions (
   user_id TEXT NOT NULL REFERENCES users(id),
   title TEXT DEFAULT 'New Session',
   status TEXT NOT NULL DEFAULT 'active', -- active, paused, completed
+  workspace_name TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -46,4 +47,14 @@ CREATE TABLE IF NOT EXISTS config (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL,
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS token_usage (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+  input_tokens INTEGER NOT NULL DEFAULT 0,
+  output_tokens INTEGER NOT NULL DEFAULT 0,
+  cost_usd REAL,
+  model TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );

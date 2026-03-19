@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { createChatSocket } from '../lib/api';
+import { createChatSocket, apiFetch } from '../lib/api';
 
 export interface ChatMessage {
   id: string;
@@ -17,6 +17,7 @@ export interface Session {
   id: string;
   title: string;
   status: string;
+  workspaceName: string | null;
   createdAt: string;
 }
 
@@ -44,6 +45,7 @@ export function useChat() {
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [agentStatus, setAgentStatus] = useState('');
+  const [sessionCosts, setSessionCosts] = useState<Record<string, number>>({});
   const wsRef = useRef<WebSocket | null>(null);
   const streamBufferRef = useRef('');
 
@@ -66,6 +68,14 @@ export function useChat() {
       switch (msg.type) {
         case 'sessions': {
           setSessions(msg.data);
+          // Fetch costs for all sessions
+          for (const s of msg.data as Session[]) {
+            apiFetch(`/sessions/${s.id}/cost`).then((row: any) => {
+              if (row && row.cost_usd != null) {
+                setSessionCosts((prev) => ({ ...prev, [s.id]: row.cost_usd }));
+              }
+            }).catch(() => {});
+          }
           // Auto-rejoin last session on reconnect
           if (savedSessionId && msg.data.some((s: Session) => s.id === savedSessionId)) {
             ws.send(JSON.stringify({ type: 'join_session', sessionId: savedSessionId }));
@@ -302,10 +312,10 @@ export function useChat() {
     wsRef.current.send(JSON.stringify({ type: 'join_session', sessionId }));
   }, []);
 
-  const newSession = useCallback(() => {
+  const newSession = useCallback((workspaceName?: string) => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
     setMessages([]);
-    wsRef.current.send(JSON.stringify({ type: 'new_session' }));
+    wsRef.current.send(JSON.stringify({ type: 'new_session', workspaceName }));
   }, []);
 
   const deleteSession = useCallback((sessionId: string) => {
@@ -324,6 +334,7 @@ export function useChat() {
     isConnected,
     isLoading,
     agentStatus,
+    sessionCosts,
     connect,
     disconnect,
     sendMessage,

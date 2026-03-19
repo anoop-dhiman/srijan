@@ -1,44 +1,15 @@
 import { WebSocketServer, WebSocket } from 'ws';
-import { IncomingMessage, Server } from 'http';
-import { parse } from 'url';
+import { IncomingMessage } from 'http';
 import { join } from 'path';
-import { verifyToken } from '../security/auth.js';
 import { createSession, getSession, listSessions, getSessionEvents, deleteSession } from '../agent/session.js';
 import { getOrCreateRunner, getApiKey, getModel, getVertexConfig } from '../agent/runner.js';
 import { getWorkspaceRoot } from '../git/manager.js';
 
-export function setupWebSocket(server: Server): void {
-  const wss = new WebSocketServer({ noServer: true });
+export const chatWss = new WebSocketServer({ noServer: true });
 
-  server.on('upgrade', (request: IncomingMessage, socket, head) => {
-    const { pathname, query } = parse(request.url || '', true);
-
-    if (pathname !== '/api/chat') {
-      socket.destroy();
-      return;
-    }
-
-    // Auth via query param token (WebSocket can't use headers easily)
-    const token = query.token as string;
-    if (!token) {
-      socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
-      socket.destroy();
-      return;
-    }
-
-    const payload = verifyToken(token);
-    if (!payload) {
-      socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
-      socket.destroy();
-      return;
-    }
-
-    wss.handleUpgrade(request, socket, head, (ws) => {
-      wss.emit('connection', ws, request, payload, token);
-    });
-  });
-
-  wss.on('connection', (ws: WebSocket, _req: IncomingMessage, user: any, sessionToken: string) => {
+// Called by server.ts upgrade dispatcher after auth is verified
+export function setupWebSocket(): void {
+  chatWss.on('connection', (ws: WebSocket, _req: IncomingMessage, user: any, sessionToken: string) => {
     let currentSessionId: string | null = null;
 
     ws.on('message', async (data: Buffer) => {
@@ -53,7 +24,7 @@ export function setupWebSocket(server: Server): void {
           }
 
           case 'new_session': {
-            const session = createSession(user.userId, msg.title);
+            const session = createSession(user.userId, msg.title, msg.workspaceName);
             currentSessionId = session.id;
             ws.send(JSON.stringify({ type: 'session_created', data: session }));
             break;
@@ -85,7 +56,6 @@ export function setupWebSocket(server: Server): void {
 
           case 'message': {
             if (!currentSessionId) {
-              // Auto-create session
               const session = createSession(user.userId);
               currentSessionId = session.id;
               ws.send(JSON.stringify({ type: 'session_created', data: session }));
@@ -104,9 +74,11 @@ export function setupWebSocket(server: Server): void {
               break;
             }
 
+            const session = getSession(currentSessionId)!;
+            const wsName = session.workspaceName || currentSessionId;
             const runner = getOrCreateRunner({
               sessionId: currentSessionId,
-              workspacePath: join(getWorkspaceRoot(), currentSessionId),
+              workspacePath: join(getWorkspaceRoot(), wsName),
               apiKey,
               model: getModel(),
               sessionToken,
@@ -140,3 +112,4 @@ export function setupWebSocket(server: Server): void {
     });
   });
 }
+

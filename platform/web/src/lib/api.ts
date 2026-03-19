@@ -1,6 +1,6 @@
 const BASE_URL = '/api';
 
-function getToken(): string | null {
+export function getToken(): string | null {
   return localStorage.getItem('srijan_token');
 }
 
