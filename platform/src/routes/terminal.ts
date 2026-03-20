@@ -38,13 +38,22 @@ export function setupTerminal(): void {
       }
     }
 
-    const ptyProc = pty.spawn('bash', [], {
-      name: 'xterm-256color',
-      cols: 80,
-      rows: 24,
-      cwd,
-      env: buildCleanEnv(),
-    });
+    let ptyProc: ReturnType<typeof pty.spawn>;
+    try {
+      ptyProc = pty.spawn('bash', [], {
+        name: 'xterm-256color',
+        cols: 80,
+        rows: 24,
+        cwd,
+        env: buildCleanEnv(),
+      });
+    } catch (err: any) {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(`\r\nTerminal unavailable: ${err.message}\r\n`);
+        ws.close();
+      }
+      return;
+    }
 
     ptyProc.onData((data) => {
       if (ws.readyState === WebSocket.OPEN) {
