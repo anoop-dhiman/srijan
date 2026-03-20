@@ -1,6 +1,6 @@
 # Srijan - Feature Requirements & Roadmap
 
-> Version: 0.9.0
+> Version: 1.0.0
 > Date: 2026-03-20
 
 ---
@@ -114,6 +114,38 @@
 
 **Test totals: 218 backend (20 files) + 187 frontend (10 files) = 405 tests**
 
+### Phase 11: Code Review — Done
+
+| # | Feature | Description | Status |
+|---|---------|-------------|--------|
+| 88 | XSS prevention | `rehype-sanitize` added to all ReactMarkdown renders (Chat, SessionRecording) | **Done** |
+| 89 | CSP tightening | Removed `unsafe-inline` from `script-src` in Caddyfile | **Done** |
+| 90 | Container auth | `requireAdmin` added to container start/stop and workspace delete routes | **Done** |
+| 91 | Container ID validation | Regex allowlist + logs `tail` clamped (1–10000) | **Done** |
+| 92 | Terminal URL encoding | `encodeURIComponent` on token and sessionId in WS URL | **Done** |
+| 93 | Vertex SA key cleanup | `cleanupVertexCred()` called on proc close/error to remove temp key file | **Done** |
+| 94 | Stderr redaction | Secret values redacted from stderr before error events are emitted | **Done** |
+| 95 | TOTP secret masking | Secret hidden by default in Settings; show/hide toggle with Eye icon | **Done** |
+| 96 | Default key warning | Console error logged when `SRIJAN_SECRETS_KEY` is the dev default | **Done** |
+| 97 | DB busy_timeout | `db.pragma('busy_timeout = 5000')` prevents SQLITE_BUSY crashes under load | **Done** |
+| 98 | DB indexes | Added indexes on `users(username)`, `secrets(name)`, `apps(name)` | **Done** |
+| 99 | Caddy admin timeouts | `AbortSignal.timeout(5000)` on all three Caddy Admin API fetch calls | **Done** |
+| 100 | WS reconnect cap | `useChat` stops reconnecting after 10 attempts; stream buffer cleared on session join | **Done** |
+| 101 | Terminal reconnect | Exponential-backoff reconnect (max 5 attempts) with proper cleanup in `Terminal.tsx` | **Done** |
+| 102 | File load cancellation | `AbortController` cancels in-flight file fetch when user selects a different file | **Done** |
+| 103 | Bulk error reporting | Dashboard `startAll`/`stopAll` report count of failures via `bulkError` state | **Done** |
+| 104 | `.env.example` | Documents all required env vars (`SRIJAN_DOMAIN`, `SRIJAN_ADMIN_PASSWORD`, `SRIJAN_JWT_SECRET`, `SRIJAN_SECRETS_KEY`) | **Done** |
+| 105 | Dirty indicator | FileBrowser breadcrumb shows `•` when file has unsaved changes | **Done** |
+| 106 | Delete modal a11y | `role="alertdialog"`, `aria-modal`, `aria-labelledby`, `aria-describedby` on workspace delete modal | **Done** |
+| 107 | Resize handle a11y | `role="separator"`, `tabIndex`, `ArrowLeft`/`ArrowRight` keyboard support on sidebar resize handle | **Done** |
+| 108 | TOTP paste trim | `onPaste` strips whitespace and non-digits from pasted TOTP codes | **Done** |
+| 109 | Coverage thresholds | `lines: 75`, `branches: 70` thresholds in both vitest configs | **Done** |
+| 110 | Rate limit test | 11th consecutive failed login attempt returns 429 `RATE_LIMITED` | **Done** |
+| 111 | URL-encoded traversal tests | `%2e%2e%2f` path traversal variants tested in files API | **Done** |
+| 112 | Non-admin container test | Non-admin role receives 403 on container start/stop | **Done** |
+
+**Test totals: 224 backend (20 files) + 187 frontend (10 files) = 411 tests**
+
 ### Phase 10: Security Hardening — Done
 
 | # | Feature | Description | Status |
@@ -149,14 +181,35 @@
 | 86 | React ErrorBoundary | `ErrorBoundary` class component wraps authenticated app content; shows reload button on crash | **Done** |
 | 87 | UNIQUE constraint detection | `err.code === 'SQLITE_CONSTRAINT_UNIQUE'` replaces fragile message substring checks in secrets, users, apps | **Done** |
 
-### Phase 11+ (Planned)
+### Phase 12: Observability + Capabilities (Planned)
+
+| # | Feature | Description |
+|---|---------|-------------|
+| 113 | Structured logging | Replace ad-hoc `console.log` with a structured logger (e.g. pino); log level env var |
+| 114 | Health endpoint | `GET /api/health` returns DB status, Docker connectivity, uptime; used by Docker healthcheck |
+| 115 | Request tracing | Correlation ID per request propagated through logs and WS messages for prod debugging |
+| 116 | OpenCode SDK | Implement `OpenCodeRunner.ts` stub as a real runner (currently emits error immediately) |
+| 117 | Workspace templates | Pre-configured environment templates (Node, Python, Go, Rust) to accelerate new workspace setup |
+| 118 | Agent permission UI | Inline approve/reject UI for `confirm` mode — currently wired in backend but has no frontend |
+
+### Phase 13: Production Readiness + E2E Testing (Planned)
+
+| # | Feature | Description |
+|---|---------|-------------|
+| 119 | Platform Dockerfile | Multi-stage Dockerfile to build and ship the platform as a single image (currently dev-only) |
+| 120 | CI/CD pipeline | GitHub Actions workflow: lint → test → build → push image on merge to main |
+| 121 | Cost controls | Per-user and per-workspace spending caps with alerts; halt agent spawn when budget exceeded |
+| 122 | E2E test suite | Playwright tests covering login → chat → file browser → terminal flows |
+| 123 | Mobile / responsive polish | Sidebar and file browser layout fixes at small viewports (currently breaks below ~768px) |
+
+### Phase 14: Integrations (Planned)
 
 | # | Feature | Description | Source Inspiration |
 |---|---------|-------------|-------------------|
-| 47 | Local Models | Ollama integration for private inference | Netclode |
-| 48 | GitHub Bot | @mention on PRs/issues triggers agent | Netclode |
-| 49 | Webhook Notifications | Slack/Discord alerts for agent actions | Custom |
-| 50 | OCI Packaging | Package agent configs as container images | Docker cagent |
+| 124 | Local Models | Ollama integration for private inference | Netclode |
+| 125 | GitHub Bot | @mention on PRs/issues triggers agent | Netclode |
+| 126 | Webhook Notifications | Slack/Discord alerts for agent actions | Custom |
+| 127 | OCI Packaging | Package agent configs as container images | Docker cagent |
 
 ---
 
