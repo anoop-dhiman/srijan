@@ -41,6 +41,7 @@ export function Settings({ open, onClose, isAdmin = false }: SettingsProps) {
   const [newSecretValue, setNewSecretValue] = useState('');
   const [systemPrompt, setSystemPrompt] = useState('');
   const [defaultSystemPrompt, setDefaultSystemPrompt] = useState('');
+  const [defaultBlocklist, setDefaultBlocklist] = useState('');
   const [agentMode, setAgentMode] = useState<'auto' | 'confirm'>('auto');
   const [blocklist, setBlocklist] = useState('');
   const [savingMode, setSavingMode] = useState(false);
@@ -118,6 +119,8 @@ export function Settings({ open, onClose, isAdmin = false }: SettingsProps) {
       } else {
         setAgentSdk('claude-code');
       }
+      const defaults: string[] = config.default_agent_boundaries || [];
+      setDefaultBlocklist(defaults.join('\n'));
       if (config.agent_boundaries) {
         try { setBlocklist(JSON.parse(config.agent_boundaries).join('\n')); } catch {}
       }
@@ -700,12 +703,11 @@ export function Settings({ open, onClose, isAdmin = false }: SettingsProps) {
               </label>
               <textarea
                 rows={5}
-                value={blocklist}
+                value={blocklist || defaultBlocklist}
                 onChange={(e) => setBlocklist(e.target.value)}
-                placeholder={'rm -rf /\ndocker rm srijan-\n...'}
                 className="w-full rounded-xl border border-border bg-muted px-4 py-3 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary resize-y"
               />
-              <p className="text-xs text-muted-foreground">One pattern per line. Agent will be killed if it runs a Bash command containing any of these.</p>
+              <p className="text-xs text-muted-foreground">One pattern per line. Agent will be killed if it runs a Bash command containing any of these. Showing defaults when no custom list is saved.</p>
             </div>
 
             <button

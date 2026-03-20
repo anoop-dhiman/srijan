@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { authMiddleware, requireAdmin } from '../security/auth.js';
 import { getDb } from '../db/store.js';
-import { DEFAULT_SYSTEM_PROMPT } from '../agent/runner.js';
+import { DEFAULT_SYSTEM_PROMPT, DEFAULT_BLOCKLIST } from '../agent/runner.js';
 
 const router = Router();
 
@@ -18,6 +18,7 @@ router.get('/', (_req: Request, res: Response) => {
     config[row.key] = JSON.parse(row.value);
   }
   config.default_system_prompt = DEFAULT_SYSTEM_PROMPT;
+  config.default_agent_boundaries = DEFAULT_BLOCKLIST;
   res.json(config);
 });
 

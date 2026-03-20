@@ -578,5 +578,5 @@ function getAgentSdk(): 'claude-code' | 'opencode' {
   return 'claude-code';
 }
 
-export { getApiKey, getModel, getVertexConfig, getLiteLLMConfig, getSystemPrompt, DEFAULT_SYSTEM_PROMPT, getAgentMode, getAgentSdk };
+export { getApiKey, getModel, getVertexConfig, getLiteLLMConfig, getSystemPrompt, DEFAULT_SYSTEM_PROMPT, DEFAULT_BLOCKLIST, getAgentMode, getAgentSdk };
 export type { IAgentRunner };
