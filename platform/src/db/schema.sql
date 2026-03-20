@@ -53,6 +53,16 @@ CREATE TABLE IF NOT EXISTS config (
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE TABLE IF NOT EXISTS git_credentials (
+  id TEXT PRIMARY KEY,
+  workspace_name TEXT UNIQUE NOT NULL,
+  provider TEXT NOT NULL DEFAULT 'generic', -- 'github' | 'azure' | 'generic'
+  username TEXT NOT NULL DEFAULT '',
+  encrypted_token TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE TABLE IF NOT EXISTS token_usage (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,

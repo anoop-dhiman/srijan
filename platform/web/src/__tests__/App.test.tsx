@@ -19,6 +19,7 @@ vi.mock('../components/Chat', () => ({
       <button onClick={() => onReplaySession?.('sess-1')}>Replay</button>
     </div>
   ),
+  __esModule: true,
 }));
 
 vi.mock('../components/Settings', () => ({
@@ -33,13 +34,9 @@ vi.mock('../components/Login', () => ({
 }));
 
 vi.mock('../components/Dashboard', () => ({
-  Dashboard: () => <div data-testid="dashboard" />,
-}));
-
-vi.mock('../components/WorkspaceEmptyState', () => ({
-  WorkspaceEmptyState: ({ onCreate }: { onCreate: (name: string) => Promise<void> }) => (
-    <div data-testid="workspace-empty-state">
-      <button onClick={() => onCreate('new-ws')}>Create</button>
+  Dashboard: ({ onCreateWorkspace }: { onCreateWorkspace?: (name: string) => Promise<void> }) => (
+    <div data-testid="dashboard">
+      <button onClick={() => onCreateWorkspace?.('new-ws')}>Create</button>
     </div>
   ),
 }));
@@ -155,9 +152,9 @@ describe('App', () => {
       expect(logout).toHaveBeenCalledOnce();
     });
 
-    it('renders the Chat component by default', () => {
+    it('renders the Dashboard component by default', () => {
       render(<App />);
-      expect(screen.getByTestId('chat')).toBeInTheDocument();
+      expect(screen.getByTestId('dashboard')).toBeInTheDocument();
     });
 
     it('connects WebSocket on mount', () => {
@@ -177,22 +174,29 @@ describe('App', () => {
     });
   });
 
-  describe('empty workspace state', () => {
+  describe('dashboard as primary page', () => {
     beforeEach(() => {
       vi.mocked(isAuthenticated).mockReturnValue(true);
     });
 
-    it('shows WorkspaceEmptyState when no workspaces exist', () => {
+    it('shows Dashboard when no workspaces exist', () => {
       vi.mocked(useChat).mockReturnValue({ ...mockChat, workspaces: [] });
       render(<App />);
-      expect(screen.getByTestId('workspace-empty-state')).toBeInTheDocument();
+      expect(screen.getByTestId('dashboard')).toBeInTheDocument();
       expect(screen.queryByTestId('chat')).not.toBeInTheDocument();
     });
 
-    it('shows Chat when workspaces exist', () => {
+    it('shows Dashboard by default when workspaces exist', () => {
       render(<App />);
+      expect(screen.getByTestId('dashboard')).toBeInTheDocument();
+      expect(screen.queryByTestId('chat')).not.toBeInTheDocument();
+    });
+
+    it('shows Chat when Chat tab is clicked', () => {
+      render(<App />);
+      fireEvent.click(screen.getAllByRole('button', { name: 'Chat' })[0]);
       expect(screen.getByTestId('chat')).toBeInTheDocument();
-      expect(screen.queryByTestId('workspace-empty-state')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('dashboard')).not.toBeInTheDocument();
     });
   });
 
@@ -239,7 +243,7 @@ describe('App', () => {
   });
 
   describe('login flow', () => {
-    it('switches from Login to Chat after onLogin is called', async () => {
+    it('switches from Login to Dashboard after onLogin is called', async () => {
       vi.mocked(isAuthenticated).mockReturnValueOnce(false);
       render(<App />);
       expect(screen.getByTestId('login')).toBeInTheDocument();
@@ -247,7 +251,7 @@ describe('App', () => {
       fireEvent.click(screen.getByTestId('login'));
 
       await waitFor(() => {
-        expect(screen.getByTestId('chat')).toBeInTheDocument();
+        expect(screen.getByTestId('dashboard')).toBeInTheDocument();
       });
     });
   });
@@ -296,6 +300,7 @@ describe('App', () => {
 
     it('shows SessionRecording when replay is triggered from Chat', () => {
       render(<App />);
+      fireEvent.click(screen.getAllByRole('button', { name: 'Chat' })[0]);
       const replayBtn = screen.getByText('Replay');
       fireEvent.click(replayBtn);
       expect(screen.getByTestId('session-recording')).toBeInTheDocument();
@@ -303,6 +308,7 @@ describe('App', () => {
 
     it('returns to chat view when SessionRecording is closed', () => {
       render(<App />);
+      fireEvent.click(screen.getAllByRole('button', { name: 'Chat' })[0]);
       fireEvent.click(screen.getByText('Replay'));
       expect(screen.getByTestId('session-recording')).toBeInTheDocument();
       fireEvent.click(screen.getByText('Close'));

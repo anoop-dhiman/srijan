@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 
 vi.mock('../lib/api', () => ({
-  apiFetch: vi.fn(),
+  apiFetch: vi.fn().mockResolvedValue({ branch: 'main', remoteUrl: null }),
 }));
 
 import { apiFetch } from '../lib/api';
@@ -29,65 +29,93 @@ const mockWorkspaces: WorkspaceInfo[] = [
 describe('Dashboard', () => {
   const onRefresh = vi.fn();
   const onViewSessions = vi.fn();
+  const onCreateWorkspace = vi.fn().mockResolvedValue(undefined);
+
+  const renderDashboard = (workspaces = mockWorkspaces) =>
+    render(
+      <Dashboard
+        workspaces={workspaces}
+        onRefresh={onRefresh}
+        onViewSessions={onViewSessions}
+        onCreateWorkspace={onCreateWorkspace}
+      />
+    );
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // Default: git status returns successfully, containers/apps return empty arrays
+    vi.mocked(apiFetch).mockResolvedValue({ branch: 'main', remoteUrl: null });
   });
 
   it('renders Refresh button', () => {
-    render(<Dashboard workspaces={[]} onRefresh={onRefresh} onViewSessions={onViewSessions} />);
+    renderDashboard([]);
     expect(screen.getByText('Refresh')).toBeInTheDocument();
   });
 
   it('shows empty message when no workspaces', () => {
-    render(<Dashboard workspaces={[]} onRefresh={onRefresh} onViewSessions={onViewSessions} />);
+    renderDashboard([]);
     expect(screen.getByText(/no workspaces yet/i)).toBeInTheDocument();
   });
 
   it('renders workspace cards', () => {
-    render(<Dashboard workspaces={mockWorkspaces} onRefresh={onRefresh} onViewSessions={onViewSessions} />);
+    renderDashboard();
     expect(screen.getByText('my-react-app')).toBeInTheDocument();
     expect(screen.getByText('backend-api')).toBeInTheDocument();
   });
 
   it('shows session and container counts', () => {
-    render(<Dashboard workspaces={mockWorkspaces} onRefresh={onRefresh} onViewSessions={onViewSessions} />);
+    renderDashboard();
     expect(screen.getByText('3 sessions')).toBeInTheDocument();
     expect(screen.getByText('2 containers running')).toBeInTheDocument();
   });
 
   it('shows cost when available', () => {
-    render(<Dashboard workspaces={mockWorkspaces} onRefresh={onRefresh} onViewSessions={onViewSessions} />);
+    renderDashboard();
     expect(screen.getByText('$0.0240')).toBeInTheDocument();
   });
 
   it('calls onViewSessions with workspace name when View Sessions is clicked', async () => {
-    render(<Dashboard workspaces={mockWorkspaces} onRefresh={onRefresh} onViewSessions={onViewSessions} />);
+    renderDashboard();
     const btns = screen.getAllByText('View Sessions');
     fireEvent.click(btns[0]);
     expect(onViewSessions).toHaveBeenCalledWith('my-react-app');
   });
 
   it('calls onRefresh when Refresh is clicked', () => {
-    render(<Dashboard workspaces={mockWorkspaces} onRefresh={onRefresh} onViewSessions={onViewSessions} />);
+    renderDashboard();
     fireEvent.click(screen.getByText('Refresh'));
     expect(onRefresh).toHaveBeenCalledOnce();
   });
 
   it('shows active badge when workspace has containers', () => {
-    render(<Dashboard workspaces={mockWorkspaces} onRefresh={onRefresh} onViewSessions={onViewSessions} />);
+    renderDashboard();
     const badges = screen.getAllByText('active');
     expect(badges.length).toBeGreaterThan(0);
   });
 
-  it('fetches containers when Containers is expanded', async () => {
-    vi.mocked(apiFetch)
-      .mockResolvedValueOnce([
-        { Id: 'abc', Names: ['/my-app'], Image: 'my-app:latest', State: 'running', Status: 'Up', Ports: [] },
-      ])
-      .mockResolvedValueOnce([]);
+  it('shows New Workspace button', () => {
+    renderDashboard();
+    expect(screen.getByText('New Workspace')).toBeInTheDocument();
+  });
 
-    render(<Dashboard workspaces={mockWorkspaces} onRefresh={onRefresh} onViewSessions={onViewSessions} />);
+  it('shows creation panel when New Workspace is clicked', () => {
+    renderDashboard([]);
+    fireEvent.click(screen.getByText('New Workspace'));
+    expect(screen.getByText('New Repo')).toBeInTheDocument();
+    expect(screen.getByText('Clone Repo')).toBeInTheDocument();
+  });
+
+  it('fetches containers when Containers is expanded', async () => {
+    vi.mocked(apiFetch).mockImplementation(async (url: string) => {
+      if (typeof url === 'string' && url.includes('/git/')) return { branch: 'main', remoteUrl: null };
+      if (typeof url === 'string' && url.includes('/containers')) return [
+        { Id: 'abc', Names: ['/my-app'], Image: 'my-app:latest', State: 'running', Status: 'Up', Ports: [] },
+      ];
+      if (typeof url === 'string' && url.includes('/apps')) return [];
+      return {};
+    });
+
+    renderDashboard();
     const containersBtns = screen.getAllByText('Containers');
     fireEvent.click(containersBtns[0]);
 

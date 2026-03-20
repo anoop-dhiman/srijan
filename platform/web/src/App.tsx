@@ -3,7 +3,6 @@ import { Sun, Moon } from 'lucide-react';
 import { Login } from './components/Login';
 import { Chat } from './components/Chat';
 import { Dashboard } from './components/Dashboard';
-import { WorkspaceEmptyState } from './components/WorkspaceEmptyState';
 import { Settings } from './components/Settings';
 import { FileBrowser } from './components/FileBrowser';
 import { SessionRecording } from './components/SessionRecording';
@@ -16,7 +15,7 @@ type ActiveView = 'chat' | 'dashboard' | 'terminal' | 'settings' | 'files';
 
 function App() {
   const [authed, setAuthed] = useState(isAuthenticated());
-  const [activeView, setActiveView] = useState<ActiveView>('chat');
+  const [activeView, setActiveView] = useState<ActiveView>('dashboard');
   const [replaySessionId, setReplaySessionId] = useState<string | null>(null);
   const [theme, setTheme] = useState<'dark' | 'light'>(() =>
     (localStorage.getItem('srijan_theme') as 'dark' | 'light') ?? 'dark'
@@ -44,10 +43,14 @@ function App() {
     return <Login onLogin={() => setAuthed(true)} />;
   }
 
-  const handleCreateWorkspace = async (name: string) => {
-    await apiFetch('/workspaces', { method: 'POST', body: JSON.stringify({ name }) });
+  const handleCreateWorkspace = async (
+    name: string,
+    opts?: { cloneUrl?: string; remoteUrl?: string; gitProvider?: string; gitUsername?: string; gitToken?: string }
+  ) => {
+    await apiFetch('/workspaces', { method: 'POST', body: JSON.stringify({ name, ...opts }) });
     await chat.fetchWorkspaces();
     chat.setCurrentWorkspace(name);
+    setActiveView('chat');
   };
 
   const handleViewSessions = (workspace: string) => {
@@ -60,14 +63,12 @@ function App() {
   };
 
   const navTabs: { id: ActiveView; label: string }[] = [
-    { id: 'chat', label: 'Chat' },
     { id: 'dashboard', label: 'Dashboard' },
+    { id: 'chat', label: 'Chat' },
     { id: 'files', label: 'Files' },
     { id: 'terminal', label: 'Terminal' },
     { id: 'settings', label: 'Settings' },
   ];
-
-  const hasWorkspaces = chat.workspaces.length > 0;
 
   const renderMain = () => {
     // Session replay overrides the current view
@@ -80,11 +81,16 @@ function App() {
       );
     }
 
-    if (!hasWorkspaces) {
-      return <WorkspaceEmptyState onCreate={handleCreateWorkspace} />;
-    }
-
     switch (activeView) {
+      case 'dashboard':
+        return (
+          <Dashboard
+            workspaces={chat.workspaces}
+            onRefresh={chat.fetchWorkspaces}
+            onViewSessions={handleViewSessions}
+            onCreateWorkspace={handleCreateWorkspace}
+          />
+        );
       case 'chat':
         return (
           <Chat
@@ -102,20 +108,12 @@ function App() {
             onJoinSession={chat.joinSession}
             onDeleteSession={chat.deleteSession}
             onWorkspaceChange={chat.setCurrentWorkspace}
-            onCreateWorkspace={handleCreateWorkspace}
             onReplaySession={handleReplaySession}
+            onGoToDashboard={() => setActiveView('dashboard')}
           />
         );
       case 'settings':
         return <Settings open={true} onClose={() => setActiveView('chat')} isAdmin={isAdmin} />;
-      case 'dashboard':
-        return (
-          <Dashboard
-            workspaces={chat.workspaces}
-            onRefresh={chat.fetchWorkspaces}
-            onViewSessions={handleViewSessions}
-          />
-        );
       case 'files':
         return (
           <FileBrowser

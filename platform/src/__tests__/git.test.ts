@@ -8,15 +8,18 @@ import authRouter from '../routes/auth.js';
 vi.mock('../git/manager.js', () => ({
   cloneRepo: vi.fn().mockResolvedValue('/workspaces/my-repo'),
   initRepo: vi.fn().mockResolvedValue('/workspaces/my-repo'),
+  setRemote: vi.fn().mockResolvedValue(undefined),
+  pushRepo: vi.fn().mockResolvedValue(undefined),
+  pullRepo: vi.fn().mockResolvedValue({ summary: { changes: 2, insertions: 10, deletions: 3 } }),
   getGit: vi.fn().mockReturnValue({
     status: vi.fn().mockResolvedValue({
       current: 'main',
       modified: ['src/index.ts'],
       not_added: ['README.md'],
     }),
-    pull: vi.fn().mockResolvedValue({
-      summary: { changes: 2, insertions: 10, deletions: 3 },
-    }),
+    getRemotes: vi.fn().mockResolvedValue([
+      { name: 'origin', refs: { push: 'https://github.com/example/repo.git' } },
+    ]),
   }),
   getWorkspaceRoot: vi.fn().mockReturnValue('/workspaces'),
 }));
@@ -100,6 +103,7 @@ describe('Git Routes', () => {
       expect(res.body.branch).toBe('main');
       expect(res.body.modified).toContain('src/index.ts');
       expect(res.body.untracked).toContain('README.md');
+      expect(res.body.remoteUrl).toBe('https://github.com/example/repo.git');
     });
 
     it('should reject without auth', async () => {

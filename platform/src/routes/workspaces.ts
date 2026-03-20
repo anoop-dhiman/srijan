@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { authMiddleware } from '../security/auth.js';
-import { getWorkspaceRoot, cloneRepo, initRepo } from '../git/manager.js';
+import { getWorkspaceRoot, cloneRepo, initRepo, setRemote, commitAll, pushRepo } from '../git/manager.js';
+import { detectProvider, saveWorkspaceCredentials, type GitProvider } from '../lib/gitAuth.js';
 import { getDb } from '../db/store.js';
 import { listContainers } from '../docker/manager.js';
 import { readdirSync, statSync } from 'fs';
@@ -72,18 +73,39 @@ router.get('/', async (_req: Request, res: Response) => {
 });
 
 router.post('/', async (req: Request, res: Response) => {
-  const { name, cloneUrl } = req.body;
+  const { name, cloneUrl, remoteUrl, gitProvider, gitUsername, gitToken } = req.body;
   if (!name || typeof name !== 'string') {
     res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'name is required' } });
     return;
   }
 
+  // Persist credentials if provided
+  const hasCreds = typeof gitToken === 'string' && gitToken.length > 0;
+  if (hasCreds) {
+    const targetUrl = cloneUrl || remoteUrl || '';
+    const provider: GitProvider = (['github', 'azure', 'generic'].includes(gitProvider)
+      ? gitProvider
+      : detectProvider(targetUrl)) as GitProvider;
+    saveWorkspaceCredentials(name, provider, gitUsername || '', gitToken);
+  }
+
+  const creds = hasCreds ? { provider: gitProvider, username: gitUsername || '', token: gitToken } : undefined;
+
   try {
     let path: string;
     if (cloneUrl) {
-      path = await cloneRepo(cloneUrl, name);
+      path = await cloneRepo(cloneUrl, name, creds);
     } else {
       path = await initRepo(name);
+      if (remoteUrl) {
+        await setRemote(name, remoteUrl);
+        await commitAll(name, 'Initial commit');
+        try {
+          await pushRepo(name, creds);
+        } catch (pushErr: any) {
+          return res.status(201).json({ name, path, pushError: pushErr.message });
+        }
+      }
     }
     res.status(201).json({ name, path });
   } catch (err: any) {

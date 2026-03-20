@@ -23,8 +23,8 @@ interface ChatProps {
   onJoinSession: (sessionId: string) => void;
   onDeleteSession: (sessionId: string) => void;
   onWorkspaceChange: (name: string) => void;
-  onCreateWorkspace: (name: string) => Promise<void>;
   onReplaySession: (sessionId: string) => void;
+  onGoToDashboard: () => void;
 }
 
 const MIN_WIDTH = 180;
@@ -119,19 +119,15 @@ function WorkspaceSwitcher({
   currentWorkspace,
   workspaces,
   onSelect,
-  onCreateWorkspace,
+  onGoToDashboard,
 }: {
   currentWorkspace: string | null;
   workspaces: WorkspaceInfo[];
   onSelect: (name: string) => void;
-  onCreateWorkspace: (name: string) => Promise<void>;
+  onGoToDashboard: () => void;
 }) {
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [createOpen, setCreateOpen] = useState(false);
-  const [newName, setNewName] = useState('');
-  const [creating, setCreating] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
@@ -143,103 +139,55 @@ function WorkspaceSwitcher({
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
-  useEffect(() => {
-    if (createOpen) inputRef.current?.focus();
-  }, [createOpen]);
-
-  const handleCreate = async () => {
-    if (!newName.trim() || creating) return;
-    setCreating(true);
-    try {
-      await onCreateWorkspace(newName.trim());
-      onSelect(newName.trim());
-      setNewName('');
-      setCreateOpen(false);
-    } catch { /* ignore */ }
-    setCreating(false);
-  };
-
   return (
     <div className="space-y-1.5">
       <p className="px-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70">
         Workspace
       </p>
 
-      <div className="flex items-center gap-1">
-        {/* Dropdown */}
-        <div ref={dropdownRef} className="relative flex-1 min-w-0">
-          <button
-            onClick={() => { setDropdownOpen(!dropdownOpen); setCreateOpen(false); }}
-            className="w-full flex items-center justify-between gap-1.5 px-2.5 py-2 rounded-lg bg-background border border-border text-sm font-medium hover:bg-muted transition-colors"
-          >
-            <span className="truncate font-mono text-xs">
-              {currentWorkspace || <span className="text-muted-foreground font-sans font-normal">Select…</span>}
-            </span>
-            <ChevronDown size={13} className={`shrink-0 text-muted-foreground transition-transform ${dropdownOpen ? 'rotate-180' : ''}`} />
-          </button>
-
-          {dropdownOpen && (
-            <div className="absolute left-0 right-0 top-full mt-1 z-50 rounded-xl border border-border bg-background shadow-lg overflow-hidden">
-              {workspaces.length === 0 ? (
-                <p className="px-3 py-2.5 text-xs text-muted-foreground">No workspaces yet.</p>
-              ) : (
-                <div className="py-1 max-h-48 overflow-y-auto">
-                  {workspaces.map((ws) => (
-                    <button
-                      key={ws.name}
-                      onClick={() => { onSelect(ws.name); setDropdownOpen(false); }}
-                      className={`w-full text-left px-3 py-2 text-xs hover:bg-muted transition-colors flex items-center justify-between gap-2 ${
-                        ws.name === currentWorkspace ? 'text-primary font-semibold' : 'text-foreground font-mono'
-                      }`}
-                    >
-                      <span className="truncate">{ws.name}</span>
-                      {ws.name === currentWorkspace && <CheckCircle2 size={12} className="shrink-0 text-primary" />}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Add workspace button */}
+      <div ref={dropdownRef} className="relative">
         <button
-          onClick={() => { setCreateOpen(!createOpen); setDropdownOpen(false); }}
-          title="New workspace"
-          className={`shrink-0 w-8 h-8 flex items-center justify-center rounded-lg border transition-colors ${
-            createOpen
-              ? 'bg-primary/10 border-primary/30 text-primary'
-              : 'border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground'
-          }`}
+          onClick={() => setDropdownOpen(!dropdownOpen)}
+          className="w-full flex items-center justify-between gap-1.5 px-2.5 py-2 rounded-lg bg-background border border-border text-sm font-medium hover:bg-muted transition-colors"
         >
-          <Plus size={15} />
+          <span className="truncate font-mono text-xs">
+            {currentWorkspace || <span className="text-muted-foreground font-sans font-normal">Select…</span>}
+          </span>
+          <ChevronDown size={13} className={`shrink-0 text-muted-foreground transition-transform ${dropdownOpen ? 'rotate-180' : ''}`} />
         </button>
-      </div>
 
-      {/* Inline create form */}
-      {createOpen && (
-        <div className="flex gap-1">
-          <input
-            ref={inputRef}
-            type="text"
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            placeholder="workspace-name"
-            className="flex-1 min-w-0 rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-primary"
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') handleCreate();
-              if (e.key === 'Escape') { setCreateOpen(false); setNewName(''); }
-            }}
-          />
-          <button
-            onClick={handleCreate}
-            disabled={!newName.trim() || creating}
-            className="shrink-0 px-2.5 py-1.5 text-xs bg-primary text-primary-foreground rounded-lg disabled:opacity-50 font-medium"
-          >
-            {creating ? <Loader2 size={12} className="animate-spin" /> : 'Create'}
-          </button>
-        </div>
-      )}
+        {dropdownOpen && (
+          <div className="absolute left-0 right-0 top-full mt-1 z-50 rounded-xl border border-border bg-background shadow-lg overflow-hidden">
+            {workspaces.length === 0 ? (
+              <p className="px-3 py-2.5 text-xs text-muted-foreground">No workspaces yet.</p>
+            ) : (
+              <div className="py-1 max-h-48 overflow-y-auto">
+                {workspaces.map((ws) => (
+                  <button
+                    key={ws.name}
+                    onClick={() => { onSelect(ws.name); setDropdownOpen(false); }}
+                    className={`w-full text-left px-3 py-2 text-xs hover:bg-muted transition-colors flex items-center justify-between gap-2 ${
+                      ws.name === currentWorkspace ? 'text-primary font-semibold' : 'text-foreground font-mono'
+                    }`}
+                  >
+                    <span className="truncate">{ws.name}</span>
+                    {ws.name === currentWorkspace && <CheckCircle2 size={12} className="shrink-0 text-primary" />}
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="border-t border-border">
+              <button
+                onClick={() => { setDropdownOpen(false); onGoToDashboard(); }}
+                className="w-full text-left px-3 py-2 text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors flex items-center gap-1.5"
+              >
+                <Plus size={11} />
+                Create workspace in Dashboard
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -259,8 +207,8 @@ export function Chat({
   onJoinSession,
   onDeleteSession,
   onWorkspaceChange,
-  onCreateWorkspace,
   onReplaySession,
+  onGoToDashboard,
 }: ChatProps) {
   const [input, setInput] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -347,7 +295,7 @@ export function Chat({
             currentWorkspace={currentWorkspace}
             workspaces={workspaces}
             onSelect={onWorkspaceChange}
-            onCreateWorkspace={onCreateWorkspace}
+            onGoToDashboard={onGoToDashboard}
           />
           <button
             onClick={() => {
