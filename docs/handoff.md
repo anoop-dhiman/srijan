@@ -1,7 +1,7 @@
 # Srijan — Agent Handoff Summary
 
 > Date: 2026-03-20
-> Latest commit: `3b6cb86` (delete workspace with cleanup; disable chat/files tabs when no workspaces)
+> Latest commit: `6375f7c` (comprehensive test coverage — 402 tests total)
 > Location: `/Users/anoop.dhiman/Documents/Srijan`
 
 ---
@@ -58,7 +58,7 @@ Srijan/
 │   │   ├── db/
 │   │   │   ├── store.ts     # SQLite singleton (WAL mode, auto-create dir, migrations)
 │   │   │   └── schema.sql   # Tables: users, sessions, events, secrets, apps, config, token_usage, git_credentials
-│   │   └── __tests__/       # 145 backend tests (vitest + supertest)
+│   │   └── __tests__/       # 216 backend tests (vitest + supertest)
 │   ├── web/                  # React frontend (separate package.json)
 │   │   ├── src/
 │   │   │   ├── App.tsx       # 5-tab nav (Dashboard|Chat|Files|Terminal|Settings), Dashboard as primary
@@ -75,7 +75,7 @@ Srijan/
 │   │   │   ├── lib/
 │   │   │   │   ├── api.ts        # HTTP client with JWT, WebSocket factory, getCurrentUser()
 │   │   │   │   └── utils.ts      # cn() — Tailwind class merge
-│   │   │   └── __tests__/        # 129 frontend tests (vitest + RTL)
+│   │   │   └── __tests__/        # 186 frontend tests (vitest + RTL)
 │   │   └── vite.config.ts        # Tailwind plugin, /api proxy to :8080
 │   ├── Dockerfile            # Multi-stage (build + prod with docker-cli + git)
 │   ├── package.json
@@ -168,7 +168,7 @@ Supported providers: `github` (PAT), `azure` (Azure DevOps PAT), `generic` (any 
 
 ## What Works Now
 
-### Backend (145 tests passing)
+### Backend (216 tests passing)
 - **Auth**: login + JWT, WebSocket auth via `?token=` query param; TOTP 2FA (setup/enable/disable/status); challenge token for login flow
 - **Config**: GET/PUT for LLM settings (provider, API key, model, Vertex config, LiteLLM config), system prompt, agent mode, boundaries blocklist, agentSdk
 - **Secrets**: CRUD with AES-256 encryption; injected as env vars at agent spawn via secret proxy
@@ -186,7 +186,7 @@ Supported providers: `github` (PAT), `azure` (Azure DevOps PAT), `generic` (any 
 - **Terminal**: PTY via node-pty, WS at `/api/terminal?token=&sessionId=`, xterm.js on frontend
 - **Users (RBAC)**: `GET/POST/DELETE /api/users` (admin only); `role` column in users table; `requireAdmin` middleware
 
-### Frontend (129 tests passing)
+### Frontend (186 tests passing)
 - **Login**: password auth + optional TOTP challenge step; JWT stored in localStorage
 - **Dashboard as primary page**: app opens to Dashboard; workspace creation lives here, not in Chat
 - **Workspace creation panel**: "New Workspace" button → panel with two tabs: New Repo (name + optional remote URL + auth) and Clone Repo (URL + name + auth); auth auto-detected from URL
@@ -357,6 +357,41 @@ Login: username `admin`, password `admin` (or `SRIJAN_ADMIN_PASSWORD` env var).
 
 ```bash
 cd platform
-npm test                  # 145 backend tests
-cd web && npx vitest run  # 129 frontend tests
+npm test                  # 216 backend tests (20 test files)
+cd web && npx vitest run  # 186 frontend tests (10 test files)
 ```
+
+### Test Coverage by Layer
+
+| Layer | Files | Tests | What's covered |
+|-------|-------|-------|----------------|
+| DB | `db.test.ts` | 9 | Tables, columns (git_credentials, token_usage, users TOTP/role) |
+| Auth | `auth.test.ts` | 26 | Login, JWT, TOTP full lifecycle |
+| Sessions | `session.test.ts` | 12 | CRUD, deleteSession cascade, getSessionsByWorkspace, workspaceName |
+| Secrets | `secrets.test.ts`, `runner-secrets.test.ts` | 12 | Encrypt/decrypt, DB storage, placeholder injection |
+| Secret Proxy | `secret-proxy.test.ts` | 5 | HTTP proxy substitution, CONNECT tunnel |
+| Caddy | `caddy.test.ts` | 8 | addRoute, removeRoute, listRoutes |
+| Containers | `containers.test.ts` | 7 | List, filter by workspace, logs, start/stop |
+| Git routes | `git.test.ts` | 22 | clone, init, status, pull, push, remote, credentials CRUD |
+| Git auth lib | `gitAuth.test.ts` | 16 | detectProvider, buildAuthUrl, stripAuthFromUrl, DB helpers |
+| Workspaces | `workspaces.test.ts` | 18 | GET list, POST init/clone/with auth, DELETE cascade |
+| Files | `files.test.ts` | 15 | Directory list, read, write, path traversal rejection |
+| Cost | `cost.test.ts` | 4 | Token aggregation, null cost (Vertex) |
+| Sessions recording | `sessions.test.ts` | 5 | Recording endpoint, event ordering, auth |
+| Users | `users.test.ts` | 13 | RBAC CRUD, role enforcement, password change |
+| API routes | `api.test.ts` | 14 | Config, Secrets, Apps, Auth/me |
+| Runner config | `runner-config.test.ts` | 9 | getAgentMode, getSystemPrompt, getAgentSdk, getApiKey, DEFAULT_SYSTEM_PROMPT |
+| Runner interface | `runner-interface.test.ts` | 4 | AgentRunner factory, OpenCodeRunner, IAgentRunner |
+| Runner boundaries | `runner-boundaries.test.ts` | 6 | Blocklist enforcement, custom vs default |
+| LiteLLM config | `litellm-config.test.ts` | 5 | getLiteLLMConfig, getModel for all providers |
+| **Frontend** | | | |
+| API utils | `api.test.ts` | 4 | Token management, logout |
+| Login | `Login.test.tsx` | 9 | Password, TOTP challenge flow, error states |
+| App | `App.test.tsx` | 24 | Nav, auth state, tab routing, session recording |
+| Chat | `Chat.test.tsx` | 29 | Sidebar, messages, input, tool pills, thinking indicator, cost badge, replay |
+| Dashboard | `Dashboard.test.tsx` | 28 | Workspace cards, delete modal, git auth UI, push, CreateWorkspacePanel |
+| Settings | `Settings.test.tsx` | 27 | AI Provider, LiteLLM, SDK, TOTP, Users, agent mode, system prompt |
+| File Browser | `FileBrowser.test.tsx` | 14 | Tree, Monaco editor, edit/save/cancel, dirty-state confirm |
+| Session Recording | `SessionRecording.test.tsx` | 8 | Load, events, cost, error, close |
+| Terminal | `Terminal.test.tsx` | 4 | WS connection, URL params, unmount |
+| useChat hook | `useChat.test.ts` | 39 | Initial state, connect, all WS messages, sendMessage, workspace |

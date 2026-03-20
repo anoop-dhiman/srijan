@@ -170,3 +170,182 @@ describe('Dashboard', () => {
     });
   });
 });
+
+describe('Dashboard — Git auth UI', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  const onRefresh = vi.fn();
+  const onViewSessions = vi.fn();
+  const onCreateWorkspace = vi.fn().mockResolvedValue(undefined);
+  const onDeleteWorkspace = vi.fn().mockResolvedValue(undefined);
+
+  const mockWorkspace: WorkspaceInfo = {
+    name: 'test-repo',
+    sessionCount: 0,
+    runningContainerCount: 0,
+    totalCostUsd: null,
+    lastActivityAt: null,
+  };
+
+  function renderWithGitInfo(credInfo: object) {
+    vi.mocked(apiFetch).mockImplementation(async (url: string) => {
+      if (url.includes('/status')) return { branch: 'main', remoteUrl: 'https://github.com/user/repo.git' };
+      if (url.includes('/credentials')) return credInfo;
+      return {};
+    });
+    render(
+      <Dashboard
+        workspaces={[mockWorkspace]}
+        onRefresh={onRefresh}
+        onViewSessions={onViewSessions}
+        onCreateWorkspace={onCreateWorkspace}
+        onDeleteWorkspace={onDeleteWorkspace}
+      />
+    );
+  }
+
+  it('fetches git status and credentials on mount', async () => {
+    renderWithGitInfo({ configured: false });
+    await waitFor(() => {
+      expect(apiFetch).toHaveBeenCalledWith('/git/test-repo/status');
+      expect(apiFetch).toHaveBeenCalledWith('/git/test-repo/credentials');
+    });
+  });
+
+  it('shows Auth badge (unconfigured) when no credentials saved', async () => {
+    renderWithGitInfo({ configured: false });
+    await waitFor(() => {
+      expect(screen.getByText('Auth')).toBeInTheDocument();
+    });
+  });
+
+  it('shows provider label badge when credentials are configured', async () => {
+    renderWithGitInfo({ configured: true, provider: 'github', username: 'alice' });
+    await waitFor(() => {
+      // Auth badge shows "GitHub" as the provider label (the Lock button)
+      const authBadge = screen.getAllByText(/GitHub/i).find(
+        el => el.tagName === 'BUTTON' || el.closest('button') !== null
+      );
+      expect(authBadge).toBeDefined();
+    });
+  });
+
+  it('Push button triggers POST to push endpoint', async () => {
+    vi.mocked(apiFetch).mockImplementation(async (url: string, opts?: any) => {
+      if (url.includes('/status')) return { branch: 'main', remoteUrl: 'https://github.com/user/repo.git' };
+      if (url.includes('/credentials')) return { configured: true, provider: 'github', username: 'alice' };
+      if (url.includes('/push') && opts?.method === 'POST') return { ok: true };
+      return {};
+    });
+
+    render(
+      <Dashboard
+        workspaces={[mockWorkspace]}
+        onRefresh={onRefresh}
+        onViewSessions={onViewSessions}
+        onCreateWorkspace={onCreateWorkspace}
+        onDeleteWorkspace={onDeleteWorkspace}
+      />
+    );
+
+    await waitFor(() => screen.getByText('Push'));
+    fireEvent.click(screen.getByText('Push'));
+
+    await waitFor(() => {
+      expect(apiFetch).toHaveBeenCalledWith('/git/test-repo/push', expect.objectContaining({ method: 'POST' }));
+    });
+  });
+
+  it('shows Provider select and token input in auth configure panel', async () => {
+    renderWithGitInfo({ configured: false });
+    await waitFor(() => screen.getByText('Auth'));
+
+    // Click the Auth badge to open configure panel
+    fireEvent.click(screen.getByText('Auth'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Provider')).toBeInTheDocument();
+      expect(screen.getByText('Personal Access Token')).toBeInTheDocument();
+    });
+  });
+
+  it('calls POST credentials when Save Credentials is clicked', async () => {
+    vi.mocked(apiFetch).mockImplementation(async (url: string, opts?: any) => {
+      if (url.includes('/status')) return { branch: 'main', remoteUrl: 'https://github.com/user/repo.git' };
+      if (url.includes('/credentials') && !opts) return { configured: false };
+      if (url.includes('/credentials') && opts?.method === 'POST') return { ok: true };
+      return {};
+    });
+
+    render(
+      <Dashboard
+        workspaces={[mockWorkspace]}
+        onRefresh={onRefresh}
+        onViewSessions={onViewSessions}
+        onCreateWorkspace={onCreateWorkspace}
+        onDeleteWorkspace={onDeleteWorkspace}
+      />
+    );
+
+    await waitFor(() => screen.getByText('Auth'));
+    fireEvent.click(screen.getByText('Auth'));
+
+    // GitHub Personal Access Token placeholder
+    await waitFor(() => screen.getByPlaceholderText(/Personal Access Token/i));
+    fireEvent.change(screen.getByPlaceholderText(/Personal Access Token/i), {
+      target: { value: 'ghp_mytesttoken' },
+    });
+
+    fireEvent.click(screen.getByText('Save Credentials'));
+
+    await waitFor(() => {
+      expect(apiFetch).toHaveBeenCalledWith(
+        '/git/test-repo/credentials',
+        expect.objectContaining({ method: 'POST' })
+      );
+    });
+  });
+});
+
+describe('Dashboard — CreateWorkspacePanel auth toggle', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(apiFetch).mockResolvedValue({ branch: 'main', remoteUrl: null });
+  });
+
+  const renderDashboard = () =>
+    render(
+      <Dashboard
+        workspaces={[]}
+        onRefresh={vi.fn()}
+        onViewSessions={vi.fn()}
+        onCreateWorkspace={vi.fn().mockResolvedValue(undefined)}
+        onDeleteWorkspace={vi.fn().mockResolvedValue(undefined)}
+      />
+    );
+
+  it('shows auth toggle in Clone Repo tab', async () => {
+    renderDashboard();
+    fireEvent.click(screen.getByText('New Workspace'));
+    fireEvent.click(screen.getByText('Clone Repo'));
+    await waitFor(() => {
+      expect(screen.getByText(/Add authentication/i)).toBeInTheDocument();
+    });
+  });
+
+  it('reveals GitAuthFields when auth toggle is clicked in Clone tab', async () => {
+    renderDashboard();
+    fireEvent.click(screen.getByText('New Workspace'));
+    fireEvent.click(screen.getByText('Clone Repo'));
+
+    await waitFor(() => screen.getByText(/Add authentication/i));
+    fireEvent.click(screen.getByText(/Add authentication/i));
+
+    await waitFor(() => {
+      expect(screen.getByText('Provider')).toBeInTheDocument();
+      expect(screen.getByText('Personal Access Token')).toBeInTheDocument();
+    });
+  });
+});

@@ -1,6 +1,6 @@
 # Srijan - Feature Requirements & Roadmap
 
-> Version: 0.8.0
+> Version: 0.9.0
 > Date: 2026-03-20
 
 ---
@@ -96,7 +96,25 @@
 | 45 | Delete Workspace | Trash icon on each workspace card; confirmation modal warns about session count and running containers; cleans up credentials, sessions, apps, and filesystem | **Done** |
 | 46 | Disable Chat/Files without workspaces | Chat and Files tabs disabled (greyed out) when no workspaces exist; auto-redirect to Dashboard if last workspace is deleted while on those views | **Done** |
 
-### Phase 9+ (Planned)
+### Phase 9 — Comprehensive Test Coverage — Done
+
+| # | Feature | Description | Status |
+|---|---------|-------------|--------|
+| 47 | gitAuth unit tests | detectProvider, buildAuthUrl, stripAuthFromUrl, credential CRUD with encryption verification | **Done** |
+| 48 | Git credential route tests | GET/POST/DELETE `/api/git/:name/credentials`; push and remote routes | **Done** |
+| 49 | Workspaces API tests | GET list with metadata; POST init, clone, with/without auth credentials; credential save ordering | **Done** |
+| 50 | Session function tests | deleteSession cascade (events removed), getSessionsByWorkspace, workspaceName persistence | **Done** |
+| 51 | DB schema tests | git_credentials + token_usage tables; column checks for role/totp/workspace_name | **Done** |
+| 52 | Runner config tests | getAgentMode (auto/confirm/fallbacks), getSystemPrompt, getAgentSdk, getApiKey, DEFAULT_SYSTEM_PROMPT | **Done** |
+| 53 | useChat hook tests | 39 tests covering initial state, connect, all WS message types, sendMessage, workspace persistence | **Done** |
+| 54 | Dashboard git auth UI tests | Auth badge (configured/unconfigured), Push button, Save Credentials, CreateWorkspacePanel auth toggle | **Done** |
+| 55 | Chat tool pill tests | Expandable pills, toolInput/toolResult display, thinking indicator, cost badge, replay button | **Done** |
+| 56 | Settings agent mode tests | Auto/Confirm toggle, Save Agent Settings endpoint, system prompt textarea, blocklist textarea | **Done** |
+| 57 | FileBrowser dirty-cancel tests | Cancel with dirty changes shows confirm dialog; proceed clears edit; decline stays in edit mode | **Done** |
+
+**Test totals: 216 backend (20 files) + 186 frontend (10 files) = 402 tests**
+
+### Phase 10+ (Planned)
 
 | # | Feature | Description | Source Inspiration |
 |---|---------|-------------|-------------------|

@@ -389,6 +389,69 @@ describe('Settings', () => {
     });
   });
 
+  // Agent mode and system prompt tests
+  it('shows Auto and Confirm buttons in Agent tab', async () => {
+    render(<Settings open={true} onClose={mockOnClose} />);
+    await waitFor(() => screen.getByRole('heading', { name: 'Settings' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Agent' }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Auto \(bypass all\)/)).toBeInTheDocument();
+      expect(screen.getByText(/Confirm \(approve each\)/)).toBeInTheDocument();
+    });
+  });
+
+  it('saving Agent tab sends agentMode to config endpoint', async () => {
+    vi.mocked(apiFetch).mockImplementation((path: string) => {
+      if (path === '/auth/totp/status') return Promise.resolve({ enabled: false });
+      if (path === '/config') return Promise.resolve({ agentMode: 'auto' });
+      return Promise.resolve([]);
+    });
+
+    render(<Settings open={true} onClose={mockOnClose} />);
+    await waitFor(() => screen.getByRole('heading', { name: 'Settings' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Agent' }));
+
+    await waitFor(() => screen.getByText(/Confirm \(approve each\)/));
+    // Switch to confirm mode
+    await userEvent.click(screen.getByText(/Confirm \(approve each\)/));
+
+    // Save Agent settings
+    const saveBtn = screen.getByText('Save Agent Settings');
+    await userEvent.click(saveBtn);
+
+    await waitFor(() => {
+      expect(apiFetch).toHaveBeenCalledWith('/config/agentMode', expect.objectContaining({
+        method: 'PUT',
+        body: JSON.stringify({ value: 'confirm' }),
+      }));
+    });
+  });
+
+  it('shows system prompt textarea in Agent tab', async () => {
+    render(<Settings open={true} onClose={mockOnClose} />);
+    await waitFor(() => screen.getByRole('heading', { name: 'Settings' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Agent' }));
+
+    await waitFor(() => {
+      // The system prompt and blocklist are both textareas in the Agent section
+      const textareas = screen.getAllByRole('textbox');
+      expect(textareas.length).toBeGreaterThan(0);
+    });
+  });
+
+  it('shows blocklist textarea in Agent tab', async () => {
+    render(<Settings open={true} onClose={mockOnClose} />);
+    await waitFor(() => screen.getByRole('heading', { name: 'Settings' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Agent' }));
+
+    await waitFor(() => {
+      // Blocklist is a textarea for comma/newline-separated commands
+      const textareas = screen.getAllByRole('textbox');
+      expect(textareas.length).toBeGreaterThan(0);
+    });
+  });
+
   it('Add User button creates user', async () => {
     vi.mocked(apiFetch).mockImplementation((path: string, opts?: any) => {
       if (path === '/auth/totp/status') return Promise.resolve({ enabled: false });

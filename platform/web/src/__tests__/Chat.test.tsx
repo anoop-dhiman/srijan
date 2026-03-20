@@ -39,6 +39,7 @@ const defaultProps = {
   onDeleteSession: vi.fn(),
   onWorkspaceChange: vi.fn(),
   onCreateWorkspace: vi.fn().mockResolvedValue(undefined),
+  onReplaySession: vi.fn(),
 };
 
 const mockSession: Session = {
@@ -222,6 +223,114 @@ describe('Chat', () => {
       await waitFor(() => {
         expect(textarea.value).toBe('');
       });
+    });
+  });
+
+  describe('tool messages', () => {
+    const toolMsg: ChatMessage = {
+      id: 'tool-1',
+      role: 'tool',
+      content: 'Running: ls -la',
+      toolName: 'Bash',
+      toolInput: { command: 'ls -la' },
+      toolStatus: 'running',
+      timestamp: Date.now(),
+    };
+
+    it('renders tool message as a pill', () => {
+      render(<Chat {...defaultProps} messages={[toolMsg]} currentSession={mockSession} />);
+      expect(screen.getByText('Running: ls -la')).toBeInTheDocument();
+    });
+
+    it('tool pill expands to show toolInput JSON on click', async () => {
+      const msg: ChatMessage = { ...toolMsg, toolInput: { command: 'ls -la' } };
+      render(<Chat {...defaultProps} messages={[msg]} currentSession={mockSession} />);
+
+      await userEvent.click(screen.getByText('Running: ls -la'));
+      await waitFor(() => {
+        // After expand, JSON input block appears with "command" key
+        expect(screen.getByText(/"command"/)).toBeInTheDocument();
+      });
+    });
+
+    it('renders tool message with done status', () => {
+      const doneMsg: ChatMessage = { ...toolMsg, toolStatus: 'done', toolResult: 'file.txt\ndir/' };
+      render(<Chat {...defaultProps} messages={[doneMsg]} currentSession={mockSession} />);
+      expect(screen.getByText('Running: ls -la')).toBeInTheDocument();
+    });
+  });
+
+  describe('thinking indicator', () => {
+    it('shows agentStatus text when isLoading=true and no streaming message', () => {
+      render(
+        <Chat
+          {...defaultProps}
+          isLoading={true}
+          agentStatus="Thinking…"
+          currentSession={mockSession}
+        />
+      );
+      expect(screen.getByText('Thinking…')).toBeInTheDocument();
+    });
+
+    it('does not show thinking indicator when not loading', () => {
+      render(<Chat {...defaultProps} isLoading={false} agentStatus="" currentSession={mockSession} />);
+      expect(screen.queryByText('Thinking…')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('session cost badge', () => {
+    it('shows cost badge in sidebar when session has cost > 0', () => {
+      const session: Session = { ...mockSession };
+      const costs: Record<string, number> = { [mockSession.id]: 0.0123 };
+      render(
+        <Chat
+          {...defaultProps}
+          sessions={[session]}
+          currentSession={mockSession}
+          sessionCosts={costs}
+        />
+      );
+      expect(screen.getByText('$0.0123')).toBeInTheDocument();
+    });
+
+    it('does not show cost badge when cost is 0', () => {
+      const costs: Record<string, number> = { [mockSession.id]: 0 };
+      render(
+        <Chat
+          {...defaultProps}
+          sessions={[mockSession]}
+          currentSession={mockSession}
+          sessionCosts={costs}
+        />
+      );
+      expect(screen.queryByText(/\$0\.0000/)).not.toBeInTheDocument();
+    });
+  });
+
+  describe('replay button', () => {
+    it('shows replay button in each session row', () => {
+      render(
+        <Chat {...defaultProps} sessions={[mockSession]} currentSession={mockSession} />
+      );
+      // Replay button renders as an icon button — look for it by title or find all buttons in row
+      const replayBtns = document.querySelectorAll('[title="Replay session"]');
+      expect(replayBtns.length).toBeGreaterThan(0);
+    });
+
+    it('calls onReplaySession with session id when replay clicked', async () => {
+      const onReplaySession = vi.fn();
+      render(
+        <Chat
+          {...defaultProps}
+          sessions={[mockSession]}
+          currentSession={mockSession}
+          onReplaySession={onReplaySession}
+        />
+      );
+      const replayBtn = document.querySelector('[title="Replay session"]') as HTMLElement;
+      await userEvent.click(replayBtn);
+      expect(onReplaySession).toHaveBeenCalledWith(mockSession.id);
     });
   });
 });

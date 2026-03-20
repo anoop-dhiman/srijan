@@ -199,4 +199,58 @@ describe('FileBrowser', () => {
     // Should be back to view mode
     expect(screen.getByText('Edit')).toBeInTheDocument();
   });
+
+  it('Cancel with dirty changes shows confirm dialog and reverts on confirm', async () => {
+    vi.mocked(apiFetch)
+      .mockResolvedValueOnce({ entries: mockEntries })
+      .mockResolvedValueOnce({ content: 'original content' });
+
+    // Confirm the discard dialog
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+    render(<FileBrowser workspaces={mockWorkspaces} currentWorkspace="my-app" />);
+    await waitFor(() => screen.getByText('README.md'));
+    await userEvent.click(screen.getByText('README.md'));
+
+    await waitFor(() => screen.getByText('Edit'));
+    await userEvent.click(screen.getByText('Edit'));
+
+    // Modify content to make it dirty
+    const editor = screen.getByTestId('monaco-editor') as HTMLTextAreaElement;
+    fireEvent.change(editor, { target: { value: 'modified content' } });
+
+    await userEvent.click(screen.getByText('Cancel'));
+
+    expect(confirmSpy).toHaveBeenCalledWith('Discard unsaved changes?');
+    expect(screen.getByText('Edit')).toBeInTheDocument();
+
+    confirmSpy.mockRestore();
+  });
+
+  it('Cancel with dirty changes stays in edit mode when confirm is declined', async () => {
+    vi.mocked(apiFetch)
+      .mockResolvedValueOnce({ entries: mockEntries })
+      .mockResolvedValueOnce({ content: 'original content' });
+
+    // Decline the discard dialog
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+
+    render(<FileBrowser workspaces={mockWorkspaces} currentWorkspace="my-app" />);
+    await waitFor(() => screen.getByText('README.md'));
+    await userEvent.click(screen.getByText('README.md'));
+
+    await waitFor(() => screen.getByText('Edit'));
+    await userEvent.click(screen.getByText('Edit'));
+
+    const editor = screen.getByTestId('monaco-editor') as HTMLTextAreaElement;
+    fireEvent.change(editor, { target: { value: 'modified content' } });
+
+    await userEvent.click(screen.getByText('Cancel'));
+
+    // Should still be in edit mode
+    expect(screen.getByText('Save')).toBeInTheDocument();
+    expect(screen.getByText('Cancel')).toBeInTheDocument();
+
+    confirmSpy.mockRestore();
+  });
 });
