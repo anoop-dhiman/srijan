@@ -1,10 +1,11 @@
 import { Router, Request, Response } from 'express';
 import { authMiddleware } from '../security/auth.js';
-import { getWorkspaceRoot, cloneRepo, initRepo, setRemote, commitAll, pushRepo } from '../git/manager.js';
-import { detectProvider, saveWorkspaceCredentials, type GitProvider } from '../lib/gitAuth.js';
+import { getWorkspaceRoot, cloneRepo, initRepo, setRemote, commitAll, pushRepo, deleteWorkspace } from '../git/manager.js';
+import { detectProvider, saveWorkspaceCredentials, deleteWorkspaceCredentials, type GitProvider } from '../lib/gitAuth.js';
 import { getDb } from '../db/store.js';
 import { listContainers } from '../docker/manager.js';
-import { readdirSync, statSync } from 'fs';
+import { deleteSession, getSessionsByWorkspace } from '../agent/session.js';
+import { readdirSync, statSync, existsSync } from 'fs';
 import { join } from 'path';
 
 const router = Router();
@@ -110,6 +111,42 @@ router.post('/', async (req: Request, res: Response) => {
     res.status(201).json({ name, path });
   } catch (err: any) {
     res.status(500).json({ error: { code: 'GIT_ERROR', message: err.message } });
+  }
+});
+
+router.delete('/:name', async (req: Request, res: Response) => {
+  const { name } = req.params;
+  if (!name || typeof name !== 'string') {
+    res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'name is required' } });
+    return;
+  }
+
+  const wsPath = join(getWorkspaceRoot(), name);
+  if (!existsSync(wsPath)) {
+    res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Workspace not found' } });
+    return;
+  }
+
+  try {
+    // 1. Delete git credentials
+    deleteWorkspaceCredentials(name);
+
+    // 2. Delete all sessions (events + session rows)
+    const sessions = getSessionsByWorkspace(name);
+    for (const session of sessions) {
+      deleteSession(session.id);
+    }
+
+    // 3. Delete apps associated with workspace
+    const db = getDb();
+    db.prepare('DELETE FROM apps WHERE workspace_name = ?').run(name);
+
+    // 4. Delete workspace directory
+    await deleteWorkspace(name);
+
+    res.json({ deleted: true });
+  } catch (err: any) {
+    res.status(500).json({ error: { code: 'IO_ERROR', message: err.message } });
   }
 });
 

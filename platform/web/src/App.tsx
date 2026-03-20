@@ -39,6 +39,12 @@ function App() {
     }
   }, [authed]);
 
+  useEffect(() => {
+    if (chat.workspaces.length === 0 && (activeView === 'chat' || activeView === 'files')) {
+      setActiveView('dashboard');
+    }
+  }, [chat.workspaces.length, activeView]);
+
   if (!authed) {
     return <Login onLogin={() => setAuthed(true)} />;
   }
@@ -53,6 +59,11 @@ function App() {
     setActiveView('chat');
   };
 
+  const handleDeleteWorkspace = async (name: string) => {
+    await apiFetch(`/workspaces/${name}`, { method: 'DELETE' });
+    await chat.fetchWorkspaces();
+  };
+
   const handleViewSessions = (workspace: string) => {
     chat.setCurrentWorkspace(workspace);
     setActiveView('chat');
@@ -62,6 +73,8 @@ function App() {
     setReplaySessionId(sessionId);
   };
 
+  const hasWorkspaces = chat.workspaces.length > 0;
+
   const navTabs: { id: ActiveView; label: string }[] = [
     { id: 'dashboard', label: 'Dashboard' },
     { id: 'chat', label: 'Chat' },
@@ -69,6 +82,12 @@ function App() {
     { id: 'terminal', label: 'Terminal' },
     { id: 'settings', label: 'Settings' },
   ];
+
+  const isTabDisabled = (id: ActiveView) => {
+    if (id === 'terminal') return !chat.currentSession;
+    if (id === 'chat' || id === 'files') return !hasWorkspaces;
+    return false;
+  };
 
   const renderMain = () => {
     // Session replay overrides the current view
@@ -89,6 +108,7 @@ function App() {
             onRefresh={chat.fetchWorkspaces}
             onViewSessions={handleViewSessions}
             onCreateWorkspace={handleCreateWorkspace}
+            onDeleteWorkspace={handleDeleteWorkspace}
           />
         );
       case 'chat':
@@ -141,7 +161,7 @@ function App() {
               <button
                 key={tab.id}
                 onClick={() => { setActiveView(tab.id); setReplaySessionId(null); }}
-                disabled={tab.id === 'terminal' && !chat.currentSession}
+                disabled={isTabDisabled(tab.id)}
                 className={`px-4 py-2 rounded-lg text-base font-medium transition-colors ${
                   activeView === tab.id && !replaySessionId
                     ? 'bg-primary text-primary-foreground'
@@ -183,7 +203,7 @@ function App() {
           <button
             key={tab.id}
             onClick={() => { setActiveView(tab.id); setReplaySessionId(null); }}
-            disabled={tab.id === 'terminal' && !chat.currentSession}
+            disabled={isTabDisabled(tab.id)}
             className={`flex-1 py-2 text-sm font-medium transition-colors ${
               activeView === tab.id && !replaySessionId
                 ? 'border-b-2 border-primary text-foreground'

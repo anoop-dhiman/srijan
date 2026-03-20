@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import {
   RefreshCw, Play, Square, ChevronDown, ChevronRight, ExternalLink, FolderOpen,
-  MessageSquare, Globe, GitBranch, Link, Plus, X, Upload, Lock, LockOpen, KeyRound,
+  MessageSquare, Globe, GitBranch, Link, Plus, X, Upload, Lock, LockOpen, KeyRound, Trash2,
 } from 'lucide-react';
 import { apiFetch } from '../lib/api';
 import type { WorkspaceInfo } from '../hooks/useChat';
@@ -610,9 +610,10 @@ function GitSection({ workspaceName }: { workspaceName: string }) {
   );
 }
 
-function WorkspaceCard({ workspace, onViewSessions }: {
+function WorkspaceCard({ workspace, onViewSessions, onDeleteWorkspace }: {
   workspace: WorkspaceInfo;
   onViewSessions: (name: string) => void;
+  onDeleteWorkspace: (ws: WorkspaceInfo) => void;
 }) {
   const [containersOpen, setContainersOpen] = useState(false);
   const [containers, setContainers] = useState<ContainerInfo[]>([]);
@@ -685,9 +686,18 @@ function WorkspaceCard({ workspace, onViewSessions }: {
               </span>
             )}
           </div>
-          {workspace.totalCostUsd != null && (
-            <span className="text-sm font-mono text-muted-foreground shrink-0">${workspace.totalCostUsd.toFixed(4)}</span>
-          )}
+          <div className="flex items-center gap-2 shrink-0">
+            {workspace.totalCostUsd != null && (
+              <span className="text-sm font-mono text-muted-foreground">${workspace.totalCostUsd.toFixed(4)}</span>
+            )}
+            <button
+              onClick={() => onDeleteWorkspace(workspace)}
+              title="Delete workspace"
+              className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+            >
+              <Trash2 size={14} />
+            </button>
+          </div>
         </div>
 
         <div className="mt-2 flex items-center gap-4 text-sm text-muted-foreground">
@@ -967,10 +977,24 @@ interface DashboardProps {
   onRefresh: () => void;
   onViewSessions: (workspace: string) => void;
   onCreateWorkspace: (name: string, opts?: { cloneUrl?: string; remoteUrl?: string; gitProvider?: string; gitUsername?: string; gitToken?: string }) => Promise<void>;
+  onDeleteWorkspace: (name: string) => Promise<void>;
 }
 
-export function Dashboard({ workspaces, onRefresh, onViewSessions, onCreateWorkspace }: DashboardProps) {
+export function Dashboard({ workspaces, onRefresh, onViewSessions, onCreateWorkspace, onDeleteWorkspace }: DashboardProps) {
   const [showCreate, setShowCreate] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<WorkspaceInfo | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget || deleting) return;
+    setDeleting(true);
+    try {
+      await onDeleteWorkspace(deleteTarget.name);
+    } finally {
+      setDeleting(false);
+      setDeleteTarget(null);
+    }
+  };
 
   return (
     <div className="flex-1 flex flex-col min-h-0 overflow-y-auto">
@@ -1020,11 +1044,67 @@ export function Dashboard({ workspaces, onRefresh, onViewSessions, onCreateWorks
                 key={ws.name}
                 workspace={ws}
                 onViewSessions={onViewSessions}
+                onDeleteWorkspace={setDeleteTarget}
               />
             ))
           )}
         </div>
       </div>
+
+      {/* Delete confirmation modal */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-background rounded-xl border border-border shadow-xl w-full max-w-md mx-4 p-6 space-y-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <Trash2 size={18} className="text-destructive shrink-0" />
+                <h3 className="text-base font-semibold">Delete Workspace</h3>
+              </div>
+              <button
+                onClick={() => setDeleteTarget(null)}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <p className="text-sm text-muted-foreground">
+              Are you sure you want to delete{' '}
+              <span className="font-semibold text-foreground font-mono">{deleteTarget.name}</span>?
+              This will permanently delete the workspace directory, all sessions, session history, and git credentials.
+            </p>
+
+            {deleteTarget.sessionCount > 0 && (
+              <p className="text-sm text-amber-600 dark:text-amber-400">
+                {deleteTarget.sessionCount} session{deleteTarget.sessionCount !== 1 ? 's' : ''} and their history will be deleted.
+              </p>
+            )}
+
+            {deleteTarget.runningContainerCount > 0 && (
+              <p className="text-sm text-destructive font-medium">
+                Warning: {deleteTarget.runningContainerCount} container{deleteTarget.runningContainerCount !== 1 ? 's' : ''} are currently running.
+              </p>
+            )}
+
+            <div className="flex gap-2 pt-1">
+              <button
+                onClick={() => setDeleteTarget(null)}
+                className="flex-1 py-2 rounded-lg border border-border text-sm font-medium hover:bg-muted transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmDelete}
+                disabled={deleting}
+                className="flex-1 py-2 rounded-lg bg-destructive text-destructive-foreground text-sm font-medium hover:bg-destructive/90 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+              >
+                {deleting && <RefreshCw size={13} className="animate-spin" />}
+                Delete Workspace
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -60,6 +60,11 @@ export function getSessionEvents(sessionId: string): AgentEvent[] {
   })) as AgentEvent[];
 }
 
+export function getSessionsByWorkspace(name: string): { id: string }[] {
+  const db = getDb();
+  return db.prepare('SELECT id FROM sessions WHERE workspace_name = ?').all(name) as { id: string }[];
+}
+
 export function updateSessionTitle(id: string, title: string): void {
   const db = getDb();
   db.prepare(

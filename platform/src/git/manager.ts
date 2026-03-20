@@ -1,5 +1,6 @@
 import simpleGit, { SimpleGit } from 'simple-git';
 import { existsSync, mkdirSync } from 'fs';
+import { promises as fs } from 'fs';
 import { join } from 'path';
 import { buildAuthUrl, stripAuthFromUrl, type GitCredentials } from '../lib/gitAuth.js';
 
@@ -87,6 +88,11 @@ export async function pushRepo(name: string, creds?: GitCredentials): Promise<vo
   } else {
     await git.push(['-u', 'origin', 'HEAD']);
   }
+}
+
+export async function deleteWorkspace(name: string): Promise<void> {
+  const wsPath = join(getWorkspaceRoot(), name);
+  await fs.rm(wsPath, { recursive: true, force: true });
 }
 
 export async function pullRepo(name: string, creds?: GitCredentials): Promise<{ summary: object }> {

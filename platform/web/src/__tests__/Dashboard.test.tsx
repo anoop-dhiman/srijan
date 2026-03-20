@@ -30,6 +30,7 @@ describe('Dashboard', () => {
   const onRefresh = vi.fn();
   const onViewSessions = vi.fn();
   const onCreateWorkspace = vi.fn().mockResolvedValue(undefined);
+  const onDeleteWorkspace = vi.fn().mockResolvedValue(undefined);
 
   const renderDashboard = (workspaces = mockWorkspaces) =>
     render(
@@ -38,6 +39,7 @@ describe('Dashboard', () => {
         onRefresh={onRefresh}
         onViewSessions={onViewSessions}
         onCreateWorkspace={onCreateWorkspace}
+        onDeleteWorkspace={onDeleteWorkspace}
       />
     );
 
@@ -103,6 +105,50 @@ describe('Dashboard', () => {
     fireEvent.click(screen.getByText('New Workspace'));
     expect(screen.getByText('New Repo')).toBeInTheDocument();
     expect(screen.getByText('Clone Repo')).toBeInTheDocument();
+  });
+
+  it('renders delete button in each workspace card', () => {
+    renderDashboard();
+    // Each card has a trash icon button (title="Delete workspace")
+    const deleteBtns = screen.getAllByTitle('Delete workspace');
+    expect(deleteBtns).toHaveLength(mockWorkspaces.length);
+  });
+
+  it('shows confirmation modal when delete button is clicked', async () => {
+    renderDashboard();
+    const deleteBtns = screen.getAllByTitle('Delete workspace');
+    fireEvent.click(deleteBtns[0]);
+    expect(screen.getAllByText('Delete Workspace').length).toBeGreaterThan(0);
+    expect(screen.getByText(/permanently delete/i)).toBeInTheDocument();
+  });
+
+  it('shows session count warning in confirmation modal', async () => {
+    renderDashboard();
+    const deleteBtns = screen.getAllByTitle('Delete workspace');
+    fireEvent.click(deleteBtns[0]); // my-react-app has 3 sessions
+    expect(screen.getByText(/3 sessions and their history will be deleted/i)).toBeInTheDocument();
+  });
+
+  it('calls onDeleteWorkspace with workspace name on confirm', async () => {
+    renderDashboard();
+    const deleteBtns = screen.getAllByTitle('Delete workspace');
+    fireEvent.click(deleteBtns[0]);
+    // Click the destructive "Delete Workspace" button inside the modal
+    const confirmBtn = screen.getAllByText('Delete Workspace').find(el => el.tagName === 'BUTTON');
+    fireEvent.click(confirmBtn!);
+    await waitFor(() => {
+      expect(onDeleteWorkspace).toHaveBeenCalledWith('my-react-app');
+    });
+  });
+
+  it('closes modal on cancel without calling onDeleteWorkspace', async () => {
+    renderDashboard();
+    const deleteBtns = screen.getAllByTitle('Delete workspace');
+    fireEvent.click(deleteBtns[0]);
+    expect(screen.getByText(/permanently delete/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Cancel'));
+    expect(screen.queryByText(/permanently delete/i)).not.toBeInTheDocument();
+    expect(onDeleteWorkspace).not.toHaveBeenCalled();
   });
 
   it('fetches containers when Containers is expanded', async () => {
