@@ -17,7 +17,7 @@ Srijan is a self-hosted platform that runs on a single VM and provides:
 - **Real-time activity feedback** — per-session spinner and unread indicators; background sessions continue streaming
 - **Agent Boundaries** — blocklist of dangerous Bash commands enforced at the platform level
 - **Confirm mode** — optional human-in-the-loop approval before agent executes actions
-- **Cost tracking** — token usage and USD cost per session, shown in sidebar
+- **Cost tracking** — token usage and USD cost per session, shown in sidebar; monthly spending caps per user and per workspace
 - **PTY terminal** — browser-based terminal (xterm.js) connected to the agent's workspace
 - **File browser + editor** — Monaco editor in the browser for reading and editing workspace files
 
@@ -67,10 +67,11 @@ Then visit `https://dev.example.com/forge` from any device.
 
 ```bash
 cd platform
-npm test                     # 224 backend tests
+npm test                     # 279 backend tests
 
 cd web
-npx vitest run               # 187 frontend tests
+npx vitest run               # 196 frontend unit tests
+npx playwright test          # 22 E2E tests (requires running server)
 ```
 
 ## Architecture
@@ -141,8 +142,8 @@ npx vitest run               # 187 frontend tests
 | Phase 9 | Comprehensive test coverage — 405 tests across 30 files | **Done** |
 | Phase 10 | Security hardening — AES-256-GCM, key derivation, rate limiting, CSP, CORS, input validation (30 items) | **Done** |
 | Phase 11 | Code review — P0 security (XSS, CSP, container auth), P1 reliability (reconnect caps, DB indexes, timeouts), P2 UX/a11y — 411 tests | **Done** |
-| Phase 12 | Observability, OpenCode SDK, workspace templates, agent permission UI | Planned |
-| Phase 13 | Production deployment (Dockerfile + CI/CD), cost controls, E2E tests, mobile polish | Planned |
+| Phase 12 | Observability (pino logging, health endpoint, request tracing), workspace templates, agent permission UI, mobile polish — 447 tests | **Done** |
+| Phase 13 | Production Dockerfile + CI/CD (GitHub Actions → ghcr.io), monthly spending caps, Playwright E2E tests — 497 tests | **Done** |
 | Phase 14 | Local models (Ollama), GitHub bot, webhook notifications | Planned |
 
 ## Tech Stack

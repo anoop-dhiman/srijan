@@ -201,14 +201,20 @@
 |---|---------|-------------|--------|
 | — | Session auto-title (hybrid) | First user message sets title immediately (truncated to 60 chars); after first agent turn, `claude-haiku-4-5` generates a clean 4-6 word title; sidebar updates twice — instant then refined | **Done** |
 
-### Phase 13: Production Readiness + E2E Testing (Planned)
+### Phase 13: Production Readiness + E2E Testing — Done
 
-| # | Feature | Description |
-|---|---------|-------------|
-| 119 | Platform Dockerfile | Multi-stage Dockerfile to build and ship the platform as a single image (currently dev-only) |
-| 120 | CI/CD pipeline | GitHub Actions workflow: lint → test → build → push image on merge to main |
-| 121 | Cost controls | Per-user and per-workspace spending caps with alerts; halt agent spawn when budget exceeded |
-| 122 | E2E test suite | Playwright tests covering login → chat → file browser → terminal flows |
+| # | Feature | Description | Status |
+|---|---------|-------------|--------|
+| 119 | Dockerfile fix + .dockerignore | Multi-stage build `schema.sql` copy bug fixed (builder stage); `.dockerignore` for cleaner images | **Done** |
+| 120 | CI/CD pipeline (GitHub Actions) | `lint → test → build → push to ghcr.io`; separate E2E Playwright job on push to main | **Done** |
+| 121 | Monthly spending caps | Per-user and per-workspace `spending_limit_usd`; `lib/spending.ts` helpers; `/api/spending/*` routes; Settings Spending section (admin); Chat ≥80% warning banner; Dashboard per-workspace spend badge | **Done** |
+| 122 | Playwright E2E tests | `playwright.config.ts` (chromium, retries in CI); `e2e/` specs: auth, workspace, chat, files, settings (~22 tests) | **Done** |
+
+**Post-Phase-13 bug fixes:**
+- `6712f74` — Catch `pty.spawn` failure in terminal route to prevent server crash
+- `ca26946` — Show default blocklist in Settings when no custom list is saved
+
+**Test totals: 279 backend (26 files) + 196 frontend unit (10 files) + 22 E2E (5 specs) = 497 tests**
 
 ### Phase 14: Integrations (Planned)
 

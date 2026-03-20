@@ -1,7 +1,7 @@
 # Srijan — Agent Handoff Summary
 
 > Date: 2026-03-20
-> Latest commit: `b85b532` (auto-title sessions — 447 tests total)
+> Latest commit: `ca26946` (default blocklist fix — 497 tests total: 279 backend + 196 frontend unit + 22 E2E)
 > Location: `/Users/anoop.dhiman/Documents/Srijan`
 
 ---
@@ -37,7 +37,8 @@ Srijan/
 │   │   │   ├── terminal.ts  # WS /api/terminal (node-pty PTY)
 │   │   │   ├── files.ts     # GET /api/workspaces/:name/files, /file; PUT /file (Monaco save)
 │   │   │   ├── sessions.ts  # GET /api/sessions/:id/recording (event replay)
-│   │   │   └── users.ts     # CRUD /api/users (admin only, RBAC)
+│   │   │   ├── spending.ts  # GET /api/spending/* (me, users, workspaces, workspace/:name)
+│   │   │   └── users.ts     # CRUD /api/users (admin only, RBAC); PUT /:id/spending-limit
 │   │   ├── agent/
 │   │   │   ├── runner.ts    # AgentRunner — Claude Code CLI subprocess, Vertex AI, boundaries, cost
 │   │   │   ├── IAgentRunner.ts  # Interface for pluggable agent backends
@@ -58,12 +59,13 @@ Srijan/
 │   │   │   ├── gitAuth.ts   # Provider detection, auth URL injection, git_credentials DB helpers
 │   │   │   ├── logger.ts    # pino root logger + createLogger(module) factory; LOG_LEVEL env var
 │   │   │   ├── secretProxy.ts # HTTP proxy + CONNECT relay for secret substitution
+│   │   │   ├── spending.ts  # getMonthWindowStart, getUserSpending, getWorkspaceSpending, checkSpendingLimits
 │   │   │   ├── titleGenerator.ts # Direct Anthropic API fetch for 4-6 word session titles
 │   │   │   └── workspaceTemplates.ts # applyTemplate() for node/python/go/rust scaffolding
 │   │   ├── db/
 │   │   │   ├── store.ts     # SQLite singleton (WAL mode, auto-create dir, migrations)
-│   │   │   └── schema.sql   # Tables: users, sessions, events, secrets, apps, config, token_usage, git_credentials
-│   │   └── __tests__/       # 251 backend tests (vitest + supertest)
+│   │   │   └── schema.sql   # Tables: users, sessions, events, secrets, apps, config, token_usage, git_credentials, workspace_spending
+│   │   └── __tests__/       # 279 backend tests (vitest + supertest)
 │   ├── web/                  # React frontend (separate package.json)
 │   │   ├── src/
 │   │   │   ├── App.tsx       # 5-tab nav (Dashboard|Chat|Files|Terminal|Settings), Dashboard as primary
@@ -71,7 +73,7 @@ Srijan/
 │   │   │   │   ├── Chat.tsx               # Workspace switcher sidebar, session activity, replay button
 │   │   │   │   ├── Dashboard.tsx          # Primary page: workspace cards, CreateWorkspacePanel, GitSection with auth
 │   │   │   │   ├── Terminal.tsx           # xterm.js PTY terminal (lazy-loaded)
-│   │   │   │   ├── Settings.tsx           # Sidebar nav layout: AI Provider, Agent, Security, Secrets, Users
+│   │   │   │   ├── Settings.tsx           # Sidebar nav layout: AI Provider, Agent, Security, Secrets, Users, Spending
 │   │   │   │   ├── Login.tsx              # Password login + TOTP challenge step
 │   │   │   │   ├── FileBrowser.tsx        # Two-panel workspace file tree + Monaco editor
 │   │   │   │   └── SessionRecording.tsx   # Read-only event replay for past sessions
@@ -80,9 +82,14 @@ Srijan/
 │   │   │   ├── lib/
 │   │   │   │   ├── api.ts        # HTTP client with JWT, WebSocket factory, getCurrentUser()
 │   │   │   │   └── utils.ts      # cn() — Tailwind class merge
-│   │   │   └── __tests__/        # 196 frontend tests (vitest + RTL)
+│   │   │   └── __tests__/        # 196 frontend unit tests (vitest + RTL)
+│   │   ├── e2e/                  # Playwright E2E specs (22 tests)
+│   │   │   ├── helpers/auth.ts + api.ts
+│   │   │   └── auth.spec.ts, workspace.spec.ts, chat.spec.ts, files.spec.ts, settings.spec.ts
+│   │   ├── playwright.config.ts  # chromium, retries in CI, baseURL :5173
 │   │   └── vite.config.ts        # Tailwind plugin, /api proxy to :8080
-│   ├── Dockerfile            # Multi-stage (build + prod with docker-cli + git)
+│   ├── .dockerignore         # Excludes node_modules, .git, test artifacts from image
+│   ├── Dockerfile            # Multi-stage (build + prod with docker-cli + git); schema.sql copied in builder stage
 │   ├── package.json
 │   ├── vitest.config.ts      # Backend test config (forks pool for SQLite)
 │   └── .env.example
@@ -173,7 +180,7 @@ Supported providers: `github` (PAT), `azure` (Azure DevOps PAT), `generic` (any 
 
 ## What Works Now
 
-### Backend (251 tests passing)
+### Backend (279 tests passing)
 - **Auth**: login + JWT, WebSocket auth via `?token=` query param; TOTP 2FA (setup/enable/disable/status); challenge token for login flow
 - **Config**: GET/PUT for LLM settings (provider, API key, model, Vertex config, LiteLLM config), system prompt, agent mode, boundaries blocklist, agentSdk
 - **Secrets**: CRUD with AES-256 encryption; injected as env vars at agent spawn via secret proxy
@@ -189,9 +196,12 @@ Supported providers: `github` (PAT), `azure` (Azure DevOps PAT), `generic` (any 
 - **File browser**: `GET /api/workspaces/:name/files?path=` (directory listing) + `/file?path=` (file content) + `PUT /file` (save)
 - **Containers**: filtered to registered app containers only; optional `?workspace=` scoping
 - **Terminal**: PTY via node-pty, WS at `/api/terminal?token=&sessionId=`, xterm.js on frontend
-- **Users (RBAC)**: `GET/POST/DELETE /api/users` (admin only); `role` column in users table; `requireAdmin` middleware
+- **Users (RBAC)**: `GET/POST/DELETE /api/users` (admin only); `role` column in users table; `requireAdmin` middleware; `PUT /api/users/:id/spending-limit` (admin)
+- **Spending caps**: `lib/spending.ts` — `checkSpendingLimits(userId, workspaceName)` called before agent spawn; `getMonthWindowStart()` for calendar-month windows; `getUserSpending` / `getWorkspaceSpending` aggregate `token_usage` by month; agent spawn blocked (503) when limit exceeded
+- **Spending routes**: `GET /api/spending/me`, `GET /api/spending/users` (admin), `GET /api/spending/workspaces` (admin), `GET /api/spending/workspace/:name`
+- **CI/CD**: `.github/workflows/ci.yml` — `lint → test → build → push to ghcr.io`; separate E2E job with Playwright
 
-### Frontend (196 tests passing)
+### Frontend (196 unit tests + 22 E2E tests passing)
 - **Login**: multi-user username + password fields; optional TOTP challenge step; 429 rate-limit feedback; JWT stored in localStorage
 - **Dashboard as primary page**: app opens to Dashboard; workspace creation lives here, not in Chat
 - **Workspace creation panel**: "New Workspace" button → panel with two tabs: New Repo (name + optional remote URL + auth) and Clone Repo (URL + name + auth); auth auto-detected from URL
@@ -214,6 +224,8 @@ Supported providers: `github` (PAT), `azure` (Azure DevOps PAT), `generic` (any 
 - **Real-time tool activity**: expandable pills per tool invocation with input/output details
 - **Thinking indicator**: animated bouncing dots + live status text
 - **Multi-user**: admin/user roles; Users section in Settings (admin only); current username shown in header
+- **Spending caps UI**: Settings Spending section (admin) — set per-user and per-workspace monthly limits; Chat warning banner at ≥80% of limit; Dashboard per-workspace spend badge
+- **Playwright E2E**: 22 tests across 5 specs — auth, workspace, chat, files, settings
 
 ### API Routes
 
@@ -257,6 +269,12 @@ Supported providers: `github` (PAT), `azure` (Azure DevOps PAT), `generic` (any 
 | GET | `/api/users` | List all users (admin only) |
 | POST | `/api/users` | Create user with role (admin only) |
 | DELETE | `/api/users/:id` | Delete user (admin only, cannot delete self) |
+| PUT | `/api/users/:id/spending-limit` | Set monthly spending cap for a user (admin only) |
+| GET | `/api/spending/me` | Current user's spending for the current month |
+| GET | `/api/spending/users` | All users' spending (admin only) |
+| GET | `/api/spending/workspaces` | All workspaces' spending (admin only) |
+| GET | `/api/spending/workspace/:name` | Spending for a specific workspace |
+| PUT | `/api/workspaces/:name/spending-limit` | Set monthly spending cap for a workspace (admin only) |
 | WS | `/api/chat?token=` | WebSocket for chat sessions |
 | WS | `/api/terminal?token=&sessionId=` | PTY terminal WebSocket |
 
@@ -278,14 +296,15 @@ Supported providers: `github` (PAT), `azure` (Azure DevOps PAT), `generic` (any 
 
 | Table | Key columns |
 |-------|------------|
-| `users` | `id`, `username`, `password_hash`, `role`, `totp_secret`, `totp_enabled` |
+| `users` | `id`, `username`, `password_hash`, `role`, `totp_secret`, `totp_enabled`, `spending_limit_usd` |
 | `sessions` | `id`, `user_id`, `title`, `status`, `workspace_name` |
 | `events` | `id`, `session_id`, `type`, `data` (JSON string) |
 | `secrets` | `id`, `name`, `encrypted_value` |
 | `apps` | `id`, `name`, `path`, `port`, `container_id`, `workspace_name`, `status` |
 | `config` | `key`, `value` |
-| `token_usage` | `id`, `session_id`, `input_tokens`, `output_tokens`, `cost_usd`, `model` |
+| `token_usage` | `id`, `session_id`, `user_id`, `workspace_name`, `input_tokens`, `output_tokens`, `cost_usd`, `model` |
 | `git_credentials` | `id`, `workspace_name` (UNIQUE), `provider`, `username`, `encrypted_token` |
+| `workspace_spending` | `id`, `workspace_name` (UNIQUE), `spending_limit_usd` |
 
 ---
 
@@ -346,6 +365,9 @@ Other DB config keys:
 - **Confirm mode via sentinel** — `--permission-mode default` removed (hangs when stdin is closed); confirm mode injects a `## Tool Approval Required` block with `[AWAITING_APPROVAL]` sentinel into the system prompt; frontend detects sentinel in `agent_response` done event and shows approval bar
 - **Session auto-title** — `chat.ts` tracks `titledSessions: Set<string>` per process; on first message in a session with title `New Session`: sets title immediately from first 60 chars + emits `session_updated`; after agent turn completes, fires async `generateTitle()` (Haiku API, native fetch, no extra SDK); emits second `session_updated` with refined title; falls back to truncated message if no API key or fetch fails
 - **Workspace templates** — `applyTemplate(workspacePath, template)` writes scaffold files using module-level string constants (no `__dirname` + file reads); template failure in `workspaces.ts` is non-fatal (caught, logged as warn, still returns 201)
+- **Monthly spending caps** — `getMonthWindowStart()` returns the first-day-of-month UTC timestamp; spending summed from `token_usage` filtered by `user_id`/`workspace_name` and `created_at >= monthStart`; `checkSpendingLimits()` called in `runner.ts` before subprocess spawn; returns 503 with `SPENDING_LIMIT_EXCEEDED` code if over limit; `workspace_spending` table holds per-workspace limits separately from `users.spending_limit_usd`
+- **Dockerfile schema.sql fix** — schema was missing in prod image because `COPY . .` ran before `tsc`; fixed by adding explicit `COPY src/db/schema.sql dist/db/schema.sql` in builder stage
+- **CI/CD pipeline** — GitHub Actions: `lint` job runs `tsc --noEmit` + ESLint; `test` job runs backend vitest + frontend vitest; `build` job builds and pushes image to `ghcr.io`; `e2e` job spins up the server and runs Playwright; jobs gated so `build` only runs on push to main after `test` passes
 
 ---
 
@@ -375,8 +397,9 @@ Login: username `admin`, password `admin` (or `SRIJAN_ADMIN_PASSWORD` env var).
 
 ```bash
 cd platform
-npm test                  # 251 backend tests (24 test files)
-cd web && npx vitest run  # 196 frontend tests (10 test files)
+npm test                  # 279 backend tests (26 test files)
+cd web && npx vitest run  # 196 frontend unit tests (10 test files)
+cd web && npx playwright test  # 22 E2E tests (5 spec files, requires running server)
 ```
 
 ### Test Coverage by Layer
@@ -406,14 +429,22 @@ cd web && npx vitest run  # 196 frontend tests (10 test files)
 | Health | `health.test.ts` | 7 | ok/degraded/error status, uptime, version, no auth |
 | Request ID | `requestId.test.ts` | 4 | Header echo, auto-UUID, different IDs per request |
 | Workspace templates | `workspaceTemplates.test.ts` | 6 | VALID_TEMPLATES, none no-op, node/python/go/rust files |
-| **Frontend** | | | |
+| Spending lib | `spending.test.ts` | ~20 | getMonthWindowStart, getUserSpending, getWorkspaceSpending, checkSpendingLimits (under/at/over limit) |
+| Spending routes | `spending-routes.test.ts` | ~8 | GET me/users/workspaces/workspace/:name; PUT spending limits; auth enforcement |
+| **Frontend unit** | | | |
 | API utils | `api.test.ts` | 4 | Token management, logout |
 | Login | `Login.test.tsx` | 9 | Password, TOTP challenge flow, error states |
 | App | `App.test.tsx` | 24 | Nav, auth state, tab routing, session recording |
-| Chat | `Chat.test.tsx` | 33 | Sidebar, messages, input, tool pills, thinking indicator, cost badge, replay, approval bar |
-| Dashboard | `Dashboard.test.tsx` | 31 | Workspace cards, delete modal, git auth UI, push, CreateWorkspacePanel, template selector |
-| Settings | `Settings.test.tsx` | 29 | AI Provider, LiteLLM, SDK, TOTP, Users, agent mode, system prompt, OpenCode disabled |
+| Chat | `Chat.test.tsx` | 33 | Sidebar, messages, input, tool pills, thinking indicator, cost badge, replay, approval bar, spending warning |
+| Dashboard | `Dashboard.test.tsx` | 31 | Workspace cards, delete modal, git auth UI, push, CreateWorkspacePanel, template selector, spend badge |
+| Settings | `Settings.test.tsx` | 29 | AI Provider, LiteLLM, SDK, TOTP, Users, agent mode, system prompt, OpenCode disabled, Spending section |
 | File Browser | `FileBrowser.test.tsx` | 15 | Tree, Monaco editor, edit/save/cancel, dirty-state confirm, mobile toggle |
 | Session Recording | `SessionRecording.test.tsx` | 8 | Load, events, cost, error, close |
 | Terminal | `Terminal.test.tsx` | 4 | WS connection, URL params, unmount |
 | useChat hook | `useChat.test.ts` | 39 | Initial state, connect, all WS messages, sendMessage, workspace |
+| **E2E (Playwright)** | | | |
+| Auth E2E | `auth.spec.ts` | ~5 | Login, logout, wrong password, TOTP flow |
+| Workspace E2E | `workspace.spec.ts` | ~5 | Create workspace, delete workspace, git operations |
+| Chat E2E | `chat.spec.ts` | ~5 | Send message, agent response, tool pills |
+| Files E2E | `files.spec.ts` | ~4 | Browse files, Monaco editor open/save |
+| Settings E2E | `settings.spec.ts` | ~3 | Change LLM config, save secrets |
