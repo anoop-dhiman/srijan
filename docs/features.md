@@ -181,16 +181,25 @@
 | 86 | React ErrorBoundary | `ErrorBoundary` class component wraps authenticated app content; shows reload button on crash | **Done** |
 | 87 | UNIQUE constraint detection | `err.code === 'SQLITE_CONSTRAINT_UNIQUE'` replaces fragile message substring checks in secrets, users, apps | **Done** |
 
-### Phase 12: Observability + Capabilities (Planned)
+### Phase 12: Observability + Capabilities + Mobile Polish — Done
 
-| # | Feature | Description |
-|---|---------|-------------|
-| 113 | Structured logging | Replace ad-hoc `console.log` with a structured logger (e.g. pino); log level env var |
-| 114 | Health endpoint | `GET /api/health` returns DB status, Docker connectivity, uptime; used by Docker healthcheck |
-| 115 | Request tracing | Correlation ID per request propagated through logs and WS messages for prod debugging |
-| 116 | OpenCode SDK | Implement `OpenCodeRunner.ts` stub as a real runner (currently emits error immediately) |
-| 117 | Workspace templates | Pre-configured environment templates (Node, Python, Go, Rust) to accelerate new workspace setup |
-| 118 | Agent permission UI | Inline approve/reject UI for `confirm` mode — currently wired in backend but has no frontend |
+| # | Feature | Description | Status |
+|---|---------|-------------|--------|
+| 113 | Structured logging (pino) | `createLogger(module)` child loggers across all backend files; `LOG_LEVEL` env var; pretty in dev, JSON in prod | **Done** |
+| 114 | Health endpoint | `GET /health` (no auth) checks DB (`SELECT 1`) + Docker (`getDockerInfo()`); returns `ok`/`degraded`/`error`; 503 on DB failure | **Done** |
+| 115 | Request tracing | `requestIdMiddleware` reads `X-Request-Id` header or generates UUID; echoes in response header | **Done** |
+| 116 | OpenCode stub improvement | Better error message directing user to Settings; button disabled with "Not yet available" badge; auto-resets stored `opencode` to `claude-code` | **Done** |
+| 117 | Workspace templates | `applyTemplate(path, template)` for node/python/go/rust; template `<select>` in Dashboard New Repo tab; non-fatal on failure | **Done** |
+| 118 | Agent permission UI | `[AWAITING_APPROVAL]` sentinel injected in confirm-mode system prompt; amber approval bar in Chat with Approve/Deny buttons; textarea disabled while pending | **Done** |
+| 123 | Mobile / responsive polish | Settings nav horizontal scroll on mobile; FileBrowser tree toggle button (`md:hidden`); Chat sidebar collapses on resize to < 768px; Dashboard flex-wrap | **Done** |
+
+**Test totals: 251 backend (24 files) + 196 frontend (10 files) = 447 tests**
+
+### Session Auto-Title — Done
+
+| # | Feature | Description | Status |
+|---|---------|-------------|--------|
+| — | Session auto-title (hybrid) | First user message sets title immediately (truncated to 60 chars); after first agent turn, `claude-haiku-4-5` generates a clean 4-6 word title; sidebar updates twice — instant then refined | **Done** |
 
 ### Phase 13: Production Readiness + E2E Testing (Planned)
 
@@ -200,7 +209,6 @@
 | 120 | CI/CD pipeline | GitHub Actions workflow: lint → test → build → push image on merge to main |
 | 121 | Cost controls | Per-user and per-workspace spending caps with alerts; halt agent spawn when budget exceeded |
 | 122 | E2E test suite | Playwright tests covering login → chat → file browser → terminal flows |
-| 123 | Mobile / responsive polish | Sidebar and file browser layout fixes at small viewports (currently breaks below ~768px) |
 
 ### Phase 14: Integrations (Planned)
 

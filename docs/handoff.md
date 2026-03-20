@@ -1,7 +1,7 @@
 # Srijan — Agent Handoff Summary
 
 > Date: 2026-03-20
-> Latest commit: `587cab1` (security hardening — 405 tests total)
+> Latest commit: `b85b532` (auto-title sessions — 447 tests total)
 > Location: `/Users/anoop.dhiman/Documents/Srijan`
 
 ---
@@ -51,14 +51,19 @@ Srijan/
 │   │   │   └── manager.ts   # dockerode wrapper (list, logs, stop, start)
 │   │   ├── git/
 │   │   │   └── manager.ts   # simple-git: clone/init/pull/push/setRemote/commitAll (all auth-aware)
+│   │   ├── middleware/
+│   │   │   └── requestId.ts # X-Request-Id header echo or UUID generation
 │   │   ├── lib/
 │   │   │   ├── crypto.ts    # AES-256-GCM encrypt/decrypt (v2); backward-compat AES-256-CBC (v1)
 │   │   │   ├── gitAuth.ts   # Provider detection, auth URL injection, git_credentials DB helpers
-│   │   │   └── secretProxy.ts # HTTP proxy + CONNECT relay for secret substitution
+│   │   │   ├── logger.ts    # pino root logger + createLogger(module) factory; LOG_LEVEL env var
+│   │   │   ├── secretProxy.ts # HTTP proxy + CONNECT relay for secret substitution
+│   │   │   ├── titleGenerator.ts # Direct Anthropic API fetch for 4-6 word session titles
+│   │   │   └── workspaceTemplates.ts # applyTemplate() for node/python/go/rust scaffolding
 │   │   ├── db/
 │   │   │   ├── store.ts     # SQLite singleton (WAL mode, auto-create dir, migrations)
 │   │   │   └── schema.sql   # Tables: users, sessions, events, secrets, apps, config, token_usage, git_credentials
-│   │   └── __tests__/       # 218 backend tests (vitest + supertest)
+│   │   └── __tests__/       # 251 backend tests (vitest + supertest)
 │   ├── web/                  # React frontend (separate package.json)
 │   │   ├── src/
 │   │   │   ├── App.tsx       # 5-tab nav (Dashboard|Chat|Files|Terminal|Settings), Dashboard as primary
@@ -75,7 +80,7 @@ Srijan/
 │   │   │   ├── lib/
 │   │   │   │   ├── api.ts        # HTTP client with JWT, WebSocket factory, getCurrentUser()
 │   │   │   │   └── utils.ts      # cn() — Tailwind class merge
-│   │   │   └── __tests__/        # 187 frontend tests (vitest + RTL)
+│   │   │   └── __tests__/        # 196 frontend tests (vitest + RTL)
 │   │   └── vite.config.ts        # Tailwind plugin, /api proxy to :8080
 │   ├── Dockerfile            # Multi-stage (build + prod with docker-cli + git)
 │   ├── package.json
@@ -103,7 +108,7 @@ spawn(node, [CLAUDE_BIN, '-p', '--output-format', 'stream-json', '--verbose',
 Key details:
 - **subprocess per message** — spawned with `spawn()`, stdin immediately closed
 - **`--resume <claudeSessionId>`** — maintains conversation continuity across messages
-- **Agent mode** — DB key `agentMode`: `auto` → `--permission-mode bypassPermissions`; `confirm` → `--permission-mode default`
+- **Agent mode** — DB key `agentMode`: always `--permission-mode bypassPermissions`; `confirm` mode injects `[AWAITING_APPROVAL]` sentinel via system prompt instead
 - **Environment vars** — either `ANTHROPIC_API_KEY` (Anthropic) or `CLAUDE_CODE_USE_VERTEX=1` + `ANTHROPIC_VERTEX_PROJECT_ID` + `CLOUD_ML_REGION` (Vertex AI)
 - **Vertex SA key** — if provided, written to `/tmp/srijan-sa-<sessionId>.json` with mode 0600, path set as `GOOGLE_APPLICATION_CREDENTIALS`
 - **LiteLLM** — if provider is `litellm`, sets `ANTHROPIC_BASE_URL` + `ANTHROPIC_API_KEY` to route through LiteLLM proxy
@@ -168,7 +173,7 @@ Supported providers: `github` (PAT), `azure` (Azure DevOps PAT), `generic` (any 
 
 ## What Works Now
 
-### Backend (218 tests passing)
+### Backend (251 tests passing)
 - **Auth**: login + JWT, WebSocket auth via `?token=` query param; TOTP 2FA (setup/enable/disable/status); challenge token for login flow
 - **Config**: GET/PUT for LLM settings (provider, API key, model, Vertex config, LiteLLM config), system prompt, agent mode, boundaries blocklist, agentSdk
 - **Secrets**: CRUD with AES-256 encryption; injected as env vars at agent spawn via secret proxy
@@ -186,7 +191,7 @@ Supported providers: `github` (PAT), `azure` (Azure DevOps PAT), `generic` (any 
 - **Terminal**: PTY via node-pty, WS at `/api/terminal?token=&sessionId=`, xterm.js on frontend
 - **Users (RBAC)**: `GET/POST/DELETE /api/users` (admin only); `role` column in users table; `requireAdmin` middleware
 
-### Frontend (187 tests passing)
+### Frontend (196 tests passing)
 - **Login**: multi-user username + password fields; optional TOTP challenge step; 429 rate-limit feedback; JWT stored in localStorage
 - **Dashboard as primary page**: app opens to Dashboard; workspace creation lives here, not in Chat
 - **Workspace creation panel**: "New Workspace" button → panel with two tabs: New Repo (name + optional remote URL + auth) and Clone Repo (URL + name + auth); auth auto-detected from URL
@@ -195,6 +200,7 @@ Supported providers: `github` (PAT), `azure` (Azure DevOps PAT), `generic` (any 
 - **Chat UI**: responsive layout, markdown rendering, streaming cursor; replay button per session
 - **Workspace switcher in Chat**: dropdown to switch between workspaces; "Create workspace in Dashboard" link replaces inline create form
 - **Resizable sidebar**: drag to resize (180–480px), collapse/expand toggle button
+- **Session auto-title**: first user message sets sidebar title instantly (≤60 chars); after first agent turn, `claude-haiku-4-5` generates a clean 4-6 word title via direct API fetch; `session_updated` WS event patches session in state
 - **Session management**: create, switch, delete; filtered to current workspace; persisted to localStorage, auto-rejoin on reload
 - **Per-session activity**: spinner per session while agent runs; blue unread dot for background sessions; cleared when switching to a session
 - **Cost badge**: `$X.XXXX` shown per session in sidebar when cost > 0
@@ -263,6 +269,7 @@ Supported providers: `github` (PAT), `azure` (Azure DevOps PAT), `generic` (any 
 | `join_session` | `{ sessionId }` | `session_joined` (with events) |
 | `delete_session` | `{ sessionId }` | `session_deleted` |
 | `message` | `{ content }` | `agent_event` (multiple types) |
+| | | `session_updated` (title auto-updated) |
 | | | `error` |
 
 ---
@@ -335,6 +342,10 @@ Other DB config keys:
 - **Terminal env sanitization** — PTY in `terminal.ts` spawned with a cleaned copy of `process.env`; strips keys matching `SRIJAN_`, `ANTHROPIC_`, `GOOGLE_`, `VERTEX_` prefixes and a fixed set of sensitive keys
 - **Exponential backoff reconnect** — `useChat.ts` tracks `reconnectAttemptRef`; delay = `min(3000 * 2^attempt, 60000)` ms; reset to 0 on successful open
 - **CORS allowlist** — `server.ts` reads `SRIJAN_ORIGIN` env var (comma-separated); empty list allows all origins (dev); non-empty list enforces strict allowlist; startup warns if JWT secret is the default value
+- **Structured logging (pino)** — `createLogger(module)` returns a child logger with `{module}` binding; root level from `LOG_LEVEL` env var (default `info`); pino-pretty transport in development, plain JSON in production (`NODE_ENV=production`)
+- **Confirm mode via sentinel** — `--permission-mode default` removed (hangs when stdin is closed); confirm mode injects a `## Tool Approval Required` block with `[AWAITING_APPROVAL]` sentinel into the system prompt; frontend detects sentinel in `agent_response` done event and shows approval bar
+- **Session auto-title** — `chat.ts` tracks `titledSessions: Set<string>` per process; on first message in a session with title `New Session`: sets title immediately from first 60 chars + emits `session_updated`; after agent turn completes, fires async `generateTitle()` (Haiku API, native fetch, no extra SDK); emits second `session_updated` with refined title; falls back to truncated message if no API key or fetch fails
+- **Workspace templates** — `applyTemplate(workspacePath, template)` writes scaffold files using module-level string constants (no `__dirname` + file reads); template failure in `workspaces.ts` is non-fatal (caught, logged as warn, still returns 201)
 
 ---
 
@@ -364,8 +375,8 @@ Login: username `admin`, password `admin` (or `SRIJAN_ADMIN_PASSWORD` env var).
 
 ```bash
 cd platform
-npm test                  # 218 backend tests (20 test files)
-cd web && npx vitest run  # 187 frontend tests (10 test files)
+npm test                  # 251 backend tests (24 test files)
+cd web && npx vitest run  # 196 frontend tests (10 test files)
 ```
 
 ### Test Coverage by Layer
@@ -387,18 +398,22 @@ cd web && npx vitest run  # 187 frontend tests (10 test files)
 | Sessions recording | `sessions.test.ts` | 5 | Recording endpoint, event ordering, auth |
 | Users | `users.test.ts` | 15 | RBAC CRUD, role enforcement, password change, min-length + format validation |
 | API routes | `api.test.ts` | 14 | Config, Secrets, Apps, Auth/me |
-| Runner config | `runner-config.test.ts` | 9 | getAgentMode, getSystemPrompt, getAgentSdk, getApiKey, DEFAULT_SYSTEM_PROMPT |
-| Runner interface | `runner-interface.test.ts` | 4 | AgentRunner factory, OpenCodeRunner, IAgentRunner |
+| Runner config | `runner-config.test.ts` | 11 | getAgentMode, getSystemPrompt, getAgentSdk, getApiKey, DEFAULT_SYSTEM_PROMPT, confirm/auto sentinel |
+| Runner interface | `runner-interface.test.ts` | 5 | AgentRunner factory, OpenCodeRunner error message, IAgentRunner |
 | Runner boundaries | `runner-boundaries.test.ts` | 6 | Blocklist enforcement, custom vs default |
 | LiteLLM config | `litellm-config.test.ts` | 5 | getLiteLLMConfig, getModel for all providers |
+| Logger | `logger.test.ts` | 5 | createLogger, child bindings, LOG_LEVEL |
+| Health | `health.test.ts` | 7 | ok/degraded/error status, uptime, version, no auth |
+| Request ID | `requestId.test.ts` | 4 | Header echo, auto-UUID, different IDs per request |
+| Workspace templates | `workspaceTemplates.test.ts` | 6 | VALID_TEMPLATES, none no-op, node/python/go/rust files |
 | **Frontend** | | | |
 | API utils | `api.test.ts` | 4 | Token management, logout |
 | Login | `Login.test.tsx` | 9 | Password, TOTP challenge flow, error states |
 | App | `App.test.tsx` | 24 | Nav, auth state, tab routing, session recording |
-| Chat | `Chat.test.tsx` | 29 | Sidebar, messages, input, tool pills, thinking indicator, cost badge, replay |
-| Dashboard | `Dashboard.test.tsx` | 28 | Workspace cards, delete modal, git auth UI, push, CreateWorkspacePanel |
-| Settings | `Settings.test.tsx` | 27 | AI Provider, LiteLLM, SDK, TOTP, Users, agent mode, system prompt |
-| File Browser | `FileBrowser.test.tsx` | 14 | Tree, Monaco editor, edit/save/cancel, dirty-state confirm |
+| Chat | `Chat.test.tsx` | 33 | Sidebar, messages, input, tool pills, thinking indicator, cost badge, replay, approval bar |
+| Dashboard | `Dashboard.test.tsx` | 31 | Workspace cards, delete modal, git auth UI, push, CreateWorkspacePanel, template selector |
+| Settings | `Settings.test.tsx` | 29 | AI Provider, LiteLLM, SDK, TOTP, Users, agent mode, system prompt, OpenCode disabled |
+| File Browser | `FileBrowser.test.tsx` | 15 | Tree, Monaco editor, edit/save/cancel, dirty-state confirm, mobile toggle |
 | Session Recording | `SessionRecording.test.tsx` | 8 | Load, events, cost, error, close |
 | Terminal | `Terminal.test.tsx` | 4 | WS connection, URL params, unmount |
 | useChat hook | `useChat.test.ts` | 39 | Initial state, connect, all WS messages, sendMessage, workspace |
