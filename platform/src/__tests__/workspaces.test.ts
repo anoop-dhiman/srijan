@@ -36,9 +36,15 @@ vi.mock('../agent/session.js', () => ({
   deleteSession: vi.fn(),
 }));
 
+vi.mock('../lib/workspaceTemplates.js', () => ({
+  applyTemplate: vi.fn().mockResolvedValue(undefined),
+  VALID_TEMPLATES: ['none', 'node', 'python', 'go', 'rust'],
+}));
+
 const { deleteWorkspaceCredentials, saveWorkspaceCredentials, detectProvider } = await import('../lib/gitAuth.js');
 const { getSessionsByWorkspace, deleteSession } = await import('../agent/session.js');
 const { deleteWorkspace, cloneRepo, initRepo, setRemote, commitAll, pushRepo } = await import('../git/manager.js');
+const { applyTemplate } = await import('../lib/workspaceTemplates.js');
 const workspacesRouter = await import('../routes/workspaces.js').then(m => m.default);
 
 function createApp() {
@@ -151,6 +157,31 @@ describe('Workspaces API', () => {
         .send({ name: 'push-fail-ws', remoteUrl: 'https://github.com/user/repo.git' });
       expect(res.status).toBe(201);
       expect(res.body.pushError).toBe('Authentication failed');
+    });
+  });
+
+  describe('POST /api/workspaces — templates', () => {
+    it('calls applyTemplate with correct template when template field is provided', async () => {
+      const wsPath = join(TEST_WS_ROOT, 'tpl-python-ws');
+      vi.mocked(initRepo).mockResolvedValueOnce(wsPath);
+      vi.mocked(applyTemplate).mockClear();
+      const res = await request(app)
+        .post('/api/workspaces')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ name: 'tpl-python-ws', template: 'python' });
+      expect(res.status).toBe(201);
+      expect(applyTemplate).toHaveBeenCalledWith(wsPath, 'python');
+    });
+
+    it('does not call applyTemplate when template is absent', async () => {
+      vi.mocked(initRepo).mockResolvedValueOnce(join(TEST_WS_ROOT, 'no-tpl-ws'));
+      vi.mocked(applyTemplate).mockClear();
+      const res = await request(app)
+        .post('/api/workspaces')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ name: 'no-tpl-ws' });
+      expect(res.status).toBe(201);
+      expect(applyTemplate).not.toHaveBeenCalled();
     });
   });
 

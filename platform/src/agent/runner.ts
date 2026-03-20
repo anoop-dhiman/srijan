@@ -11,6 +11,9 @@ import { decrypt } from '../lib/crypto.js';
 import { startSecretProxy, type SecretMap } from './secretProxy.js';
 import type { IAgentRunner } from './IAgentRunner.js';
 import { OpenCodeRunner } from './OpenCodeRunner.js';
+import { createLogger } from '../lib/logger.js';
+
+const log = createLogger('runner');
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -128,9 +131,9 @@ export class AgentRunner extends EventEmitter implements IAgentRunner {
         '-p',
         '--output-format', 'stream-json',
         '--verbose',
-        '--permission-mode', mode === 'confirm' ? 'default' : 'bypassPermissions',
+        '--permission-mode', 'bypassPermissions',
         '--model', this.model,
-        '--append-system-prompt', this.getSystemPromptAddition(),
+        '--append-system-prompt', this.getSystemPromptAddition(mode),
       ];
 
       if (this.claudeSessionId) {
@@ -222,7 +225,7 @@ export class AgentRunner extends EventEmitter implements IAgentRunner {
           for (const realValue of Object.values(secretMap)) {
             if (realValue) detail = detail.replaceAll(realValue, '[REDACTED]');
           }
-          console.error(`[runner] process exited code=${code}${raw ? `\n${raw}` : ''}`);
+          log.error({ code, stderr: raw || undefined }, 'process exited with non-zero code');
           const errEvent = createEvent(this.sessionId, 'error', {
             message: detail
               ? `Agent process exited with code ${code}: ${detail}`
@@ -355,7 +358,7 @@ export class AgentRunner extends EventEmitter implements IAgentRunner {
     }
   }
 
-  private getSystemPromptAddition(): string {
+  private getSystemPromptAddition(mode: 'auto' | 'confirm' = 'auto'): string {
     const systemPrompt = getSystemPrompt();
     const platformUrl = process.env.PLATFORM_URL || 'http://localhost:8080';
     const lines = [
@@ -371,6 +374,17 @@ export class AgentRunner extends EventEmitter implements IAgentRunner {
         ``,
         `To give a service a public URL (only when the user explicitly requests it), register it after the container is running:`,
         `curl -s -X POST ${platformUrl}/api/apps/register -H "Authorization: Bearer ${this.sessionToken}" -H "Content-Type: application/json" -d '{"name":"<appname>","path":"/<appname>","port":<port>${wsJson}}'`,
+      );
+    }
+    if (mode === 'confirm') {
+      lines.push(
+        '',
+        '## Tool Approval Required',
+        'You are in CONFIRMATION MODE. Before executing any tool that modifies files, runs shell commands,',
+        'or makes network requests: describe what you intend to do, then end your message with',
+        '[AWAITING_APPROVAL] on its own line and wait for user response.',
+        '"Approved" means proceed. "Denied" means stop and ask for an alternative.',
+        'Do NOT add [AWAITING_APPROVAL] for read-only operations.',
       );
     }
     return lines.join('\n');

@@ -38,8 +38,8 @@ const defaultProps = {
   onJoinSession: vi.fn(),
   onDeleteSession: vi.fn(),
   onWorkspaceChange: vi.fn(),
-  onCreateWorkspace: vi.fn().mockResolvedValue(undefined),
   onReplaySession: vi.fn(),
+  onGoToDashboard: vi.fn(),
 };
 
 const mockSession: Session = {
@@ -331,6 +331,65 @@ describe('Chat', () => {
       const replayBtn = document.querySelector('[title="Replay session"]') as HTMLElement;
       await userEvent.click(replayBtn);
       expect(onReplaySession).toHaveBeenCalledWith(mockSession.id);
+    });
+  });
+
+  describe('approval bar (pendingApproval)', () => {
+    const pendingActivity: Record<string, SessionActivity> = {
+      'session-1': { isLoading: false, agentStatus: '', hasUnread: false, pendingApproval: true },
+    };
+
+    it('renders approval bar when pendingApproval is true', () => {
+      render(
+        <Chat
+          {...defaultProps}
+          currentSession={mockSession}
+          sessionActivity={pendingActivity}
+        />
+      );
+      expect(screen.getByText('Agent is requesting permission to proceed')).toBeInTheDocument();
+    });
+
+    it('Approve button calls onSendMessage with "Approved"', async () => {
+      const onSendMessage = vi.fn();
+      render(
+        <Chat
+          {...defaultProps}
+          currentSession={mockSession}
+          sessionActivity={pendingActivity}
+          onSendMessage={onSendMessage}
+        />
+      );
+      await userEvent.click(screen.getByText('Approve'));
+      expect(onSendMessage).toHaveBeenCalledWith('Approved');
+    });
+
+    it('Deny button calls onSendMessage with denial message', async () => {
+      const onSendMessage = vi.fn();
+      render(
+        <Chat
+          {...defaultProps}
+          currentSession={mockSession}
+          sessionActivity={pendingActivity}
+          onSendMessage={onSendMessage}
+        />
+      );
+      await userEvent.click(screen.getByText('Deny'));
+      expect(onSendMessage).toHaveBeenCalledWith(
+        'Denied, please stop and propose an alternative.'
+      );
+    });
+
+    it('textarea is disabled when pendingApproval is true', () => {
+      render(
+        <Chat
+          {...defaultProps}
+          currentSession={mockSession}
+          sessionActivity={pendingActivity}
+        />
+      );
+      const textarea = screen.getByPlaceholderText('Approve or deny above before continuing…') as HTMLTextAreaElement;
+      expect(textarea).toBeDisabled();
     });
   });
 });

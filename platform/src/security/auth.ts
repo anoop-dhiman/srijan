@@ -4,6 +4,9 @@ import jwt from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '../db/store.js';
 import * as OTPAuth from 'otpauth';
+import { createLogger } from '../lib/logger.js';
+
+const log = createLogger('auth');
 
 const DEFAULT_JWT_SECRET = 'srijan-dev-secret-change-me';
 const JWT_SECRET = process.env.SRIJAN_JWT_SECRET || DEFAULT_JWT_SECRET;
@@ -34,8 +37,8 @@ function clearRateLimit(username: string): void {
 /** Call at startup — logs a critical warning if the default JWT secret is in use. */
 export function checkSecretSecurity(): void {
   if (JWT_SECRET === DEFAULT_JWT_SECRET) {
-    console.error(
-      '[SECURITY WARNING] SRIJAN_JWT_SECRET is not set or uses the default value. ' +
+    log.warn(
+      'SRIJAN_JWT_SECRET is not set or uses the default value. ' +
       'This is insecure. Set a strong secret in production.'
     );
   }

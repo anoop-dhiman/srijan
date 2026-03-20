@@ -333,7 +333,7 @@ describe('Settings', () => {
     });
   });
 
-  it('switching to OpenCode and saving calls agentSdk endpoint', async () => {
+  it('OpenCode button is disabled and shows "Not yet available" badge', async () => {
     vi.mocked(apiFetch).mockImplementation((path: string) => {
       if (path === '/auth/totp/status') return Promise.resolve({ enabled: false });
       return Promise.resolve([]);
@@ -345,21 +345,26 @@ describe('Settings', () => {
 
     await waitFor(() => screen.getByText('Claude Code'));
 
-    // OpenCode button — use role query to find the button containing "OpenCode"
+    // OpenCode button should be disabled
     const sdkButtons = screen.getAllByRole('button').filter((btn) =>
       btn.textContent?.includes('OpenCode') && !btn.textContent?.includes('Save')
     );
     expect(sdkButtons.length).toBeGreaterThan(0);
-    await userEvent.click(sdkButtons[0]);
+    expect(sdkButtons[0]).toBeDisabled();
+  });
 
-    // Click Save SDK button
-    await userEvent.click(screen.getByText('Save SDK'));
+  it('OpenCode SDK section shows "Not yet available" text', async () => {
+    vi.mocked(apiFetch).mockImplementation((path: string) => {
+      if (path === '/auth/totp/status') return Promise.resolve({ enabled: false });
+      return Promise.resolve([]);
+    });
+
+    render(<Settings open={true} onClose={mockOnClose} />);
+    await waitFor(() => screen.getByRole('heading', { name: 'Settings' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Agent' }));
 
     await waitFor(() => {
-      expect(apiFetch).toHaveBeenCalledWith('/config/agentSdk', expect.objectContaining({
-        method: 'PUT',
-        body: JSON.stringify({ value: 'opencode' }),
-      }));
+      expect(screen.getByText('Not yet available')).toBeInTheDocument();
     });
   });
 

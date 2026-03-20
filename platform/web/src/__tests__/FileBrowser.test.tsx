@@ -253,4 +253,10 @@ describe('FileBrowser', () => {
 
     confirmSpy.mockRestore();
   });
+
+  it('tree toggle button exists in DOM for mobile (aria-label Toggle file tree)', () => {
+    render(<FileBrowser workspaces={mockWorkspaces} currentWorkspace={null} />);
+    const toggleBtn = document.querySelector('[aria-label="Toggle file tree"]');
+    expect(toggleBtn).toBeInTheDocument();
+  });
 });

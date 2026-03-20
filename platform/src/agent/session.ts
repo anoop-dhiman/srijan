@@ -1,6 +1,9 @@
 import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '../db/store.js';
 import { AgentEvent } from './events.js';
+import { createLogger } from '../lib/logger.js';
+
+const log = createLogger('session');
 
 export interface Session {
   id: string;
@@ -60,7 +63,7 @@ export function getSessionEvents(sessionId: string): AgentEvent[] {
       try {
         data = JSON.parse(row.data);
       } catch {
-        console.warn(`[session] Skipping corrupt event id=${row.id}: invalid JSON`);
+        log.warn({ eventId: row.id }, 'Skipping corrupt event: invalid JSON');
         return [];
       }
     }

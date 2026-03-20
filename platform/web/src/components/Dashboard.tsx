@@ -232,7 +232,7 @@ function ContainerRow({ container, app, workspaceName, onAction, onRegistered }:
 
   return (
     <div className="rounded-lg border border-border overflow-hidden">
-      <div className="flex items-center gap-3 px-3 py-2.5">
+      <div className="flex flex-wrap items-center gap-3 px-3 py-2.5">
         <div className={`w-2 h-2 rounded-full shrink-0 ${statusColor(container.State)}`} />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
@@ -683,7 +683,7 @@ function WorkspaceCard({ workspace, onViewSessions, onDeleteWorkspace }: {
   return (
     <div className="rounded-xl border border-border bg-background overflow-hidden">
       <div className="px-5 py-4">
-        <div className="flex items-start justify-between gap-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="flex items-center gap-2.5 min-w-0">
             <FolderOpen size={18} className="text-muted-foreground shrink-0" />
             <span className="font-semibold font-mono truncate">{workspace.name}</span>
@@ -693,7 +693,7 @@ function WorkspaceCard({ workspace, onViewSessions, onDeleteWorkspace }: {
               </span>
             )}
           </div>
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
             {workspace.totalCostUsd != null && (
               <span className="text-sm font-mono text-muted-foreground">${workspace.totalCostUsd.toFixed(4)}</span>
             )}
@@ -715,7 +715,7 @@ function WorkspaceCard({ workspace, onViewSessions, onDeleteWorkspace }: {
 
         <GitSection workspaceName={workspace.name} />
 
-        <div className="mt-3 flex items-center gap-2">
+        <div className="mt-3 flex flex-wrap items-center gap-2 gap-y-2">
           <button
             onClick={() => onViewSessions(workspace.name)}
             className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors font-medium"
@@ -792,13 +792,14 @@ function CreateWorkspacePanel({
   onCreateWorkspace,
 }: {
   onClose: () => void;
-  onCreateWorkspace: (name: string, opts?: { cloneUrl?: string; remoteUrl?: string; gitProvider?: string; gitUsername?: string; gitToken?: string }) => Promise<void>;
+  onCreateWorkspace: (name: string, opts?: { cloneUrl?: string; remoteUrl?: string; gitProvider?: string; gitUsername?: string; gitToken?: string; template?: string }) => Promise<void>;
 }) {
   const [tab, setTab] = useState<'new' | 'clone'>('new');
 
   // New repo fields
   const [name, setName] = useState('');
   const [remoteUrl, setRemoteUrl] = useState('');
+  const [template, setTemplate] = useState('none');
 
   // Clone fields
   const [cloneUrl, setCloneUrl] = useState('');
@@ -835,6 +836,7 @@ function CreateWorkspacePanel({
     try {
       await onCreateWorkspace(name.trim(), {
         ...(remoteUrl.trim() ? { remoteUrl: remoteUrl.trim() } : {}),
+        ...(template !== 'none' ? { template } : {}),
         ...buildAuthOpts(),
       });
       onClose();
@@ -896,6 +898,20 @@ function CreateWorkspacePanel({
                 className="w-full text-sm px-3 py-2 rounded-lg border border-border bg-muted focus:outline-none focus:ring-1 focus:ring-primary font-mono"
                 onKeyDown={e => { if (e.key === 'Enter') handleNew(); if (e.key === 'Escape') onClose(); }}
               />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Template</label>
+              <select
+                value={template}
+                onChange={e => setTemplate(e.target.value)}
+                className="w-full text-sm px-3 py-2 rounded-lg border border-border bg-muted focus:outline-none focus:ring-1 focus:ring-primary"
+              >
+                <option value="none">None</option>
+                <option value="node">Node.js</option>
+                <option value="python">Python</option>
+                <option value="go">Go</option>
+                <option value="rust">Rust</option>
+              </select>
             </div>
             <div>
               <label className="text-xs text-muted-foreground mb-1 block">Remote URL (optional)</label>
@@ -984,7 +1000,7 @@ interface DashboardProps {
   workspaces: WorkspaceInfo[];
   onRefresh: () => void;
   onViewSessions: (workspace: string) => void;
-  onCreateWorkspace: (name: string, opts?: { cloneUrl?: string; remoteUrl?: string; gitProvider?: string; gitUsername?: string; gitToken?: string }) => Promise<void>;
+  onCreateWorkspace: (name: string, opts?: { cloneUrl?: string; remoteUrl?: string; gitProvider?: string; gitUsername?: string; gitToken?: string; template?: string }) => Promise<void>;
   onDeleteWorkspace: (name: string) => Promise<void>;
 }
 

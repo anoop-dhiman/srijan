@@ -7,6 +7,10 @@ import { listContainers } from '../docker/manager.js';
 import { deleteSession, getSessionsByWorkspace } from '../agent/session.js';
 import { readdirSync, statSync, existsSync } from 'fs';
 import { join } from 'path';
+import { applyTemplate, VALID_TEMPLATES, type TemplateId } from '../lib/workspaceTemplates.js';
+import { createLogger } from '../lib/logger.js';
+
+const log = createLogger('workspaces');
 
 const router = Router();
 router.use(authMiddleware);
@@ -76,7 +80,7 @@ router.get('/', async (_req: Request, res: Response) => {
 const SAFE_NAME_RE = /^[a-zA-Z0-9_-]+$/;
 
 router.post('/', async (req: Request, res: Response) => {
-  const { name, cloneUrl, remoteUrl, gitProvider, gitUsername, gitToken } = req.body;
+  const { name, cloneUrl, remoteUrl, gitProvider, gitUsername, gitToken, template } = req.body;
   if (!name || typeof name !== 'string') {
     res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'name is required' } });
     return;
@@ -103,6 +107,16 @@ router.post('/', async (req: Request, res: Response) => {
       }
     } else {
       path = await initRepo(name);
+
+      // Apply template if provided (non-fatal)
+      if (template && VALID_TEMPLATES.includes(template as TemplateId) && template !== 'none') {
+        try {
+          await applyTemplate(path, template as TemplateId);
+        } catch (tplErr: any) {
+          log.warn({ template, err: tplErr.message }, 'Template application failed (non-fatal)');
+        }
+      }
+
       if (remoteUrl) {
         await setRemote(name, remoteUrl);
         await commitAll(name, 'Initial commit');

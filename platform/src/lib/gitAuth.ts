@@ -1,6 +1,9 @@
 import { getDb } from '../db/store.js';
 import { encrypt, decrypt } from './crypto.js';
 import { v4 as uuidv4 } from 'uuid';
+import { createLogger } from './logger.js';
+
+const log = createLogger('gitAuth');
 
 export type GitProvider = 'github' | 'azure' | 'generic';
 
@@ -59,7 +62,7 @@ export function getWorkspaceCredentials(workspaceName: string): GitCredentials |
       token: decrypt(row.encrypted_token),
     };
   } catch {
-    console.warn(`[gitAuth] Failed to decrypt credentials for workspace "${workspaceName}" — skipping`);
+    log.warn(`Failed to decrypt credentials for workspace "${workspaceName}" — skipping`);
     return null;
   }
 }

@@ -33,9 +33,10 @@ export interface SessionActivity {
   isLoading: boolean;
   agentStatus: string;
   hasUnread: boolean;
+  pendingApproval?: boolean;
 }
 
-const DEFAULT_ACTIVITY: SessionActivity = { isLoading: false, agentStatus: '', hasUnread: false };
+const DEFAULT_ACTIVITY: SessionActivity = { isLoading: false, agentStatus: '', hasUnread: false, pendingApproval: false };
 
 function formatToolLabel(name: string, input: any): string {
   switch (name) {
@@ -228,11 +229,19 @@ export function useChat() {
             }
             if (evt.type === 'agent_response') {
               if (evt.data.streaming) { updated.isLoading = true; updated.agentStatus = 'Writing…'; }
-              if (evt.data.done) { updated.isLoading = false; updated.agentStatus = ''; }
+              if (evt.data.done) {
+                updated.isLoading = false;
+                updated.agentStatus = '';
+                const finalContent: string = evt.data.content || '';
+                if (finalContent.includes('[AWAITING_APPROVAL]')) {
+                  updated.pendingApproval = true;
+                }
+              }
             }
             if (evt.type === 'tool_use') {
               updated.isLoading = true;
               updated.agentStatus = formatToolLabel(evt.data.name, evt.data.input);
+              updated.pendingApproval = false;
             }
             if (evt.type === 'tool_result') {
               updated.agentStatus = 'Thinking…';
@@ -240,6 +249,7 @@ export function useChat() {
             if (evt.type === 'error') {
               updated.isLoading = false;
               updated.agentStatus = '';
+              updated.pendingApproval = false;
             }
 
             // Mark unread for sessions that aren't currently active
@@ -401,7 +411,7 @@ export function useChat() {
       const sid = currentSessionRef.current.id;
       setSessionActivity(prev => ({
         ...prev,
-        [sid]: { ...(prev[sid] || DEFAULT_ACTIVITY), isLoading: true, agentStatus: 'Thinking…' },
+        [sid]: { ...(prev[sid] || DEFAULT_ACTIVITY), isLoading: true, agentStatus: 'Thinking…', pendingApproval: false },
       }));
     }
 

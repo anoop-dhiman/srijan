@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, lazy, Suspense } from 'react';
-import { Folder, FolderOpen, FileText, ChevronRight, ChevronDown, Loader2, Pencil, Save, X } from 'lucide-react';
+import { Folder, FolderOpen, FileText, ChevronRight, ChevronDown, Loader2, Pencil, Save, X, Menu } from 'lucide-react';
 import type { WorkspaceInfo } from '../hooks/useChat';
 import { apiFetch } from '../lib/api';
 
@@ -147,6 +147,7 @@ export function FileBrowser({ workspaces, currentWorkspace, theme = 'dark' }: Fi
   const [loadingTree, setLoadingTree] = useState(false);
   const [loadingFile, setLoadingFile] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [treeVisible, setTreeVisible] = useState(() => window.innerWidth >= 768);
 
   // Edit state
   const [isEditing, setIsEditing] = useState(false);
@@ -155,6 +156,15 @@ export function FileBrowser({ workspaces, currentWorkspace, theme = 'dark' }: Fi
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const fileAbortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 768) setTreeVisible(true);
+      else setTreeVisible(false);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const loadDir = async (ws: string, path: string): Promise<TreeNode[]> => {
     const data = await apiFetch(`/workspaces/${encodeURIComponent(ws)}/files?path=${encodeURIComponent(path)}`);
@@ -271,7 +281,7 @@ export function FileBrowser({ workspaces, currentWorkspace, theme = 'dark' }: Fi
   return (
     <div className="flex flex-1 min-h-0">
       {/* Left panel — tree */}
-      <div className="w-60 shrink-0 flex flex-col border-r border-border bg-muted">
+      <div className={`${treeVisible ? 'flex' : 'hidden'} md:flex w-60 shrink-0 flex-col border-r border-border bg-muted`}>
         {/* Workspace selector */}
         <div className="p-3 border-b border-border shrink-0">
           <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70 mb-1.5">
@@ -318,18 +328,41 @@ export function FileBrowser({ workspaces, currentWorkspace, theme = 'dark' }: Fi
       {/* Right panel — file content */}
       <div className="flex-1 flex flex-col min-w-0">
         {!selectedFile && (
-          <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">
-            {workspace ? 'Select a file to view its contents.' : 'Select a workspace first.'}
-          </div>
+          <>
+            <div className="md:hidden px-4 py-2 border-b border-border shrink-0 bg-muted flex items-center gap-2">
+              <button
+                onClick={() => setTreeVisible(v => !v)}
+                className="p-1 rounded hover:bg-background/60 transition-colors"
+                aria-label="Toggle file tree"
+                title="Show file tree"
+              >
+                <Menu size={14} />
+              </button>
+              <span className="text-xs text-muted-foreground">File tree</span>
+            </div>
+            <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">
+              {workspace ? 'Select a file to view its contents.' : 'Select a workspace first.'}
+            </div>
+          </>
         )}
 
         {selectedFile && (
           <>
             {/* Breadcrumb + action buttons */}
             <div className="px-4 py-2 border-b border-border shrink-0 bg-muted flex items-center justify-between gap-3">
-              <p className="text-xs font-mono text-muted-foreground truncate">
-                {workspace} / {selectedFile}{isDirty ? ' •' : ''}
-              </p>
+              <div className="flex items-center gap-2 min-w-0">
+                <button
+                  onClick={() => setTreeVisible(v => !v)}
+                  className="md:hidden shrink-0 p-1 rounded hover:bg-background/60 transition-colors"
+                  aria-label="Toggle file tree"
+                  title="Toggle file tree"
+                >
+                  <Menu size={14} />
+                </button>
+                <p className="text-xs font-mono text-muted-foreground truncate">
+                  {workspace} / {selectedFile}{isDirty ? ' •' : ''}
+                </p>
+              </div>
               <div className="flex items-center gap-1.5 shrink-0">
                 {!isEditing ? (
                   <button

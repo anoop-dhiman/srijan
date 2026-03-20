@@ -349,3 +349,78 @@ describe('Dashboard — CreateWorkspacePanel auth toggle', () => {
     });
   });
 });
+
+describe('Dashboard — CreateWorkspacePanel template selector', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(apiFetch).mockResolvedValue({ branch: 'main', remoteUrl: null });
+  });
+
+  it('template dropdown renders in New Repo tab', async () => {
+    render(
+      <Dashboard
+        workspaces={[]}
+        onRefresh={vi.fn()}
+        onViewSessions={vi.fn()}
+        onCreateWorkspace={vi.fn().mockResolvedValue(undefined)}
+        onDeleteWorkspace={vi.fn().mockResolvedValue(undefined)}
+      />
+    );
+    fireEvent.click(screen.getByText('New Workspace'));
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('None')).toBeInTheDocument();
+    });
+  });
+
+  it('selecting python template passes template to onCreateWorkspace', async () => {
+    const onCreateWorkspace = vi.fn().mockResolvedValue(undefined);
+    render(
+      <Dashboard
+        workspaces={[]}
+        onRefresh={vi.fn()}
+        onViewSessions={vi.fn()}
+        onCreateWorkspace={onCreateWorkspace}
+        onDeleteWorkspace={vi.fn().mockResolvedValue(undefined)}
+      />
+    );
+    fireEvent.click(screen.getByText('New Workspace'));
+    await waitFor(() => screen.getByDisplayValue('None'));
+
+    fireEvent.change(screen.getByDisplayValue('None'), { target: { value: 'python' } });
+
+    const nameInput = screen.getByPlaceholderText('my-project');
+    fireEvent.change(nameInput, { target: { value: 'my-python-app' } });
+    fireEvent.click(screen.getByText('Create Workspace'));
+
+    await waitFor(() => {
+      expect(onCreateWorkspace).toHaveBeenCalledWith(
+        'my-python-app',
+        expect.objectContaining({ template: 'python' })
+      );
+    });
+  });
+
+  it('none template does not pass template field to onCreateWorkspace', async () => {
+    const onCreateWorkspace = vi.fn().mockResolvedValue(undefined);
+    render(
+      <Dashboard
+        workspaces={[]}
+        onRefresh={vi.fn()}
+        onViewSessions={vi.fn()}
+        onCreateWorkspace={onCreateWorkspace}
+        onDeleteWorkspace={vi.fn().mockResolvedValue(undefined)}
+      />
+    );
+    fireEvent.click(screen.getByText('New Workspace'));
+    await waitFor(() => screen.getByDisplayValue('None'));
+
+    const nameInput = screen.getByPlaceholderText('my-project');
+    fireEvent.change(nameInput, { target: { value: 'plain-app' } });
+    fireEvent.click(screen.getByText('Create Workspace'));
+
+    await waitFor(() => {
+      const call = onCreateWorkspace.mock.calls[0];
+      expect(call[1]?.template).toBeUndefined();
+    });
+  });
+});

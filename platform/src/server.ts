@@ -9,6 +9,11 @@ import { parse } from 'url';
 
 import { getDb, closeDb } from './db/store.js';
 import { setupAdmin, verifyToken, checkSecretSecurity } from './security/auth.js';
+import { requestIdMiddleware } from './middleware/requestId.js';
+import { createLogger } from './lib/logger.js';
+import { getDockerInfo } from './docker/manager.js';
+
+const log = createLogger('server');
 import { setupWebSocket, chatWss } from './routes/chat.js';
 import { setupTerminal, terminalWss } from './routes/terminal.js';
 import authRouter from './routes/auth.js';
@@ -54,6 +59,7 @@ app.use(cors({
   },
   credentials: true,
 }));
+app.use(requestIdMiddleware);
 app.use(express.json());
 
 // API routes
@@ -70,13 +76,38 @@ app.use('/api/sessions', sessionsRouter);
 app.use('/api/users', usersRouter);
 
 // Health check
-app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', version: '0.1.0' });
+app.get('/health', async (_req, res) => {
+  let dbStatus: 'ok' | 'error' = 'ok';
+  let dockerStatus: 'ok' | 'unavailable' = 'ok';
+
+  try {
+    getDb().prepare('SELECT 1').get();
+  } catch {
+    dbStatus = 'error';
+  }
+
+  try {
+    const info = await getDockerInfo();
+    if (!info) dockerStatus = 'unavailable';
+  } catch {
+    dockerStatus = 'unavailable';
+  }
+
+  const overallStatus = dbStatus === 'error' ? 'error' : dockerStatus === 'unavailable' ? 'degraded' : 'ok';
+  const httpStatus = overallStatus === 'error' ? 503 : 200;
+
+  res.status(httpStatus).json({
+    status: overallStatus,
+    version: '0.1.0',
+    uptime: process.uptime(),
+    db: dbStatus,
+    docker: dockerStatus,
+  });
 });
 
 // Global error handler — ensure all unhandled errors return JSON
 app.use((err: any, _req: any, res: any, _next: any) => {
-  console.error('[server] Unhandled error:', err);
+  log.error({ err }, 'Unhandled error');
   const status = err.status || err.statusCode || 500;
   res.status(status).json({ error: { code: 'INTERNAL_ERROR', message: err.message || 'Internal server error' } });
 });
@@ -132,20 +163,20 @@ server.on('upgrade', (request: IncomingMessage, socket, head) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`Srijan platform running on http://localhost:${PORT}`);
-  console.log(`Admin user created with default password (change in production)`);
+  log.info(`Srijan platform running on http://localhost:${PORT}`);
+  log.info('Admin user created with default password (change in production)');
 });
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
-  console.log('Shutting down...');
+  log.info('Shutting down...');
   server.close();
   closeDb();
   process.exit(0);
 });
 
 process.on('SIGINT', () => {
-  console.log('Shutting down...');
+  log.info('Shutting down...');
   server.close();
   closeDb();
   process.exit(0);

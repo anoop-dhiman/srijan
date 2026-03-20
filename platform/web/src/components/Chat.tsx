@@ -219,9 +219,22 @@ export function Chat({
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const isResizing = useRef(false);
 
+  const isPendingApproval = currentSession
+    ? !!(sessionActivity[currentSession.id]?.pendingApproval)
+    : false;
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, agentStatus]);
+
+  // Collapse sidebar on mobile when viewport is narrow
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth < 768) setSidebarOpen(false);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -251,7 +264,7 @@ export function Chat({
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || isLoading || noWorkspace) return;
+    if (!input.trim() || isLoading || noWorkspace || isPendingApproval) return;
     onSendMessage(input.trim());
     setInput('');
     if (inputRef.current) {
@@ -476,6 +489,26 @@ export function Chat({
 
         {/* Input */}
         <div className="px-6 pb-5">
+          {/* Approval bar */}
+          {isPendingApproval && (
+            <div className="max-w-5xl mx-auto mb-3 flex items-center justify-between gap-3 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-700 px-4 py-2.5">
+              <span className="text-sm text-amber-800 dark:text-amber-300 font-medium">Agent is requesting permission to proceed</span>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={() => onSendMessage('Approved')}
+                  className="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-green-700 transition-colors"
+                >
+                  Approve
+                </button>
+                <button
+                  onClick={() => onSendMessage('Denied, please stop and propose an alternative.')}
+                  className="rounded-lg bg-destructive px-3 py-1.5 text-xs font-semibold text-destructive-foreground hover:bg-destructive/90 transition-colors"
+                >
+                  Deny
+                </button>
+              </div>
+            </div>
+          )}
           <form onSubmit={handleSubmit} className="max-w-5xl mx-auto">
             <div className="relative rounded-2xl border border-border bg-muted focus-within:ring-2 focus-within:ring-primary">
               <textarea
@@ -483,14 +516,14 @@ export function Chat({
                 value={input}
                 onChange={handleInput}
                 onKeyDown={handleKeyDown}
-                disabled={noWorkspace}
-                placeholder={noWorkspace ? 'Select a workspace to start chatting…' : 'Type a message...'}
+                disabled={noWorkspace || isPendingApproval}
+                placeholder={noWorkspace ? 'Select a workspace to start chatting…' : isPendingApproval ? 'Approve or deny above before continuing…' : 'Type a message...'}
                 rows={2}
                 className="w-full bg-transparent resize-none px-4 pt-4 pb-14 max-h-[200px] outline-none text-base placeholder:text-muted-foreground disabled:opacity-50 disabled:cursor-not-allowed"
               />
               <button
                 type="submit"
-                disabled={!input.trim() || isLoading || noWorkspace}
+                disabled={!input.trim() || isLoading || noWorkspace || isPendingApproval}
                 className="absolute bottom-3 right-3 rounded-xl bg-primary p-2.5 text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
               >
                 {isLoading ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}

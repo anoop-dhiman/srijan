@@ -1,5 +1,8 @@
 import * as http from 'http';
 import * as net from 'net';
+import { createLogger } from '../lib/logger.js';
+
+const log = createLogger('secretProxy');
 
 export interface SecretProxy {
   port: number;
@@ -70,7 +73,7 @@ export async function startSecretProxy(secrets: SecretMap): Promise<SecretProxy>
       });
 
       proxyReq.on('error', (err) => {
-        console.error(`[secretProxy] upstream error: ${err.message}`);
+        log.error({ err: err.message }, 'upstream error');
         if (!res.headersSent) res.writeHead(502);
         res.end('Proxy error');
       });
@@ -91,7 +94,7 @@ export async function startSecretProxy(secrets: SecretMap): Promise<SecretProxy>
     });
 
     serverSocket.on('error', (err) => {
-      console.error(`[secretProxy] CONNECT server socket error: ${err.message}`);
+      log.error({ err: err.message }, 'CONNECT server socket error');
       clientSocket.destroy();
     });
     clientSocket.on('error', () => {

@@ -99,7 +99,12 @@ export function Settings({ open, onClose, isAdmin = false }: SettingsProps) {
       setSystemPrompt(config.system_prompt || '');
       setDefaultSystemPrompt(config.default_system_prompt || '');
       if (config.agentMode) setAgentMode(config.agentMode === 'confirm' ? 'confirm' : 'auto');
-      if (config.agentSdk) setAgentSdk(config.agentSdk === 'opencode' ? 'opencode' : 'claude-code');
+      // Auto-reset opencode to claude-code since it's not yet available
+      if (config.agentSdk && config.agentSdk !== 'opencode') {
+        setAgentSdk('claude-code');
+      } else {
+        setAgentSdk('claude-code');
+      }
       if (config.agent_boundaries) {
         try { setBlocklist(JSON.parse(config.agent_boundaries).join('\n')); } catch {}
       }
@@ -337,18 +342,18 @@ export function Settings({ open, onClose, isAdmin = false }: SettingsProps) {
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
-      <div className="flex flex-1 min-h-0">
+      <div className="flex flex-col md:flex-row flex-1 min-h-0">
         {/* Left sidebar nav */}
-        <nav className="w-48 shrink-0 border-r border-border flex flex-col">
+        <nav className="w-full md:w-48 shrink-0 border-b md:border-b-0 md:border-r border-border flex flex-col">
           <div className="px-5 py-5 border-b border-border shrink-0">
             <h2 className="font-semibold text-base">Settings</h2>
           </div>
-          <div className="py-3 flex flex-col gap-0.5 px-2 flex-1">
+          <div className="py-3 flex flex-row md:flex-col overflow-x-auto gap-0.5 px-2">
           {navItems.map(({ key, label, icon }) => (
             <button
               key={key}
               onClick={() => setActiveSection(key)}
-              className={`flex items-center gap-2.5 w-full rounded-lg px-3 py-2 text-sm font-medium text-left transition-colors ${
+              className={`flex items-center gap-2.5 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium text-left transition-colors ${
                 activeSection === key
                   ? 'bg-muted text-foreground'
                   : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
@@ -362,7 +367,7 @@ export function Settings({ open, onClose, isAdmin = false }: SettingsProps) {
         </nav>
 
         {/* Right content panel */}
-        <div className="flex-1 overflow-y-auto py-6 px-6">
+        <div className="flex-1 overflow-y-auto py-4 md:py-6 px-4 md:px-6">
           <div className="max-w-5xl mx-auto space-y-6">
 
         {/* AI Provider section */}
@@ -610,7 +615,7 @@ export function Settings({ open, onClose, isAdmin = false }: SettingsProps) {
                   Confirm (approve each)
                 </button>
               </div>
-              <p className="text-xs text-muted-foreground">In Confirm mode, the agent will use <code>--permission-mode default</code>.</p>
+              <p className="text-xs text-muted-foreground">In Confirm mode, the agent will pause and ask for approval before modifying files or running commands.</p>
             </div>
 
             <div className="space-y-1.5">
@@ -656,17 +661,14 @@ export function Settings({ open, onClose, isAdmin = false }: SettingsProps) {
               </button>
               <button
                 type="button"
-                onClick={() => setAgentSdk('opencode')}
-                className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                  agentSdk === 'opencode'
-                    ? 'bg-primary text-primary-foreground'
-                    : 'text-muted-foreground hover:bg-background hover:text-foreground'
-                }`}
+                disabled
+                className="flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-colors text-muted-foreground opacity-50 cursor-not-allowed flex items-center justify-center gap-1"
               >
-                OpenCode <span className="text-xs opacity-70">(experimental)</span>
+                OpenCode
+                <span className="text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded-full ml-2">Not yet available</span>
               </button>
             </div>
-            <p className="text-xs text-muted-foreground">OpenCode support is experimental and not yet fully implemented.</p>
+            <p className="text-xs text-muted-foreground">OpenCode support is not yet available. Claude Code is the only supported SDK.</p>
             <button
               onClick={saveSdkSettings}
               disabled={savingSdk}

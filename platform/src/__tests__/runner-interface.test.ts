@@ -106,4 +106,17 @@ describe('Runner factory + IAgentRunner interface', () => {
     expect(typeof cc.abort).toBe('function');
     expect(cc.sessionId).toBe(sid);
   });
+
+  it('OpenCodeRunner error message mentions Settings and Claude Code', async () => {
+    const { OpenCodeRunner } = await import('../agent/OpenCodeRunner.js');
+    const sid = 'oc-msg-' + Date.now();
+    const oc = new OpenCodeRunner(sid);
+    const events: any[] = [];
+    oc.on('event', (e) => events.push(e));
+    await oc.sendMessage('hello');
+    expect(events.length).toBeGreaterThan(0);
+    const msg: string = events[0].data?.message ?? '';
+    expect(msg).toContain('Settings');
+    expect(msg).toContain('Claude Code');
+  });
 });

@@ -2,6 +2,9 @@ import Database from 'better-sqlite3';
 import { readFileSync, existsSync, mkdirSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { createLogger } from '../lib/logger.js';
+
+const log = createLogger('db');
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -15,7 +18,7 @@ function tryMigrate(sql: string): void {
     // "duplicate column name" means the migration already ran — ignore it silently.
     // Any other error is unexpected and should be logged.
     if (!err.message?.includes('duplicate column name') && !err.message?.includes('already exists')) {
-      console.error(`[db] Migration warning: ${err.message}\n  SQL: ${sql.trim()}`);
+      log.warn({ sql: sql.trim() }, `Migration warning: ${err.message}`);
     }
   }
 }

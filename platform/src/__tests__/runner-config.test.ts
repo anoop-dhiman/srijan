@@ -96,4 +96,28 @@ describe('Runner config helpers', () => {
       expect(DEFAULT_SYSTEM_PROMPT).toContain('NEVER');
     });
   });
+
+  describe('confirm mode system prompt injection', () => {
+    it('confirm mode adds [AWAITING_APPROVAL] sentinel to system prompt', async () => {
+      const { mkdirSync } = await import('fs');
+      const { AgentRunner } = await import('../agent/runner.js');
+      const sid = 'confirm-test-' + Date.now();
+      const ws = `/tmp/srijan-runner-confirm-${sid}`;
+      mkdirSync(ws, { recursive: true });
+      const runner = new AgentRunner({ sessionId: sid, workspacePath: ws, apiKey: 'sk', model: 'm' });
+      const prompt = (runner as any).getSystemPromptAddition('confirm');
+      expect(prompt).toContain('[AWAITING_APPROVAL]');
+    });
+
+    it('auto mode does NOT add [AWAITING_APPROVAL] sentinel', async () => {
+      const { mkdirSync } = await import('fs');
+      const { AgentRunner } = await import('../agent/runner.js');
+      const sid = 'auto-test-' + Date.now();
+      const ws = `/tmp/srijan-runner-auto-${sid}`;
+      mkdirSync(ws, { recursive: true });
+      const runner = new AgentRunner({ sessionId: sid, workspacePath: ws, apiKey: 'sk', model: 'm' });
+      const prompt = (runner as any).getSystemPromptAddition('auto');
+      expect(prompt).not.toContain('[AWAITING_APPROVAL]');
+    });
+  });
 });

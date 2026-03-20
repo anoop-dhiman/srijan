@@ -1,8 +1,11 @@
 import crypto from 'crypto';
+import { createLogger } from './logger.js';
+
+const log = createLogger('crypto');
 
 const ENCRYPTION_KEY = process.env.SRIJAN_SECRETS_KEY || 'dev-key-32-bytes-long-change-me!';
 if (ENCRYPTION_KEY === 'dev-key-32-bytes-long-change-me!') {
-  console.error('[SECURITY] CRITICAL: SRIJAN_SECRETS_KEY is using the default dev value. Set a strong random key in production!');
+  log.error('CRITICAL: SRIJAN_SECRETS_KEY is using the default dev value. Set a strong random key in production!');
 }
 // Derive a consistent 32-byte key using SHA-256 so key material is not weakened by padding
 const KEY_BUF = crypto.createHash('sha256').update(ENCRYPTION_KEY).digest();

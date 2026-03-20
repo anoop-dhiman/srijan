@@ -1,3 +1,6 @@
+import { createLogger } from '../lib/logger.js';
+
+const log = createLogger('caddy');
 const CADDY_ADMIN_URL = process.env.CADDY_ADMIN_URL || 'http://localhost:2019';
 const APP_NAME_RE = /^[a-zA-Z0-9_-]{1,64}$/;
 
@@ -51,7 +54,7 @@ export async function addRoute(appName: string, path: string, port: number): Pro
     if (res.status === 409 || body.toLowerCase().includes('already exists') || body.toLowerCase().includes('conflict')) {
       throw new Error(`Caddy route conflict for "${appName}": route already exists`);
     }
-    console.error(`[caddy] addRoute failed status=${res.status} body=${body}`);
+    log.error({ status: res.status, body }, 'addRoute failed');
     throw new Error(`Caddy addRoute failed: ${res.status}`);
   }
 }
@@ -71,7 +74,7 @@ export async function removeRoute(appName: string): Promise<void> {
 
   if (!res.ok && res.status !== 404) {
     const body = await res.text();
-    console.error(`[caddy] removeRoute failed status=${res.status} body=${body}`);
+    log.error({ status: res.status, body }, 'removeRoute failed');
     throw new Error(`Caddy removeRoute failed: ${res.status}`);
   }
 }
