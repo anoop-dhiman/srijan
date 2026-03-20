@@ -1,6 +1,6 @@
 # Srijan - Feature Requirements & Roadmap
 
-> Version: 0.4.0
+> Version: 0.7.0
 > Date: 2026-03-20
 
 ---
@@ -59,15 +59,44 @@
 | 28 | Multi-User RBAC | admin/user roles; `/api/users` CRUD; Users section in Settings (admin only); username in header | **Done** |
 | 29 | Settings Sidebar Nav | Two-column layout: fixed left nav selects section; sections: AI Provider, Agent, Security, Secrets, Users | **Done** |
 
-### Phase 5+ (Planned)
+### Phase 5 Features — Done
+
+| # | Feature | Description | Status |
+|---|---------|-------------|--------|
+| 30 | Monaco Editor | In-browser code editor (two-panel tree + editor) with save via `PUT /api/workspaces/:name/file` | **Done** |
+| 31 | LiteLLM Proxy | LiteLLM as a third LLM provider option alongside Anthropic and Vertex AI | **Done** |
+| 32 | True Secret Proxy | HTTP+CONNECT proxy per agent spawn; placeholders substituted at network boundary | **Done** |
+| 33 | Multi-SDK | `IAgentRunner` interface; factory dispatches to `AgentRunner` (Claude Code) or `OpenCodeRunner` stub; SDK toggle in Settings | **Done** |
+
+### Phase 6 Features — Done
+
+| # | Feature | Description | Status |
+|---|---------|-------------|--------|
+| 34 | Dashboard as Primary Page | App opens to Dashboard; nav tab order: Dashboard, Chat, Files, Terminal, Settings | **Done** |
+| 35 | Workspace Creation in Dashboard | New Workspace panel with two tabs: New Repo (name + optional remote) and Clone Repo (URL → auto-name) | **Done** |
+| 36 | Git Remote Linking from Dashboard | Each workspace card shows branch, remote URL; "Link Git Remote" button to set remote + push | **Done** |
+| 37 | Git Push from Dashboard | Push button on each workspace card; spinner + "Pushed" confirmation; auto-loads stored credentials | **Done** |
+| 38 | Removed WorkspaceEmptyState | Creation gate removed; workspace creation lives in Dashboard | **Done** |
+
+### Phase 7 Features — Done
+
+| # | Feature | Description | Status |
+|---|---------|-------------|--------|
+| 39 | GitHub PAT Authentication | Per-workspace PAT stored AES-256 encrypted; injected transiently into git URLs for clone/push/pull | **Done** |
+| 40 | Azure DevOps PAT Authentication | Provider detection (`dev.azure.com`, `visualstudio.com`); PAT injected with Azure-compatible URL format | **Done** |
+| 41 | Git Credential CRUD API | `GET/POST/DELETE /api/git/:name/credentials`; token never returned by GET (only provider + username) | **Done** |
+| 42 | Auth in Workspace Creation | Provider dropdown + username + PAT fields on both New Repo and Clone Repo tabs | **Done** |
+| 43 | Auth in Link Git Remote Panel | Credential fields shown atomically with remote URL when linking existing workspace | **Done** |
+| 44 | Auth Edit/Remove Panel | Workspace cards with existing remote show "Auth" badge; clicking opens edit/delete credentials panel | **Done** |
+
+### Phase 8+ (Planned)
 
 | # | Feature | Description | Source Inspiration |
 |---|---------|-------------|-------------------|
-| 30 | Local Models | Ollama integration for private inference | Netclode |
-| 31 | GitHub Bot | @mention on PRs/issues triggers agent | Netclode |
-| 32 | Code Editor | Monaco editor in browser | OpenHands |
-| 33 | Webhook Notifications | Slack/Discord alerts for agent actions | Custom |
-| 34 | OCI Packaging | Package agent configs as container images | Docker cagent |
+| 45 | Local Models | Ollama integration for private inference | Netclode |
+| 46 | GitHub Bot | @mention on PRs/issues triggers agent | Netclode |
+| 47 | Webhook Notifications | Slack/Discord alerts for agent actions | Custom |
+| 48 | OCI Packaging | Package agent configs as container images | Docker cagent |
 
 ---
 

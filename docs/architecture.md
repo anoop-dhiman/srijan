@@ -1,7 +1,7 @@
 # Srijan - Architecture Design
 
-> Version: 0.3.0
-> Date: 2026-03-19
+> Version: 0.7.0
+> Date: 2026-03-20
 > Status: Current
 
 ---
@@ -86,14 +86,19 @@ Single Docker container that runs the entire platform:
 
 ```
 Platform Container (:8080)
-+-- API Server (Node.js / FastAPI)
-|   +-- /api/auth          # Login, session management
-|   +-- /api/chat          # Agent chat (WebSocket)
-|   +-- /api/config        # LLM, agent, git settings
-|   +-- /api/secrets       # Secret management (CRUD)
-|   +-- /api/repos         # Git repository management
-|   +-- /api/apps          # Deployed app management
-|   +-- /api/events        # Event stream (SSE)
++-- API Server (Node.js + Express + TypeScript)
+|   +-- /api/auth          # Login (password + TOTP challenge), JWT session tokens
+|   +-- /api/chat          # Agent chat (WebSocket; persistent per-session forwarders)
+|   +-- /api/config        # LLM/agent/system-prompt settings (GET/PUT)
+|   +-- /api/secrets       # Secret management (CRUD, encrypted at rest)
+|   +-- /api/apps          # Deployed app registration + Caddy route management
+|   +-- /api/git/:name/*   # status, clone, init, remote, push, pull, credentials CRUD
+|   +-- /api/workspaces    # List + create workspaces (clone, init, optional remote + creds)
+|   +-- /api/workspaces/:name/files  # File tree + read/write (Monaco editor backend)
+|   +-- /api/containers    # List/start/stop/logs Docker containers
+|   +-- /api/sessions/:id  # Cost aggregates, recording (event replay)
+|   +-- /api/users         # CRUD (admin only; RBAC)
+|   +-- /api/terminal      # WS PTY via node-pty (xterm.js backend)
 |
 +-- Web UI (React/Vite)
 |   +-- Chat interface
@@ -122,12 +127,14 @@ Platform Container (:8080)
 |   +-- Track app -> port mappings
 |
 +-- State Store (SQLite)
-    +-- Sessions
-    +-- Events
-    +-- Secrets (encrypted)
-    +-- Apps
-    +-- Repos
-    +-- Snapshots
+    +-- users             (id, username, password_hash, role, totp_secret, totp_enabled)
+    +-- sessions          (id, user_id, workspace_name, created_at, updated_at)
+    +-- events            (id, session_id, type, data JSON, created_at)
+    +-- secrets           (id, name, encrypted_value, created_at)
+    +-- apps              (id, name, workspace_name, port, path, container_id)
+    +-- config            (key, value)
+    +-- token_usage       (id, session_id, input_tokens, output_tokens, cost_usd, created_at)
+    +-- git_credentials   (id, workspace_name UNIQUE, provider, username, encrypted_token, created_at, updated_at)
 ```
 
 ### 3. Agent Sandbox
@@ -333,33 +340,47 @@ Browser -> Caddy (HTTPS, auto-TLS) -> Platform API
 
 ```
 +----------------------------------------------------------+
-|  Srijan   [Chat] [Dashboard] [Terminal] [Settings]        |
+|  Srijan  [Dashboard][Chat][Files][Terminal][Settings]     |
 |           ● Connected  admin  [Logout]                    |
 +----------------------------------------------------------+
-| [◀] SIDEBAR  |  MAIN AREA (Chat / Dashboard / Terminal / |
-|              |  Settings based on active tab)             |
+|  DASHBOARD (primary / default view)                       |
+|  +------------------------------------------------------+ |
+|  | [+ New Workspace]                                    | |
+|  |                                                      | |
+|  |  my-react-app        branch: main  [Link Remote]     | |
+|  |  3 sessions  2 containers  $0.024                    | |
+|  |  Last active: 2 hours ago                            | |
+|  |  [View Sessions]  [Show Containers v]                | |
+|  |    todo-web  [running]  [Logs] [Stop]                | |
+|  |    postgres  [running]  [Logs] [Stop]                | |
+|  |                                                      | |
+|  |  api-service    branch: main  github.com/…  [Push]   | |
+|  |  1 session   0 containers  $0.012                    | |
+|  |  Last active: yesterday                              | |
+|  |  [View Sessions]  [Auth]                             | |
+|  +------------------------------------------------------+ |
++----------------------------------------------------------+
+
+CHAT view (after switching tab or creating workspace):
++----------------------------------------------------------+
+| [◀] SIDEBAR  |  MAIN AREA                                |
 |  Workspace   |                                            |
-|  [my-app  v] [+]                                         |
-|              |  > Build me a todo app                     |
-|  [+ New Chat]|                                            |
-|  ──────────  |  ✓ Reading package.json                   |
-|  Session 1 ⟳ |  ✓ Editing src/index.ts                   |
-|  Session 2 🔵 |  ● Running: npm install  (spinner)        |
-|  Session 3   |                                            |
-|              |  ● ● ● Thinking...                        |
+|  [my-app  v] |  > Build me a todo app                    |
 |              |                                            |
-|              |  Agent: Here's what I built...             |
-|              |  (markdown rendered)                       |
-|              |                                            |
+|  [+ New Chat]|  ✓ Reading package.json                   |
+|  ──────────  |  ● Running: npm install  (spinner)        |
+|  Session 1 ⟳ |  ● ● ● Thinking...                       |
+|  Session 2 🔵 |  Agent: Here's what I built...            |
 |              |  +----------------------------------+      |
-|              |  | Type a message...           [▶]  |      |
-|              |  +----------------------------------+      |
+|  [Go to      |  | Type a message...           [▶]  |      |
+|   Dashboard] |  +----------------------------------+      |
 +----------------------------------------------------------+
 ```
 
-- Header: 4-tab nav (Chat, Dashboard, Terminal, Settings) + connection status + logout
-- Sidebar: resizable (180–480px), collapsible via toggle button
-- Workspace switcher: dropdown (select) + `+` button → inline create form
+- Header: 5-tab nav (Dashboard, Chat, Files, Terminal, Settings) — Dashboard is default/primary
+- Dashboard: workspace cards with git info (branch, remote), push button, link/auth panels; "New Workspace" button at top with two-tab creation panel (New Repo / Clone Repo)
+- Chat sidebar: resizable (180–480px), collapsible; "Go to Dashboard" link replaces inline create form
+- Workspace switcher: dropdown (select workspace); creation moved to Dashboard
 - Session list: filtered to current workspace; ⟳ = agent running, 🔵 = unread update
 - Tool pills: expandable to show input/output details
 - Thinking indicator: animated dots + live status text
@@ -409,20 +430,29 @@ Browser -> Caddy (HTTPS, auto-TLS) -> Platform API
 +------------------------------------------+
 ```
 
-### Dashboard (Workspace Cards)
+### Dashboard (Primary Page + Workspace Cards)
 
 ```
 +------------------------------------------+
 |  Dashboard                    [Refresh]   |
 +------------------------------------------+
-|  my-react-app           [Active]          |
+|  [+ New Workspace]                        |
+|    (expands to: [New Repo] [Clone Repo])  |
+|    New Repo tab: name, optional remote,   |
+|      optional git credentials             |
+|    Clone Repo tab: URL (name auto-fills), |
+|      optional git credentials             |
++------------------------------------------+
+|  my-react-app                             |
+|  branch: main   [Link Git Remote]         |
 |  3 sessions  2 containers  $0.024         |
 |  Last active: 2 hours ago                 |
 |  [View Sessions]  [Show Containers v]     |
 |    todo-web  [running]  [Logs] [Stop]     |
 |    postgres  [running]  [Logs] [Stop]     |
 +------------------------------------------+
-|  api-service            [Idle]            |
+|  api-service                              |
+|  branch: main   github.com/user/api  [Push] [Auth] |
 |  1 session   0 containers  $0.012         |
 |  Last active: yesterday                   |
 |  [View Sessions]  [Show Containers v]     |
@@ -584,6 +614,7 @@ Srijan/
 |   +-- research.md              # Existing solutions analysis
 |   +-- architecture.md          # This document
 |   +-- features.md              # Feature requirements & roadmap
+|   +-- handoff.md               # Current state + run instructions for new developers
 +-- platform/
 |   +-- Dockerfile
 |   +-- package.json
@@ -595,49 +626,58 @@ Srijan/
 |   |   |   +-- config.ts        # GET/PUT config (exposes default_system_prompt)
 |   |   |   +-- secrets.ts
 |   |   |   +-- apps.ts          # register accepts workspace_name
-|   |   |   +-- git.ts
+|   |   |   +-- git.ts           # status, clone, init, remote, push, pull, credential CRUD
 |   |   |   +-- cost.ts          # GET /api/sessions/:id/cost
 |   |   |   +-- containers.ts    # Filtered to registered app containers
-|   |   |   +-- workspaces.ts    # WorkspaceInfo[] with metadata
+|   |   |   +-- workspaces.ts    # WorkspaceInfo[] with metadata; POST accepts cloneUrl/remoteUrl/creds
 |   |   |   +-- terminal.ts      # WS PTY (node-pty)
+|   |   |   +-- files.ts         # GET tree, GET/PUT file content for workspace file browser
+|   |   |   +-- sessions.ts      # GET /api/sessions/:id/recording
+|   |   |   +-- users.ts         # CRUD /api/users (admin only)
 |   |   +-- agent/
 |   |   |   +-- runner.ts        # Claude Code CLI subprocess, Vertex AI, boundaries, cost
+|   |   |   +-- IAgentRunner.ts  # Interface for pluggable agent SDKs
+|   |   |   +-- OpenCodeRunner.ts # OpenCode SDK stub (emits error event)
 |   |   |   +-- events.ts        # Event type definitions
 |   |   |   +-- session.ts       # Session CRUD, event persistence, delete with cascade
 |   |   +-- security/
-|   |   |   +-- auth.ts          # JWT + password auth + middleware
+|   |   |   +-- auth.ts          # JWT + bcrypt auth + requireAdmin middleware
 |   |   +-- docker/
-|   |   |   +-- manager.ts       # Container lifecycle (dockerode)
+|   |   |   +-- manager.ts       # Container lifecycle (dockerode + docker-compose)
 |   |   |   +-- caddy.ts         # Caddy Admin API client
 |   |   +-- git/
-|   |   |   +-- manager.ts       # Git operations (simple-git)
+|   |   |   +-- manager.ts       # Git ops (simple-git); cloneRepo, setRemote, commitAll, pushRepo, pullRepo — all auth-aware
 |   |   +-- lib/
 |   |   |   +-- crypto.ts        # AES-256-CBC encrypt/decrypt
+|   |   |   +-- gitAuth.ts       # detectProvider, buildAuthUrl, stripAuthFromUrl, credential DB CRUD
+|   |   |   +-- secretProxy.ts   # HTTP+CONNECT proxy; substitutes secret placeholders per agent spawn
 |   |   +-- db/
 |   |   |   +-- store.ts         # SQLite singleton (WAL mode, migrations)
-|   |   |   +-- schema.sql       # Tables: users, sessions, events, secrets, apps, config, token_usage
-|   |   +-- __tests__/           # 76 backend tests
+|   |   |   +-- schema.sql       # Tables: users, sessions, events, secrets, apps, config, token_usage, git_credentials
+|   |   +-- __tests__/           # 142 backend tests (vitest, forks pool)
 |   +-- web/                      # React frontend (separate package.json)
 |       +-- index.html
 |       +-- vite.config.ts
 |       +-- src/
-|           +-- App.tsx           # 4-tab nav, workspace gate, view routing
+|           +-- App.tsx           # 5-tab nav (Dashboard first), view routing, theme toggle
 |           +-- components/
-|           |   +-- Chat.tsx              # Workspace switcher, session activity indicators
-|           |   +-- Dashboard.tsx         # Workspace cards with container sublists
+|           |   +-- Chat.tsx              # Workspace switcher, session activity indicators, "Go to Dashboard" link
+|           |   +-- Dashboard.tsx         # Primary page; workspace cards with git info, push, auth, create panel
 |           |   +-- Terminal.tsx          # xterm.js PTY (lazy-loaded)
-|           |   +-- Settings.tsx          # LLM, system prompt, secrets, agent mode, boundaries
-|           |   +-- Login.tsx             # Password login
-|           |   +-- WorkspaceEmptyState.tsx  # Fullscreen create-first-workspace gate
+|           |   +-- Settings.tsx          # Two-column nav: AI Provider, Agent, Security, Secrets, Users (admin)
+|           |   +-- Login.tsx             # Password login + TOTP challenge step
+|           |   +-- FileBrowser.tsx       # Two-panel tree + Monaco editor; lazy-loaded
+|           |   +-- SessionRecording.tsx  # Read-only event replay for past sessions
 |           +-- hooks/
-|           |   +-- useChat.ts    # Per-session activity state, workspace state, WS hook
+|           |   +-- useChat.ts    # Per-session activity state, workspace state, WS hook, sessionCosts
 |           +-- lib/
-|           |   +-- api.ts        # HTTP client with JWT, WebSocket factory
+|           |   +-- api.ts        # HTTP client with JWT, WebSocket factory, getCurrentUser()
 |           |   +-- utils.ts      # cn() — Tailwind class merge
-|           +-- __tests__/        # 76 frontend tests
+|           +-- __tests__/        # 124 frontend tests (vitest)
 +-- deployment/
 |   +-- setup.sh                 # One-line setup script
 |   +-- docker-compose.yml       # Caddy + Platform compose
+|   +-- docker-compose.dev.yml   # Dev overrides (hot reload, volume mounts)
 |   +-- caddy/
 |   |   +-- Caddyfile            # Base Caddy config (domain + /forge route)
 |   +-- systemd/
@@ -688,11 +728,39 @@ Srijan/
 - [x] Container filtering — only workspace-registered containers shown
 - [x] WorkspaceInfo metadata endpoint
 
-### Phase 4: Advanced (v1.0) — Planned
-- [ ] Session snapshots, pause/resume
-- [ ] Multi-user support (RBAC)
+### Phase 4: Advanced Features (v0.4) — DONE
+- [x] File browser (two-panel tree + Monaco editor in browser)
+- [x] Session recording (read-only replay of past session events)
+- [x] TOTP 2FA (enable/disable via Settings; QR code; challenge step at login)
+- [x] Multi-user RBAC (admin/user roles, Users section in Settings, username in header)
+- [x] Settings two-column sidebar nav (AI Provider, Agent, Security, Secrets, Users)
+
+### Phase 5: Platform Integrations (v0.5) — DONE
+- [x] Monaco Editor (in-browser code editor via `@monaco-editor/react`)
+- [x] LiteLLM proxy as third LLM provider option
+- [x] True Secret Proxy (HTTP+CONNECT proxy per spawn; substitutes placeholders at network boundary)
+- [x] Multi-SDK agent factory (`IAgentRunner` interface; Claude Code + OpenCode stub)
+
+### Phase 6: Dashboard-first UX (v0.6) — DONE
+- [x] Dashboard as primary page (app opens to Dashboard, not Chat)
+- [x] Workspace creation moved to Dashboard (New Repo + Clone Repo tabs with loading/error states)
+- [x] Git remote linking from Dashboard (link panel per workspace card)
+- [x] Git push from Dashboard (push button on card; spinner; "Pushed" confirmation)
+- [x] WorkspaceEmptyState removed (creation gate replaced by Dashboard create panel)
+
+### Phase 7: Git Authentication (v0.7) — DONE
+- [x] GitHub PAT storage per workspace (AES-256 encrypted in `git_credentials` table)
+- [x] Azure DevOps PAT support (provider detection; URL format compatible with ADO)
+- [x] Generic git provider (Basic Auth via URL injection)
+- [x] Transient auth URL injection (clean URL stored in `.git/config`; auth URL built at op time, then restored)
+- [x] Credential CRUD API (`GET/POST/DELETE /api/git/:name/credentials`; token never returned)
+- [x] Auth fields in workspace creation panel (both New Repo and Clone Repo tabs)
+- [x] Auth fields in Link Git Remote panel (atomically sets remote + credentials)
+- [x] Auth edit/remove panel on workspace cards with existing remotes
+
+### Phase 8+ (Planned)
 - [ ] Local model support (Ollama)
-- [ ] GitHub bot (@mention on PRs/issues)
-- [ ] File browser in UI
-- [ ] Code editor in UI (Monaco)
-- [ ] TOTP 2FA
+- [ ] GitHub bot (@mention on PRs/issues triggers agent)
+- [ ] Webhook notifications (Slack/Discord)
+- [ ] OCI packaging (agent configs as container images)
+- [ ] Session snapshots + pause/resume
