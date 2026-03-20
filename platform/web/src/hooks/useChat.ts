@@ -200,6 +200,13 @@ export function useChat() {
           break;
         }
 
+        case 'session_updated': {
+          const updated = msg.data as Session;
+          setSessions((prev) => prev.map((s) => s.id === updated.id ? { ...s, ...updated } : s));
+          setCurrentSession((prev) => prev?.id === updated.id ? { ...prev, ...updated } : prev);
+          break;
+        }
+
         case 'session_deleted': {
           const deletedId = msg.data.sessionId;
           setSessions((prev) => prev.filter((s) => s.id !== deletedId));

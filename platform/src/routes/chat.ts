@@ -1,9 +1,13 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import { IncomingMessage } from 'http';
 import { join } from 'path';
-import { createSession, getSession, listSessions, getSessionEvents, deleteSession } from '../agent/session.js';
+import { createSession, getSession, listSessions, getSessionEvents, deleteSession, updateSessionTitle } from '../agent/session.js';
 import { getOrCreateRunner, getRunner, getApiKey, getModel, getVertexConfig, getLiteLLMConfig } from '../agent/runner.js';
 import { getWorkspaceRoot } from '../git/manager.js';
+import { generateTitle } from '../lib/titleGenerator.js';
+
+// Track sessions that have had LLM title generation attempted (per process lifetime)
+const titledSessions = new Set<string>();
 
 const SAFE_WORKSPACE_NAME_RE = /^[a-zA-Z0-9_-]+$/;
 
@@ -142,7 +146,29 @@ export function setupWebSocket(): void {
             // Attach persistent forwarder (idempotent — no-op if already attached)
             attachForwarder(currentSessionId);
 
+            // Option C: immediately set title from first message, then refine with LLM
+            const isFirstMessage = !titledSessions.has(currentSessionId) && session.title === 'New Session';
+            if (isFirstMessage) {
+              const quickTitle = msg.content.trim().slice(0, 60);
+              updateSessionTitle(currentSessionId, quickTitle);
+              const updated = getSession(currentSessionId)!;
+              ws.send(JSON.stringify({ type: 'session_updated', data: updated }));
+            }
+
             await runner.sendMessage(msg.content);
+
+            // After first turn completes, generate a better LLM title (fire-and-forget)
+            if (isFirstMessage) {
+              titledSessions.add(currentSessionId);
+              const sid = currentSessionId;
+              generateTitle(msg.content, apiKey).then((llmTitle) => {
+                updateSessionTitle(sid, llmTitle);
+                const refreshed = getSession(sid);
+                if (refreshed && ws.readyState === WebSocket.OPEN) {
+                  ws.send(JSON.stringify({ type: 'session_updated', data: refreshed }));
+                }
+              }).catch(() => { /* non-fatal */ });
+            }
             break;
           }
 
