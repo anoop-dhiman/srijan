@@ -1,6 +1,6 @@
 # Srijan - Architecture Design
 
-> Version: 0.7.0
+> Version: 0.8.0
 > Date: 2026-03-20
 > Status: Current
 
@@ -93,7 +93,7 @@ Platform Container (:8080)
 |   +-- /api/secrets       # Secret management (CRUD, encrypted at rest)
 |   +-- /api/apps          # Deployed app registration + Caddy route management
 |   +-- /api/git/:name/*   # status, clone, init, remote, push, pull, credentials CRUD
-|   +-- /api/workspaces    # List + create workspaces (clone, init, optional remote + creds)
+|   +-- /api/workspaces    # List + create + delete workspaces (clone, init, optional remote + creds)
 |   +-- /api/workspaces/:name/files  # File tree + read/write (Monaco editor backend)
 |   +-- /api/containers    # List/start/stop/logs Docker containers
 |   +-- /api/sessions/:id  # Cost aggregates, recording (event replay)
@@ -377,8 +377,8 @@ CHAT view (after switching tab or creating workspace):
 +----------------------------------------------------------+
 ```
 
-- Header: 5-tab nav (Dashboard, Chat, Files, Terminal, Settings) — Dashboard is default/primary
-- Dashboard: workspace cards with git info (branch, remote), push button, link/auth panels; "New Workspace" button at top with two-tab creation panel (New Repo / Clone Repo)
+- Header: 5-tab nav (Dashboard, Chat, Files, Terminal, Settings) — Dashboard is default/primary; Chat and Files tabs are disabled (greyed out) when no workspaces exist
+- Dashboard: workspace cards with git info (branch, remote), push button, link/auth panels, trash-icon delete button; confirmation modal warns about sessions and running containers before cascading delete; "New Workspace" button at top with two-tab creation panel (New Repo / Clone Repo)
 - Chat sidebar: resizable (180–480px), collapsible; "Go to Dashboard" link replaces inline create form
 - Workspace switcher: dropdown (select workspace); creation moved to Dashboard
 - Session list: filtered to current workspace; ⟳ = agent running, 🔵 = unread update
@@ -443,15 +443,15 @@ CHAT view (after switching tab or creating workspace):
 |    Clone Repo tab: URL (name auto-fills), |
 |      optional git credentials             |
 +------------------------------------------+
-|  my-react-app                             |
+|  my-react-app                    $0.0240 [🗑] |
 |  branch: main   [Link Git Remote]         |
-|  3 sessions  2 containers  $0.024         |
+|  3 sessions  2 containers                 |
 |  Last active: 2 hours ago                 |
 |  [View Sessions]  [Show Containers v]     |
 |    todo-web  [running]  [Logs] [Stop]     |
 |    postgres  [running]  [Logs] [Stop]     |
 +------------------------------------------+
-|  api-service                              |
+|  api-service                         [🗑] |
 |  branch: main   github.com/user/api  [Push] [Auth] |
 |  1 session   0 containers  $0.012         |
 |  Last active: yesterday                   |
@@ -629,7 +629,7 @@ Srijan/
 |   |   |   +-- git.ts           # status, clone, init, remote, push, pull, credential CRUD
 |   |   |   +-- cost.ts          # GET /api/sessions/:id/cost
 |   |   |   +-- containers.ts    # Filtered to registered app containers
-|   |   |   +-- workspaces.ts    # WorkspaceInfo[] with metadata; POST accepts cloneUrl/remoteUrl/creds
+|   |   |   +-- workspaces.ts    # WorkspaceInfo[] with metadata; POST create/clone; DELETE cascading cleanup
 |   |   |   +-- terminal.ts      # WS PTY (node-pty)
 |   |   |   +-- files.ts         # GET tree, GET/PUT file content for workspace file browser
 |   |   |   +-- sessions.ts      # GET /api/sessions/:id/recording
@@ -639,14 +639,14 @@ Srijan/
 |   |   |   +-- IAgentRunner.ts  # Interface for pluggable agent SDKs
 |   |   |   +-- OpenCodeRunner.ts # OpenCode SDK stub (emits error event)
 |   |   |   +-- events.ts        # Event type definitions
-|   |   |   +-- session.ts       # Session CRUD, event persistence, delete with cascade
+|   |   |   +-- session.ts       # Session CRUD, event persistence, delete with cascade, getSessionsByWorkspace
 |   |   +-- security/
 |   |   |   +-- auth.ts          # JWT + bcrypt auth + requireAdmin middleware
 |   |   +-- docker/
 |   |   |   +-- manager.ts       # Container lifecycle (dockerode + docker-compose)
 |   |   |   +-- caddy.ts         # Caddy Admin API client
 |   |   +-- git/
-|   |   |   +-- manager.ts       # Git ops (simple-git); cloneRepo, setRemote, commitAll, pushRepo, pullRepo — all auth-aware
+|   |   |   +-- manager.ts       # Git ops (simple-git); cloneRepo, setRemote, commitAll, pushRepo, pullRepo, deleteWorkspace — all auth-aware
 |   |   +-- lib/
 |   |   |   +-- crypto.ts        # AES-256-CBC encrypt/decrypt
 |   |   |   +-- gitAuth.ts       # detectProvider, buildAuthUrl, stripAuthFromUrl, credential DB CRUD

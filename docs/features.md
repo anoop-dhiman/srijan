@@ -1,6 +1,6 @@
 # Srijan - Feature Requirements & Roadmap
 
-> Version: 0.7.0
+> Version: 0.8.0
 > Date: 2026-03-20
 
 ---
@@ -89,14 +89,21 @@
 | 43 | Auth in Link Git Remote Panel | Credential fields shown atomically with remote URL when linking existing workspace | **Done** |
 | 44 | Auth Edit/Remove Panel | Workspace cards with existing remote show "Auth" badge; clicking opens edit/delete credentials panel | **Done** |
 
-### Phase 8+ (Planned)
+### Phase 8 Features — Done
+
+| # | Feature | Description | Status |
+|---|---------|-------------|--------|
+| 45 | Delete Workspace | Trash icon on each workspace card; confirmation modal warns about session count and running containers; cleans up credentials, sessions, apps, and filesystem | **Done** |
+| 46 | Disable Chat/Files without workspaces | Chat and Files tabs disabled (greyed out) when no workspaces exist; auto-redirect to Dashboard if last workspace is deleted while on those views | **Done** |
+
+### Phase 9+ (Planned)
 
 | # | Feature | Description | Source Inspiration |
 |---|---------|-------------|-------------------|
-| 45 | Local Models | Ollama integration for private inference | Netclode |
-| 46 | GitHub Bot | @mention on PRs/issues triggers agent | Netclode |
-| 47 | Webhook Notifications | Slack/Discord alerts for agent actions | Custom |
-| 48 | OCI Packaging | Package agent configs as container images | Docker cagent |
+| 47 | Local Models | Ollama integration for private inference | Netclode |
+| 48 | GitHub Bot | @mention on PRs/issues triggers agent | Netclode |
+| 49 | Webhook Notifications | Slack/Discord alerts for agent actions | Custom |
+| 50 | OCI Packaging | Package agent configs as container images | Docker cagent |
 
 ---
 

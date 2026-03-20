@@ -1,7 +1,7 @@
 # Srijan — Agent Handoff Summary
 
 > Date: 2026-03-20
-> Latest commit: `b12441a` (git-backed workspaces with remote auth for GitHub and Azure DevOps)
+> Latest commit: `3b6cb86` (delete workspace with cleanup; disable chat/files tabs when no workspaces)
 > Location: `/Users/anoop.dhiman/Documents/Srijan`
 
 ---
@@ -33,7 +33,7 @@ Srijan/
 │   │   │   ├── git.ts       # Git routes: clone, init, status, pull, push, remote, credentials CRUD
 │   │   │   ├── cost.ts      # GET /api/sessions/:id/cost (token usage aggregates)
 │   │   │   ├── containers.ts# GET /api/containers (filtered to registered app containers)
-│   │   │   ├── workspaces.ts# GET /api/workspaces (WorkspaceInfo[]), POST (create/clone + git creds)
+│   │   │   ├── workspaces.ts# GET/POST /api/workspaces (WorkspaceInfo[], create/clone); DELETE /:name (cascading cleanup)
 │   │   │   ├── terminal.ts  # WS /api/terminal (node-pty PTY)
 │   │   │   ├── files.ts     # GET /api/workspaces/:name/files, /file; PUT /file (Monaco save)
 │   │   │   ├── sessions.ts  # GET /api/sessions/:id/recording (event replay)
@@ -42,7 +42,7 @@ Srijan/
 │   │   │   ├── runner.ts    # AgentRunner — Claude Code CLI subprocess, Vertex AI, boundaries, cost
 │   │   │   ├── IAgentRunner.ts  # Interface for pluggable agent backends
 │   │   │   ├── OpenCodeRunner.ts# OpenCode stub (emits error, SDK toggle via DB key agentSdk)
-│   │   │   ├── session.ts   # Session CRUD, event persistence, delete with cascade
+│   │   │   ├── session.ts   # Session CRUD, event persistence, delete with cascade, getSessionsByWorkspace
 │   │   │   └── events.ts    # Event type definitions
 │   │   ├── security/
 │   │   │   └── auth.ts      # bcrypt + JWT (24h expiry) + middleware
@@ -58,7 +58,7 @@ Srijan/
 │   │   ├── db/
 │   │   │   ├── store.ts     # SQLite singleton (WAL mode, auto-create dir, migrations)
 │   │   │   └── schema.sql   # Tables: users, sessions, events, secrets, apps, config, token_usage, git_credentials
-│   │   └── __tests__/       # 142 backend tests (vitest + supertest)
+│   │   └── __tests__/       # 145 backend tests (vitest + supertest)
 │   ├── web/                  # React frontend (separate package.json)
 │   │   ├── src/
 │   │   │   ├── App.tsx       # 5-tab nav (Dashboard|Chat|Files|Terminal|Settings), Dashboard as primary
@@ -75,7 +75,7 @@ Srijan/
 │   │   │   ├── lib/
 │   │   │   │   ├── api.ts        # HTTP client with JWT, WebSocket factory, getCurrentUser()
 │   │   │   │   └── utils.ts      # cn() — Tailwind class merge
-│   │   │   └── __tests__/        # 124 frontend tests (vitest + RTL)
+│   │   │   └── __tests__/        # 129 frontend tests (vitest + RTL)
 │   │   └── vite.config.ts        # Tailwind plugin, /api proxy to :8080
 │   ├── Dockerfile            # Multi-stage (build + prod with docker-cli + git)
 │   ├── package.json
@@ -168,7 +168,7 @@ Supported providers: `github` (PAT), `azure` (Azure DevOps PAT), `generic` (any 
 
 ## What Works Now
 
-### Backend (142 tests passing)
+### Backend (145 tests passing)
 - **Auth**: login + JWT, WebSocket auth via `?token=` query param; TOTP 2FA (setup/enable/disable/status); challenge token for login flow
 - **Config**: GET/PUT for LLM settings (provider, API key, model, Vertex config, LiteLLM config), system prompt, agent mode, boundaries blocklist, agentSdk
 - **Secrets**: CRUD with AES-256 encryption; injected as env vars at agent spawn via secret proxy
@@ -180,13 +180,13 @@ Supported providers: `github` (PAT), `azure` (Azure DevOps PAT), `generic` (any 
 - **Session persistence**: events stored in DB, restored on join (with JSON parsing)
 - **Session recording**: `GET /api/sessions/:id/recording` returns ordered event list for replay
 - **Cost tracking**: token usage INSERT on each `result` event; aggregate GET endpoint
-- **Workspaces**: list with metadata; create (accepts `cloneUrl`, `remoteUrl`, `gitProvider`, `gitUsername`, `gitToken`); clone
+- **Workspaces**: list with metadata; create (accepts `cloneUrl`, `remoteUrl`, `gitProvider`, `gitUsername`, `gitToken`); clone; **delete** (cascades: credentials → sessions → apps → filesystem)
 - **File browser**: `GET /api/workspaces/:name/files?path=` (directory listing) + `/file?path=` (file content) + `PUT /file` (save)
 - **Containers**: filtered to registered app containers only; optional `?workspace=` scoping
 - **Terminal**: PTY via node-pty, WS at `/api/terminal?token=&sessionId=`, xterm.js on frontend
 - **Users (RBAC)**: `GET/POST/DELETE /api/users` (admin only); `role` column in users table; `requireAdmin` middleware
 
-### Frontend (124 tests passing)
+### Frontend (129 tests passing)
 - **Login**: password auth + optional TOTP challenge step; JWT stored in localStorage
 - **Dashboard as primary page**: app opens to Dashboard; workspace creation lives here, not in Chat
 - **Workspace creation panel**: "New Workspace" button → panel with two tabs: New Repo (name + optional remote URL + auth) and Clone Repo (URL + name + auth); auth auto-detected from URL
@@ -202,7 +202,8 @@ Supported providers: `github` (PAT), `azure` (Azure DevOps PAT), `generic` (any 
 - **Settings page**: sidebar navigation layout with sections: AI Provider (Anthropic/Vertex/LiteLLM), Agent (system prompt + mode + blocklist + SDK), Security (TOTP 2FA with QR code), Secrets, Users (admin only)
 - **File browser**: two-panel workspace file tree + Monaco editor (edit/save/cancel)
 - **Session recording**: read-only replay of past sessions; replay button in Chat sidebar
-- **Dashboard**: workspace cards with session count, container count, cost, last activity; git branch + remote URL + push button; auth badge; expandable container sublist
+- **Dashboard**: workspace cards with session count, container count, cost, last activity; git branch + remote URL + push button; auth badge; expandable container sublist; **trash-icon delete button with confirmation modal** (warns about session count + running containers)
+- **Tab gating**: Chat and Files tabs are disabled when no workspaces exist; navigating away from those views is automatic when the last workspace is deleted
 - **Terminal**: xterm.js PTY (lazy-loaded), connected to current session's workspace
 - **Real-time tool activity**: expandable pills per tool invocation with input/output details
 - **Thinking indicator**: animated bouncing dots + live status text
@@ -243,6 +244,7 @@ Supported providers: `github` (PAT), `azure` (Azure DevOps PAT), `generic` (any 
 | POST | `/api/containers/:id/stop` | Stop container |
 | GET | `/api/workspaces` | List workspaces with metadata (`WorkspaceInfo[]`) |
 | POST | `/api/workspaces` | Create or clone workspace (accepts `cloneUrl`, `remoteUrl`, `gitProvider`, `gitUsername`, `gitToken`) |
+| DELETE | `/api/workspaces/:name` | Delete workspace — cascades: credentials, sessions+events, apps, filesystem dir |
 | GET | `/api/workspaces/:name/files` | List directory contents (`?path=` optional) |
 | GET | `/api/workspaces/:name/file` | Read file content (`?path=` required) |
 | PUT | `/api/workspaces/:name/file` | Write file content (`{path, content}`) |
@@ -355,6 +357,6 @@ Login: username `admin`, password `admin` (or `SRIJAN_ADMIN_PASSWORD` env var).
 
 ```bash
 cd platform
-npm test                  # 142 backend tests
-cd web && npx vitest run  # 124 frontend tests
+npm test                  # 145 backend tests
+cd web && npx vitest run  # 129 frontend tests
 ```
