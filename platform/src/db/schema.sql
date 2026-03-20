@@ -72,3 +72,9 @@ CREATE TABLE IF NOT EXISTS token_usage (
   model TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+-- Indexes for common query patterns
+CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_workspace_name ON sessions(workspace_name);
+CREATE INDEX IF NOT EXISTS idx_events_session_id ON events(session_id);
+CREATE INDEX IF NOT EXISTS idx_token_usage_session_id ON token_usage(session_id);

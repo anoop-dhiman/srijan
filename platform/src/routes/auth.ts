@@ -19,6 +19,10 @@ router.post('/login', (req: Request, res: Response) => {
   }
 
   const result = login(username, password);
+  if (result === 'rate_limited') {
+    res.status(429).json({ error: { code: 'RATE_LIMITED', message: 'Too many login attempts. Try again later.' } });
+    return;
+  }
   if (!result) {
     res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'Invalid credentials' } });
     return;

@@ -1,9 +1,12 @@
 import { Router, Request, Response } from 'express';
-import { authMiddleware } from '../security/auth.js';
+import { authMiddleware, requireAdmin } from '../security/auth.js';
 import { getDb } from '../db/store.js';
 import { DEFAULT_SYSTEM_PROMPT } from '../agent/runner.js';
 
 const router = Router();
+
+// Allowlist of config keys that can be written via the API
+const WRITABLE_KEYS = new Set(['llm', 'system_prompt', 'agentMode', 'agent_boundaries', 'agentSdk']);
 
 router.use(authMiddleware);
 
@@ -18,11 +21,16 @@ router.get('/', (_req: Request, res: Response) => {
   res.json(config);
 });
 
-router.put('/:key', (req: Request, res: Response) => {
+router.put('/:key', requireAdmin, (req: Request, res: Response) => {
   const { key } = req.params;
   const { value } = req.body;
   if (value === undefined) {
     res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'Value required' } });
+    return;
+  }
+
+  if (!WRITABLE_KEYS.has(key)) {
+    res.status(400).json({ error: { code: 'BAD_REQUEST', message: `Unknown config key: ${key}` } });
     return;
   }
 

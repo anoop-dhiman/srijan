@@ -7,6 +7,8 @@ import { addRoute, removeRoute } from '../docker/caddy.js';
 const router = Router();
 router.use(authMiddleware);
 
+const APP_NAME_RE = /^[a-zA-Z0-9_-]{1,64}$/;
+
 router.get('/', (_req: Request, res: Response) => {
   const db = getDb();
   const apps = db.prepare('SELECT * FROM apps ORDER BY created_at DESC').all();
@@ -20,27 +22,50 @@ router.post('/register', async (req: Request, res: Response) => {
     return;
   }
 
+  if (!APP_NAME_RE.test(name)) {
+    res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'App name must be 1–64 alphanumeric/hyphen/underscore characters' } });
+    return;
+  }
+
+  const portNum = Number(port);
+  if (!Number.isInteger(portNum) || portNum < 1 || portNum > 65535) {
+    res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'port must be an integer between 1 and 65535' } });
+    return;
+  }
+
   const appPath = path.startsWith('/') ? path : `/${path}`;
   const db = getDb();
   const id = uuidv4();
 
   try {
-    db.prepare(
-      `INSERT INTO apps (id, name, path, port, container_id, workspace_name, status) VALUES (?, ?, ?, ?, ?, ?, 'running')`
-    ).run(id, name, appPath, port, containerId || null, workspaceName || null);
+    // Register with Caddy first — if it fails we don't pollute the DB
+    await addRoute(name, appPath, portNum);
 
-    await addRoute(name, appPath, port);
+    try {
+      db.prepare(
+        `INSERT INTO apps (id, name, path, port, container_id, workspace_name, status) VALUES (?, ?, ?, ?, ?, ?, 'running')`
+      ).run(id, name, appPath, portNum, containerId || null, workspaceName || null);
+    } catch (dbErr: any) {
+      // Caddy route was added but DB insert failed — roll back the Caddy route
+      await removeRoute(name).catch(() => {});
+      if (dbErr.code === 'SQLITE_CONSTRAINT_UNIQUE' || dbErr.message?.includes('UNIQUE')) {
+        res.status(409).json({ error: { code: 'CONFLICT', message: 'App name or path already exists' } });
+      } else {
+        throw dbErr;
+      }
+      return;
+    }
 
     const domain = process.env.SRIJAN_DOMAIN || 'localhost';
     res.status(201).json({
       id,
       name,
       path: appPath,
-      port,
+      port: portNum,
       url: `https://${domain}${appPath}`,
     });
   } catch (err: any) {
-    if (err.message?.includes('UNIQUE')) {
+    if (err.code === 'SQLITE_CONSTRAINT_UNIQUE' || err.message?.includes('UNIQUE')) {
       res.status(409).json({ error: { code: 'CONFLICT', message: 'App name or path already exists' } });
     } else {
       throw err;

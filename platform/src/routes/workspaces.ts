@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { authMiddleware } from '../security/auth.js';
-import { getWorkspaceRoot, cloneRepo, initRepo, setRemote, commitAll, pushRepo, deleteWorkspace } from '../git/manager.js';
+import { getWorkspaceRoot, cloneRepo, initRepo, setRemote, commitAll, pushRepo, deleteWorkspace, validateWorkspaceName } from '../git/manager.js';
 import { detectProvider, saveWorkspaceCredentials, deleteWorkspaceCredentials, type GitProvider } from '../lib/gitAuth.js';
 import { getDb } from '../db/store.js';
 import { listContainers } from '../docker/manager.js';
@@ -73,34 +73,46 @@ router.get('/', async (_req: Request, res: Response) => {
   }
 });
 
+const SAFE_NAME_RE = /^[a-zA-Z0-9_-]+$/;
+
 router.post('/', async (req: Request, res: Response) => {
   const { name, cloneUrl, remoteUrl, gitProvider, gitUsername, gitToken } = req.body;
   if (!name || typeof name !== 'string') {
     res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'name is required' } });
     return;
   }
-
-  // Persist credentials if provided
-  const hasCreds = typeof gitToken === 'string' && gitToken.length > 0;
-  if (hasCreds) {
-    const targetUrl = cloneUrl || remoteUrl || '';
-    const provider: GitProvider = (['github', 'azure', 'generic'].includes(gitProvider)
-      ? gitProvider
-      : detectProvider(targetUrl)) as GitProvider;
-    saveWorkspaceCredentials(name, provider, gitUsername || '', gitToken);
+  if (!SAFE_NAME_RE.test(name)) {
+    res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'name must contain only alphanumeric, hyphen, or underscore characters' } });
+    return;
   }
 
+  const hasCreds = typeof gitToken === 'string' && gitToken.length > 0;
   const creds = hasCreds ? { provider: gitProvider, username: gitUsername || '', token: gitToken } : undefined;
 
   try {
     let path: string;
     if (cloneUrl) {
       path = await cloneRepo(cloneUrl, name, creds);
+      // Persist credentials only after successful clone
+      if (hasCreds) {
+        const targetUrl = cloneUrl || remoteUrl || '';
+        const provider: GitProvider = (['github', 'azure', 'generic'].includes(gitProvider)
+          ? gitProvider
+          : detectProvider(targetUrl)) as GitProvider;
+        saveWorkspaceCredentials(name, provider, gitUsername || '', gitToken);
+      }
     } else {
       path = await initRepo(name);
       if (remoteUrl) {
         await setRemote(name, remoteUrl);
         await commitAll(name, 'Initial commit');
+        // Persist credentials for new repos before push attempt
+        if (hasCreds) {
+          const provider: GitProvider = (['github', 'azure', 'generic'].includes(gitProvider)
+            ? gitProvider
+            : detectProvider(remoteUrl)) as GitProvider;
+          saveWorkspaceCredentials(name, provider, gitUsername || '', gitToken);
+        }
         try {
           await pushRepo(name, creds);
         } catch (pushErr: any) {

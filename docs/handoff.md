@@ -1,7 +1,7 @@
 # Srijan — Agent Handoff Summary
 
 > Date: 2026-03-20
-> Latest commit: `6375f7c` (comprehensive test coverage — 402 tests total)
+> Latest commit: `587cab1` (security hardening — 405 tests total)
 > Location: `/Users/anoop.dhiman/Documents/Srijan`
 
 ---
@@ -52,13 +52,13 @@ Srijan/
 │   │   ├── git/
 │   │   │   └── manager.ts   # simple-git: clone/init/pull/push/setRemote/commitAll (all auth-aware)
 │   │   ├── lib/
-│   │   │   ├── crypto.ts    # AES-256-CBC encrypt/decrypt for secrets and git tokens
+│   │   │   ├── crypto.ts    # AES-256-GCM encrypt/decrypt (v2); backward-compat AES-256-CBC (v1)
 │   │   │   ├── gitAuth.ts   # Provider detection, auth URL injection, git_credentials DB helpers
 │   │   │   └── secretProxy.ts # HTTP proxy + CONNECT relay for secret substitution
 │   │   ├── db/
 │   │   │   ├── store.ts     # SQLite singleton (WAL mode, auto-create dir, migrations)
 │   │   │   └── schema.sql   # Tables: users, sessions, events, secrets, apps, config, token_usage, git_credentials
-│   │   └── __tests__/       # 216 backend tests (vitest + supertest)
+│   │   └── __tests__/       # 218 backend tests (vitest + supertest)
 │   ├── web/                  # React frontend (separate package.json)
 │   │   ├── src/
 │   │   │   ├── App.tsx       # 5-tab nav (Dashboard|Chat|Files|Terminal|Settings), Dashboard as primary
@@ -75,7 +75,7 @@ Srijan/
 │   │   │   ├── lib/
 │   │   │   │   ├── api.ts        # HTTP client with JWT, WebSocket factory, getCurrentUser()
 │   │   │   │   └── utils.ts      # cn() — Tailwind class merge
-│   │   │   └── __tests__/        # 186 frontend tests (vitest + RTL)
+│   │   │   └── __tests__/        # 187 frontend tests (vitest + RTL)
 │   │   └── vite.config.ts        # Tailwind plugin, /api proxy to :8080
 │   ├── Dockerfile            # Multi-stage (build + prod with docker-cli + git)
 │   ├── package.json
@@ -156,7 +156,7 @@ function attachForwarder(sessionId: string) {
 
 Per-workspace credentials are stored encrypted in the `git_credentials` table. The flow:
 
-1. Credentials stored: `saveWorkspaceCredentials(name, provider, username, token)` — token AES-256-CBC encrypted
+1. Credentials stored: `saveWorkspaceCredentials(name, provider, username, token)` — token AES-256-GCM encrypted
 2. At git operation time: `getWorkspaceCredentials(name)` decrypts token, builds auth URL via `buildAuthUrl(url, username, token)`
 3. Auth URL used transiently: remote temporarily set to auth URL, operation runs, remote restored to clean URL
 4. `.git/config` always stores clean URL (no credentials). `GIT_TERMINAL_PROMPT=0` prevents interactive prompts.
@@ -168,7 +168,7 @@ Supported providers: `github` (PAT), `azure` (Azure DevOps PAT), `generic` (any 
 
 ## What Works Now
 
-### Backend (216 tests passing)
+### Backend (218 tests passing)
 - **Auth**: login + JWT, WebSocket auth via `?token=` query param; TOTP 2FA (setup/enable/disable/status); challenge token for login flow
 - **Config**: GET/PUT for LLM settings (provider, API key, model, Vertex config, LiteLLM config), system prompt, agent mode, boundaries blocklist, agentSdk
 - **Secrets**: CRUD with AES-256 encryption; injected as env vars at agent spawn via secret proxy
@@ -186,8 +186,8 @@ Supported providers: `github` (PAT), `azure` (Azure DevOps PAT), `generic` (any 
 - **Terminal**: PTY via node-pty, WS at `/api/terminal?token=&sessionId=`, xterm.js on frontend
 - **Users (RBAC)**: `GET/POST/DELETE /api/users` (admin only); `role` column in users table; `requireAdmin` middleware
 
-### Frontend (186 tests passing)
-- **Login**: password auth + optional TOTP challenge step; JWT stored in localStorage
+### Frontend (187 tests passing)
+- **Login**: multi-user username + password fields; optional TOTP challenge step; 429 rate-limit feedback; JWT stored in localStorage
 - **Dashboard as primary page**: app opens to Dashboard; workspace creation lives here, not in Chat
 - **Workspace creation panel**: "New Workspace" button → panel with two tabs: New Repo (name + optional remote URL + auth) and Clone Repo (URL + name + auth); auth auto-detected from URL
 - **Git remote linking**: "Link Git Remote" opens a panel with URL + full auth fields (provider, username, PAT) in one step
@@ -328,6 +328,13 @@ Other DB config keys:
 - **Secret Proxy** — HTTP proxy + CONNECT relay started before subprocess spawn; substitutes `SRIJAN_SECRET_*` placeholders with real values in outbound LLM API calls; closed when process exits
 - **Multi-SDK factory** — DB key `agentSdk` selects runner; `IAgentRunner` interface ensures both `AgentRunner` (Claude Code) and `OpenCodeRunner` (stub) are compatible
 - **LiteLLM provider** — sets `ANTHROPIC_BASE_URL` + `ANTHROPIC_API_KEY` env vars so Claude Code CLI routes through LiteLLM proxy transparently
+- **AES-256-GCM encryption** — `crypto.ts` upgraded from CBC to GCM (adds authentication tag, prevents tampering/padding-oracle); versioned ciphertext (`v2:iv:authTag:ciphertext`); `decrypt()` detects prefix for backward-compat CBC decryption of existing data; SHA-256 digest replaces fragile `padEnd(32)` key derivation
+- **Caddy-first insert ordering** — `apps.ts` registers Caddy route before DB insert; on DB failure the Caddy route is removed (rollback), preventing orphaned records
+- **Credentials saved after clone** — `workspaces.ts` calls `saveWorkspaceCredentials()` only after `cloneRepo()` succeeds, preventing orphaned credential records on clone failure
+- **Login rate limiting** — in-memory `Map<username, {count, resetAt}>`; 10 attempts per 15-min window; `checkRateLimit()` / `clearRateLimit()` in `auth.ts`; route returns 429 with `RATE_LIMITED` code
+- **Terminal env sanitization** — PTY in `terminal.ts` spawned with a cleaned copy of `process.env`; strips keys matching `SRIJAN_`, `ANTHROPIC_`, `GOOGLE_`, `VERTEX_` prefixes and a fixed set of sensitive keys
+- **Exponential backoff reconnect** — `useChat.ts` tracks `reconnectAttemptRef`; delay = `min(3000 * 2^attempt, 60000)` ms; reset to 0 on successful open
+- **CORS allowlist** — `server.ts` reads `SRIJAN_ORIGIN` env var (comma-separated); empty list allows all origins (dev); non-empty list enforces strict allowlist; startup warns if JWT secret is the default value
 
 ---
 
@@ -357,8 +364,8 @@ Login: username `admin`, password `admin` (or `SRIJAN_ADMIN_PASSWORD` env var).
 
 ```bash
 cd platform
-npm test                  # 216 backend tests (20 test files)
-cd web && npx vitest run  # 186 frontend tests (10 test files)
+npm test                  # 218 backend tests (20 test files)
+cd web && npx vitest run  # 187 frontend tests (10 test files)
 ```
 
 ### Test Coverage by Layer
@@ -378,7 +385,7 @@ cd web && npx vitest run  # 186 frontend tests (10 test files)
 | Files | `files.test.ts` | 15 | Directory list, read, write, path traversal rejection |
 | Cost | `cost.test.ts` | 4 | Token aggregation, null cost (Vertex) |
 | Sessions recording | `sessions.test.ts` | 5 | Recording endpoint, event ordering, auth |
-| Users | `users.test.ts` | 13 | RBAC CRUD, role enforcement, password change |
+| Users | `users.test.ts` | 15 | RBAC CRUD, role enforcement, password change, min-length + format validation |
 | API routes | `api.test.ts` | 14 | Config, Secrets, Apps, Auth/me |
 | Runner config | `runner-config.test.ts` | 9 | getAgentMode, getSystemPrompt, getAgentSdk, getApiKey, DEFAULT_SYSTEM_PROMPT |
 | Runner interface | `runner-interface.test.ts` | 4 | AgentRunner factory, OpenCodeRunner, IAgentRunner |

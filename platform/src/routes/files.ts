@@ -1,13 +1,14 @@
 import { Router, Request, Response } from 'express';
 import { authMiddleware } from '../security/auth.js';
 import { getWorkspaceRoot } from '../git/manager.js';
-import { readdirSync, statSync, readFileSync, writeFileSync } from 'fs';
-import { join, resolve, sep } from 'path';
+import { readdirSync, statSync, lstatSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
+import { join, resolve, sep, dirname } from 'path';
 
 const router = Router();
 router.use(authMiddleware);
 
 const MAX_FILE_SIZE = 1024 * 1024; // 1 MB
+const MAX_PATH_LENGTH = 4096;
 
 const HIDDEN_ENTRIES = new Set(['.git', '.svn', '.hg']);
 
@@ -26,6 +27,11 @@ router.get('/:name/files', (req: Request, res: Response) => {
   const { name } = req.params;
   const requestedPath = (req.query.path as string) || '';
 
+  if (requestedPath.length > MAX_PATH_LENGTH) {
+    res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'Path too long' } });
+    return;
+  }
+
   const workspaceBase = resolve(join(getWorkspaceRoot(), name));
   const resolvedPath = resolve(workspaceBase, requestedPath);
 
@@ -35,6 +41,11 @@ router.get('/:name/files', (req: Request, res: Response) => {
   }
 
   try {
+    const lstat = lstatSync(resolvedPath);
+    if (lstat.isSymbolicLink()) {
+      res.status(403).json({ error: { code: 'SYMLINK', message: 'Symbolic links are not allowed' } });
+      return;
+    }
     const stat = statSync(resolvedPath);
     if (!stat.isDirectory()) {
       res.status(400).json({ error: { code: 'NOT_DIRECTORY', message: 'Path is not a directory' } });
@@ -45,7 +56,10 @@ router.get('/:name/files', (req: Request, res: Response) => {
     const entries = names
       .map((n) => {
         try {
-          const s = statSync(join(resolvedPath, n));
+          const entryPath = join(resolvedPath, n);
+          const ls = lstatSync(entryPath);
+          if (ls.isSymbolicLink()) return null; // skip symlinks
+          const s = statSync(entryPath);
           return {
             name: n,
             type: s.isDirectory() ? 'dir' : 'file',
@@ -77,6 +91,11 @@ router.get('/:name/file', (req: Request, res: Response) => {
     return;
   }
 
+  if (requestedPath.length > MAX_PATH_LENGTH) {
+    res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'Path too long' } });
+    return;
+  }
+
   const workspaceBase = resolve(join(getWorkspaceRoot(), name));
   const resolvedPath = resolve(workspaceBase, requestedPath);
 
@@ -86,6 +105,11 @@ router.get('/:name/file', (req: Request, res: Response) => {
   }
 
   try {
+    const lstat = lstatSync(resolvedPath);
+    if (lstat.isSymbolicLink()) {
+      res.status(403).json({ error: { code: 'SYMLINK', message: 'Symbolic links are not allowed' } });
+      return;
+    }
     const stat = statSync(resolvedPath);
     if (!stat.isFile()) {
       res.status(400).json({ error: { code: 'NOT_FILE', message: 'Path is not a file' } });
@@ -137,13 +161,21 @@ router.put('/:name/file', (req: Request, res: Response) => {
   }
 
   try {
+    // Check for symlink at target path before writing
+    try {
+      const lstat = lstatSync(resolvedPath);
+      if (lstat.isSymbolicLink()) {
+        res.status(403).json({ error: { code: 'SYMLINK', message: 'Writing to symbolic links is not allowed' } });
+        return;
+      }
+    } catch (e: any) {
+      if (e.code !== 'ENOENT') throw e;
+      // File doesn't exist yet — ensure parent directory exists
+      mkdirSync(dirname(resolvedPath), { recursive: true });
+    }
     writeFileSync(resolvedPath, content, 'utf-8');
     res.json({ ok: true });
   } catch (err: any) {
-    if (err.code === 'ENOENT') {
-      res.status(404).json({ error: { code: 'NOT_FOUND', message: 'File not found' } });
-      return;
-    }
     res.status(500).json({ error: { code: 'IO_ERROR', message: err.message } });
   }
 });

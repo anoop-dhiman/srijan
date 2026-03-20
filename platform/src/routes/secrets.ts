@@ -1,11 +1,13 @@
 import { Router, Request, Response } from 'express';
-import { authMiddleware } from '../security/auth.js';
+import { authMiddleware, requireAdmin } from '../security/auth.js';
 import { getDb } from '../db/store.js';
 import { v4 as uuidv4 } from 'uuid';
-import { encrypt, decrypt } from '../lib/crypto.js';
+import { encrypt } from '../lib/crypto.js';
 
 const router = Router();
 router.use(authMiddleware);
+
+const SECRET_NAME_RE = /^[a-zA-Z0-9_]{1,64}$/;
 
 router.get('/', (_req: Request, res: Response) => {
   const db = getDb();
@@ -13,10 +15,17 @@ router.get('/', (_req: Request, res: Response) => {
   res.json(secrets);
 });
 
-router.post('/', (req: Request, res: Response) => {
+router.post('/', requireAdmin, (req: Request, res: Response) => {
   const { name, value } = req.body;
   if (!name || !value) {
     res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'Name and value required' } });
+    return;
+  }
+
+  if (!SECRET_NAME_RE.test(name)) {
+    res.status(400).json({
+      error: { code: 'BAD_REQUEST', message: 'Secret name must be 1–64 alphanumeric/underscore characters' },
+    });
     return;
   }
 
@@ -28,7 +37,7 @@ router.post('/', (req: Request, res: Response) => {
     db.prepare('INSERT INTO secrets (id, name, encrypted_value) VALUES (?, ?, ?)').run(id, name, encrypted);
     res.status(201).json({ id, name });
   } catch (err: any) {
-    if (err.message?.includes('UNIQUE')) {
+    if (err.code === 'SQLITE_CONSTRAINT_UNIQUE' || err.message?.includes('UNIQUE')) {
       res.status(409).json({ error: { code: 'CONFLICT', message: 'Secret name already exists' } });
     } else {
       throw err;
@@ -36,7 +45,7 @@ router.post('/', (req: Request, res: Response) => {
   }
 });
 
-router.delete('/:id', (req: Request, res: Response) => {
+router.delete('/:id', requireAdmin, (req: Request, res: Response) => {
   const db = getDb();
   const result = db.prepare('DELETE FROM secrets WHERE id = ?').run(req.params.id);
   if (result.changes === 0) {

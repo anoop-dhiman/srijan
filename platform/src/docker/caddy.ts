@@ -1,6 +1,15 @@
 const CADDY_ADMIN_URL = process.env.CADDY_ADMIN_URL || 'http://localhost:2019';
+const APP_NAME_RE = /^[a-zA-Z0-9_-]{1,64}$/;
+
+function validateAppName(name: string): void {
+  if (!APP_NAME_RE.test(name)) {
+    throw new Error(`Invalid app name: "${name}"`);
+  }
+}
 
 export async function addRoute(appName: string, path: string, port: number): Promise<void> {
+  validateAppName(appName);
+
   const route = {
     '@id': `app-${appName}`,
     match: [{ path: [`${path}`, `${path}/*`] }],
@@ -25,26 +34,43 @@ export async function addRoute(appName: string, path: string, port: number): Pro
     ],
   };
 
-  const res = await fetch(`${CADDY_ADMIN_URL}/config/apps/http/servers/srv0/routes`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(route),
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${CADDY_ADMIN_URL}/config/apps/http/servers/srv0/routes`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(route),
+    });
+  } catch (err: any) {
+    throw new Error(`Caddy is not reachable (${CADDY_ADMIN_URL}): ${err.message}`);
+  }
 
   if (!res.ok) {
     const body = await res.text();
-    throw new Error(`Caddy addRoute failed: ${res.status} ${body}`);
+    if (res.status === 409 || body.toLowerCase().includes('already exists') || body.toLowerCase().includes('conflict')) {
+      throw new Error(`Caddy route conflict for "${appName}": route already exists`);
+    }
+    console.error(`[caddy] addRoute failed status=${res.status} body=${body}`);
+    throw new Error(`Caddy addRoute failed: ${res.status}`);
   }
 }
 
 export async function removeRoute(appName: string): Promise<void> {
-  const res = await fetch(`${CADDY_ADMIN_URL}/id/app-${appName}`, {
-    method: 'DELETE',
-  });
+  validateAppName(appName);
+
+  let res: Response;
+  try {
+    res = await fetch(`${CADDY_ADMIN_URL}/id/app-${appName}`, {
+      method: 'DELETE',
+    });
+  } catch (err: any) {
+    throw new Error(`Caddy is not reachable (${CADDY_ADMIN_URL}): ${err.message}`);
+  }
 
   if (!res.ok && res.status !== 404) {
     const body = await res.text();
-    throw new Error(`Caddy removeRoute failed: ${res.status} ${body}`);
+    console.error(`[caddy] removeRoute failed status=${res.status} body=${body}`);
+    throw new Error(`Caddy removeRoute failed: ${res.status}`);
   }
 }
 

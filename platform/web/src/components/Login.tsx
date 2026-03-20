@@ -7,6 +7,7 @@ interface LoginProps {
 
 export function Login({ onLogin }: LoginProps) {
   const [step, setStep] = useState<'password' | 'totp'>('password');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [totpCode, setTotpCode] = useState('');
   const [challengeToken, setChallengeToken] = useState('');
@@ -21,7 +22,7 @@ export function Login({ onLogin }: LoginProps) {
     try {
       const data = await apiFetch('/auth/login', {
         method: 'POST',
-        body: JSON.stringify({ username: 'admin', password }),
+        body: JSON.stringify({ username, password }),
       });
 
       if (data.requires_totp) {
@@ -32,7 +33,11 @@ export function Login({ onLogin }: LoginProps) {
         onLogin();
       }
     } catch (err: any) {
-      setError(err.message || 'Login failed');
+      if (err.status === 429) {
+        setError('Too many login attempts. Please wait a few minutes and try again.');
+      } else {
+        setError(err.message || 'Login failed');
+      }
     } finally {
       setLoading(false);
     }
@@ -68,19 +73,28 @@ export function Login({ onLogin }: LoginProps) {
         {step === 'password' && (
           <form onSubmit={handlePasswordSubmit} className="space-y-4">
             <input
+              type="text"
+              placeholder="Username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              className="w-full rounded-xl border border-border bg-muted px-4 py-3.5 text-base text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+              autoComplete="username"
+              autoFocus
+            />
+            <input
               type="password"
               placeholder="Password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="w-full rounded-xl border border-border bg-muted px-4 py-3.5 text-base text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-              autoFocus
+              autoComplete="current-password"
             />
 
             {error && <p className="text-base text-destructive">{error}</p>}
 
             <button
               type="submit"
-              disabled={loading || !password}
+              disabled={loading || !username || !password}
               className="w-full rounded-xl bg-primary px-4 py-3.5 text-base font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
             >
               {loading ? 'Signing in…' : 'Sign In'}

@@ -6,6 +6,26 @@ import { join } from 'path';
 
 export const terminalWss = new WebSocketServer({ noServer: true });
 
+const SENSITIVE_ENV_PREFIXES = ['SRIJAN_', 'ANTHROPIC_', 'GOOGLE_', 'VERTEX_'];
+const SENSITIVE_ENV_KEYS = new Set(['HTTP_PROXY', 'HTTPS_PROXY', 'CLOUD_ML_REGION', 'CLAUDE_CODE_USE_VERTEX']);
+
+function buildCleanEnv(): Record<string, string> {
+  const env: Record<string, string> = {};
+  for (const [key, value] of Object.entries(process.env)) {
+    if (value === undefined) continue;
+    if (SENSITIVE_ENV_KEYS.has(key)) continue;
+    if (SENSITIVE_ENV_PREFIXES.some((prefix) => key.startsWith(prefix))) continue;
+    env[key] = value;
+  }
+  return env;
+}
+
+function clampDim(value: unknown, defaultVal: number): number {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 1) return defaultVal;
+  return Math.min(Math.floor(n), 500);
+}
+
 export function setupTerminal(): void {
   terminalWss.on('connection', (ws: WebSocket, _req: any, _user: any, sessionId: string) => {
     // Determine workspace directory for this session
@@ -23,7 +43,7 @@ export function setupTerminal(): void {
       cols: 80,
       rows: 24,
       cwd,
-      env: process.env as Record<string, string>,
+      env: buildCleanEnv(),
     });
 
     ptyProc.onData((data) => {
@@ -44,7 +64,9 @@ export function setupTerminal(): void {
         if (msg.type === 'input') {
           ptyProc.write(msg.data);
         } else if (msg.type === 'resize') {
-          ptyProc.resize(msg.cols, msg.rows);
+          const cols = clampDim(msg.cols, 80);
+          const rows = clampDim(msg.rows, 24);
+          ptyProc.resize(cols, rows);
         }
       } catch {
         // raw input (not JSON) — treat as direct input

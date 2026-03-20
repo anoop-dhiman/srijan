@@ -8,6 +8,18 @@ const __dirname = dirname(__filename);
 
 let db: Database.Database;
 
+function tryMigrate(sql: string): void {
+  try {
+    db.exec(sql);
+  } catch (err: any) {
+    // "duplicate column name" means the migration already ran — ignore it silently.
+    // Any other error is unexpected and should be logged.
+    if (!err.message?.includes('duplicate column name') && !err.message?.includes('already exists')) {
+      console.error(`[db] Migration warning: ${err.message}\n  SQL: ${sql.trim()}`);
+    }
+  }
+}
+
 export function getDb(): Database.Database {
   if (!db) {
     const dataDir = process.env.SRIJAN_DATA_DIR || join(__dirname, '../../data');
@@ -24,12 +36,12 @@ export function getDb(): Database.Database {
     db.exec(schema);
 
     // Migrations for existing databases
-    try { db.exec(`ALTER TABLE sessions ADD COLUMN workspace_name TEXT`); } catch {}
-    try { db.exec(`ALTER TABLE apps ADD COLUMN workspace_name TEXT`); } catch {}
-    try { db.exec(`ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'admin'`); } catch {}
-    try { db.exec(`ALTER TABLE users ADD COLUMN totp_secret TEXT`); } catch {}
-    try { db.exec(`ALTER TABLE users ADD COLUMN totp_enabled INTEGER NOT NULL DEFAULT 0`); } catch {}
-    try { db.exec(`CREATE TABLE IF NOT EXISTS git_credentials (id TEXT PRIMARY KEY, workspace_name TEXT UNIQUE NOT NULL, provider TEXT NOT NULL DEFAULT 'generic', username TEXT NOT NULL DEFAULT '', encrypted_token TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')))`); } catch {}
+    tryMigrate(`ALTER TABLE sessions ADD COLUMN workspace_name TEXT`);
+    tryMigrate(`ALTER TABLE apps ADD COLUMN workspace_name TEXT`);
+    tryMigrate(`ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'admin'`);
+    tryMigrate(`ALTER TABLE users ADD COLUMN totp_secret TEXT`);
+    tryMigrate(`ALTER TABLE users ADD COLUMN totp_enabled INTEGER NOT NULL DEFAULT 0`);
+    tryMigrate(`CREATE TABLE IF NOT EXISTS git_credentials (id TEXT PRIMARY KEY, workspace_name TEXT UNIQUE NOT NULL, provider TEXT NOT NULL DEFAULT 'generic', username TEXT NOT NULL DEFAULT '', encrypted_token TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')))`);
   }
   return db;
 }

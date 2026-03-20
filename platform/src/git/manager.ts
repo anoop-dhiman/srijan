@@ -5,6 +5,20 @@ import { join } from 'path';
 import { buildAuthUrl, stripAuthFromUrl, type GitCredentials } from '../lib/gitAuth.js';
 
 const WORKSPACE_ROOT = process.env.WORKSPACE_ROOT || '/workspaces';
+const SAFE_NAME_RE = /^[a-zA-Z0-9_-]+$/;
+
+export function validateWorkspaceName(name: string): void {
+  if (!SAFE_NAME_RE.test(name)) {
+    throw new Error(`Invalid workspace name: "${name}". Only alphanumeric, hyphen, and underscore characters are allowed.`);
+  }
+}
+
+/** Strip embedded credentials (user:pass@) from URLs in error messages. */
+function sanitizeError(err: unknown): Error {
+  const msg = err instanceof Error ? err.message : String(err);
+  const sanitized = msg.replace(/[^/\s]*:[^@/\s]*@/g, '<redacted>@');
+  return new Error(sanitized);
+}
 
 export function getWorkspaceRoot(): string {
   if (!existsSync(WORKSPACE_ROOT)) {
@@ -14,6 +28,7 @@ export function getWorkspaceRoot(): string {
 }
 
 export function getGit(repoName: string): SimpleGit {
+  validateWorkspaceName(repoName);
   const repoPath = join(getWorkspaceRoot(), repoName);
   if (!existsSync(repoPath)) {
     mkdirSync(repoPath, { recursive: true });
@@ -22,6 +37,7 @@ export function getGit(repoName: string): SimpleGit {
 }
 
 export async function cloneRepo(url: string, name: string, creds?: GitCredentials): Promise<string> {
+  validateWorkspaceName(name);
   const targetPath = join(getWorkspaceRoot(), name);
   if (existsSync(join(targetPath, '.git'))) {
     await pullRepo(name, creds);
@@ -30,7 +46,11 @@ export async function cloneRepo(url: string, name: string, creds?: GitCredential
 
   const cleanUrl = stripAuthFromUrl(url);
   const cloneUrl = creds ? buildAuthUrl(cleanUrl, creds.username, creds.token) : cleanUrl;
-  await simpleGit().env({ GIT_TERMINAL_PROMPT: '0' }).clone(cloneUrl, targetPath);
+  try {
+    await simpleGit().env({ GIT_TERMINAL_PROMPT: '0' }).clone(cloneUrl, targetPath);
+  } catch (err) {
+    throw sanitizeError(err);
+  }
 
   // Always store the clean URL (no credentials) in .git/config
   if (creds) {
@@ -82,11 +102,17 @@ export async function pushRepo(name: string, creds?: GitCredentials): Promise<vo
     await git.remote(['set-url', 'origin', authUrl]);
     try {
       await git.push(['-u', 'origin', 'HEAD']);
+    } catch (err) {
+      throw sanitizeError(err);
     } finally {
       await git.remote(['set-url', 'origin', cleanUrl]);
     }
   } else {
-    await git.push(['-u', 'origin', 'HEAD']);
+    try {
+      await git.push(['-u', 'origin', 'HEAD']);
+    } catch (err) {
+      throw sanitizeError(err);
+    }
   }
 }
 
@@ -107,11 +133,17 @@ export async function pullRepo(name: string, creds?: GitCredentials): Promise<{ 
     try {
       const result = await git.pull();
       return { summary: result.summary };
+    } catch (err) {
+      throw sanitizeError(err);
     } finally {
       await git.remote(['set-url', 'origin', cleanUrl]);
     }
   } else {
-    const result = await git.pull();
-    return { summary: result.summary };
+    try {
+      const result = await git.pull();
+      return { summary: result.summary };
+    } catch (err) {
+      throw sanitizeError(err);
+    }
   }
 }

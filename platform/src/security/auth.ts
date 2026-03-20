@@ -5,9 +5,41 @@ import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '../db/store.js';
 import * as OTPAuth from 'otpauth';
 
-const JWT_SECRET = process.env.SRIJAN_JWT_SECRET || 'srijan-dev-secret-change-me';
+const DEFAULT_JWT_SECRET = 'srijan-dev-secret-change-me';
+const JWT_SECRET = process.env.SRIJAN_JWT_SECRET || DEFAULT_JWT_SECRET;
 const JWT_EXPIRY = '24h';
 const CHALLENGE_EXPIRY = '15m';
+
+// In-memory login rate limiting: track failed attempts per username
+const loginAttempts = new Map<string, { count: number; resetAt: number }>();
+const MAX_ATTEMPTS = 10;
+const WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+
+function checkRateLimit(username: string): boolean {
+  const now = Date.now();
+  const entry = loginAttempts.get(username);
+  if (!entry || now > entry.resetAt) {
+    loginAttempts.set(username, { count: 1, resetAt: now + WINDOW_MS });
+    return true;
+  }
+  if (entry.count >= MAX_ATTEMPTS) return false;
+  entry.count++;
+  return true;
+}
+
+function clearRateLimit(username: string): void {
+  loginAttempts.delete(username);
+}
+
+/** Call at startup — logs a critical warning if the default JWT secret is in use. */
+export function checkSecretSecurity(): void {
+  if (JWT_SECRET === DEFAULT_JWT_SECRET) {
+    console.error(
+      '[SECURITY WARNING] SRIJAN_JWT_SECRET is not set or uses the default value. ' +
+      'This is insecure. Set a strong secret in production.'
+    );
+  }
+}
 
 export interface JwtPayload {
   userId: string;
@@ -39,7 +71,9 @@ export type LoginResult =
   | { requires_totp: true; challenge_token: string }
   | null;
 
-export function login(username: string, password: string): LoginResult {
+export function login(username: string, password: string): LoginResult | 'rate_limited' {
+  if (!checkRateLimit(username)) return 'rate_limited';
+
   const db = getDb();
   const user = db
     .prepare('SELECT id, username, password_hash, role, totp_enabled, totp_secret FROM users WHERE username = ?')
@@ -55,6 +89,7 @@ export function login(username: string, password: string): LoginResult {
   if (!user || !bcrypt.compareSync(password, user.password_hash)) {
     return null;
   }
+  clearRateLimit(username);
 
   if (user.totp_enabled && user.totp_secret) {
     const challengeToken = jwt.sign(
@@ -125,6 +160,8 @@ export function generateTotpSecret(username: string): { secret: string; uri: str
 }
 
 export function verifyTotpCode(secret: string, code: string): boolean {
+  // Validate: must be exactly 6 digits
+  if (!/^\d{6}$/.test(code)) return false;
   try {
     const totp = new OTPAuth.TOTP({
       algorithm: 'SHA1',

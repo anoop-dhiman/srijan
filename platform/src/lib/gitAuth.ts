@@ -37,17 +37,31 @@ export function stripAuthFromUrl(url: string): string {
   }
 }
 
+const SAFE_NAME_RE = /^[a-zA-Z0-9_-]+$/;
+
+function validateName(name: string): void {
+  if (!SAFE_NAME_RE.test(name)) {
+    throw new Error(`Invalid workspace name: "${name}"`);
+  }
+}
+
 export function getWorkspaceCredentials(workspaceName: string): GitCredentials | null {
+  validateName(workspaceName);
   const db = getDb();
   const row = db.prepare(
     'SELECT provider, username, encrypted_token FROM git_credentials WHERE workspace_name = ?'
   ).get(workspaceName) as { provider: GitProvider; username: string; encrypted_token: string } | undefined;
   if (!row) return null;
-  return {
-    provider: row.provider,
-    username: row.username,
-    token: decrypt(row.encrypted_token),
-  };
+  try {
+    return {
+      provider: row.provider,
+      username: row.username,
+      token: decrypt(row.encrypted_token),
+    };
+  } catch {
+    console.warn(`[gitAuth] Failed to decrypt credentials for workspace "${workspaceName}" — skipping`);
+    return null;
+  }
 }
 
 export function saveWorkspaceCredentials(
@@ -56,6 +70,7 @@ export function saveWorkspaceCredentials(
   username: string,
   token: string
 ): void {
+  validateName(workspaceName);
   const db = getDb();
   const encrypted = encrypt(token);
   const existing = db.prepare('SELECT id FROM git_credentials WHERE workspace_name = ?').get(workspaceName);
@@ -71,5 +86,6 @@ export function saveWorkspaceCredentials(
 }
 
 export function deleteWorkspaceCredentials(workspaceName: string): void {
+  validateName(workspaceName);
   getDb().prepare('DELETE FROM git_credentials WHERE workspace_name = ?').run(workspaceName);
 }

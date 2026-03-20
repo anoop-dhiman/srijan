@@ -8,7 +8,7 @@ import { existsSync, mkdirSync } from 'fs';
 import { parse } from 'url';
 
 import { getDb, closeDb } from './db/store.js';
-import { setupAdmin, verifyToken } from './security/auth.js';
+import { setupAdmin, verifyToken, checkSecretSecurity } from './security/auth.js';
 import { setupWebSocket, chatWss } from './routes/chat.js';
 import { setupTerminal, terminalWss } from './routes/terminal.js';
 import authRouter from './routes/auth.js';
@@ -37,7 +37,23 @@ if (!existsSync(dataDir)) {
 
 const app = express();
 
-app.use(cors());
+// CORS: restrict to explicitly allowed origins
+const allowedOrigins = (process.env.SRIJAN_ORIGIN || '')
+  .split(',')
+  .map(o => o.trim())
+  .filter(Boolean);
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no Origin header (same-origin / server-to-server)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    callback(new Error('CORS: origin not allowed'));
+  },
+  credentials: true,
+}));
 app.use(express.json());
 
 // API routes
@@ -58,6 +74,13 @@ app.get('/health', (_req, res) => {
   res.json({ status: 'ok', version: '0.1.0' });
 });
 
+// Global error handler — ensure all unhandled errors return JSON
+app.use((err: any, _req: any, res: any, _next: any) => {
+  console.error('[server] Unhandled error:', err);
+  const status = err.status || err.statusCode || 500;
+  res.status(status).json({ error: { code: 'INTERNAL_ERROR', message: err.message || 'Internal server error' } });
+});
+
 // Serve frontend static files (after build)
 const webDist = join(__dirname, '../web/dist');
 if (existsSync(webDist)) {
@@ -68,6 +91,7 @@ if (existsSync(webDist)) {
 }
 
 // Initialize
+checkSecretSecurity();
 const db = getDb();
 setupAdmin(ADMIN_PASSWORD);
 

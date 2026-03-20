@@ -54,10 +54,18 @@ export function getSessionEvents(sessionId: string): AgentEvent[] {
   const rows = db.prepare(
     'SELECT * FROM events WHERE session_id = ? ORDER BY id ASC'
   ).all(sessionId) as any[];
-  return rows.map((row) => ({
-    ...row,
-    data: typeof row.data === 'string' ? JSON.parse(row.data) : row.data,
-  })) as AgentEvent[];
+  return rows.flatMap((row) => {
+    let data: any = row.data;
+    if (typeof row.data === 'string') {
+      try {
+        data = JSON.parse(row.data);
+      } catch {
+        console.warn(`[session] Skipping corrupt event id=${row.id}: invalid JSON`);
+        return [];
+      }
+    }
+    return [{ ...row, data }];
+  }) as AgentEvent[];
 }
 
 export function getSessionsByWorkspace(name: string): { id: string }[] {

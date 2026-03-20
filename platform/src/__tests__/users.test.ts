@@ -21,12 +21,12 @@ describe('Users API', () => {
 
   beforeAll(async () => {
     getDb();
-    setupAdmin('testpass');
+    setupAdmin('testpass1');
     app = createApp();
 
     const res = await request(app)
       .post('/api/auth/login')
-      .send({ username: 'admin', password: 'testpass' });
+      .send({ username: 'admin', password: 'testpass1' });
     adminToken = res.body.token;
     const payload = JSON.parse(Buffer.from(adminToken.split('.')[1], 'base64').toString());
     adminId = payload.userId;
@@ -66,7 +66,7 @@ describe('Users API', () => {
       const res = await request(app)
         .post('/api/users')
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ username, password: 'pass123', role: 'user' });
+        .send({ username, password: 'password123', role: 'user' });
       expect(res.status).toBe(201);
       expect(res.body.id).toBeDefined();
     });
@@ -83,7 +83,15 @@ describe('Users API', () => {
       const res = await request(app)
         .post('/api/users')
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ username: 'foo', password: 'bar', role: 'superuser' });
+        .send({ username: 'foo', password: 'password!', role: 'superuser' });
+      expect(res.status).toBe(400);
+    });
+
+    it('rejects short password', async () => {
+      const res = await request(app)
+        .post('/api/users')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ username: 'shortpwduser', password: 'short', role: 'user' });
       expect(res.status).toBe(400);
     });
 
@@ -92,13 +100,13 @@ describe('Users API', () => {
       await request(app)
         .post('/api/users')
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ username, password: 'pass', role: 'user' })
+        .send({ username, password: 'password!', role: 'user' })
         .expect(201);
 
       const res = await request(app)
         .post('/api/users')
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ username, password: 'pass2', role: 'user' });
+        .send({ username, password: 'password2!', role: 'user' });
       expect(res.status).toBe(409);
     });
   });
@@ -109,7 +117,7 @@ describe('Users API', () => {
       const createRes = await request(app)
         .post('/api/users')
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ username, password: 'pass', role: 'user' });
+        .send({ username, password: 'password!', role: 'user' });
       const newId = createRes.body.id;
 
       const res = await request(app)
@@ -133,14 +141,29 @@ describe('Users API', () => {
       const createRes = await request(app)
         .post('/api/users')
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ username, password: 'oldpass', role: 'user' });
+        .send({ username, password: 'oldpasswd1', role: 'user' });
       const newId = createRes.body.id;
 
       const res = await request(app)
         .put(`/api/users/${newId}/password`)
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ password: 'newpass' });
+        .send({ password: 'newpasswd1' });
       expect(res.status).toBe(200);
+    });
+
+    it('rejects short new password', async () => {
+      const username = 'pwdshort-' + Date.now();
+      const createRes = await request(app)
+        .post('/api/users')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ username, password: 'validpass1', role: 'user' });
+      const newId = createRes.body.id;
+
+      const res = await request(app)
+        .put(`/api/users/${newId}/password`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ password: 'short' });
+      expect(res.status).toBe(400);
     });
 
     it('non-admin cannot change another user password', async () => {
@@ -148,20 +171,20 @@ describe('Users API', () => {
       const createRes = await request(app)
         .post('/api/users')
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ username, password: 'pass', role: 'user' });
+        .send({ username, password: 'password!1', role: 'user' });
       const newId = createRes.body.id;
 
       // Login as the new user
       const loginRes = await request(app)
         .post('/api/auth/login')
-        .send({ username, password: 'pass' });
+        .send({ username, password: 'password!1' });
       const userToken = loginRes.body.token;
 
       // Try to change admin's password
       const res = await request(app)
         .put(`/api/users/${adminId}/password`)
         .set('Authorization', `Bearer ${userToken}`)
-        .send({ password: 'hacked' });
+        .send({ password: 'hacked-pw!' });
       expect(res.status).toBe(403);
     });
 
@@ -170,18 +193,18 @@ describe('Users API', () => {
       const createRes = await request(app)
         .post('/api/users')
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ username, password: 'pass', role: 'user' });
+        .send({ username, password: 'password!1', role: 'user' });
       const newId = createRes.body.id;
 
       const loginRes = await request(app)
         .post('/api/auth/login')
-        .send({ username, password: 'pass' });
+        .send({ username, password: 'password!1' });
       const userToken = loginRes.body.token;
 
       const res = await request(app)
         .put(`/api/users/${newId}/password`)
         .set('Authorization', `Bearer ${userToken}`)
-        .send({ password: 'newpass' });
+        .send({ password: 'newpasswd1' });
       expect(res.status).toBe(200);
     });
   });
@@ -194,11 +217,11 @@ describe('Users API', () => {
       await request(app)
         .post('/api/users')
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ username, password: 'pass', role: 'user' });
+        .send({ username, password: 'password!1', role: 'user' });
 
       const loginRes = await request(app)
         .post('/api/auth/login')
-        .send({ username, password: 'pass' });
+        .send({ username, password: 'password!1' });
       userToken = loginRes.body.token;
     });
 
@@ -213,7 +236,7 @@ describe('Users API', () => {
       const res = await request(app)
         .post('/api/users')
         .set('Authorization', `Bearer ${userToken}`)
-        .send({ username: 'newuser', password: 'pass', role: 'user' });
+        .send({ username: 'newuser', password: 'password!', role: 'user' });
       expect(res.status).toBe(403);
     });
 

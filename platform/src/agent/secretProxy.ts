@@ -8,6 +8,8 @@ export interface SecretProxy {
 
 export type SecretMap = Record<string, string>; // placeholder → realValue
 
+const MAX_BODY_SIZE = 10 * 1024 * 1024; // 10 MB
+
 function substituteSecrets(text: string, map: SecretMap): string {
   let result = text;
   for (const [placeholder, real] of Object.entries(map)) {
@@ -37,14 +39,29 @@ export async function startSecretProxy(secrets: SecretMap): Promise<SecretProxy>
     delete (options.headers as any)['proxy-connection'];
 
     const chunks: Buffer[] = [];
-    req.on('data', (chunk: Buffer) => chunks.push(chunk));
+    let bodySize = 0;
+
+    req.on('data', (chunk: Buffer) => {
+      bodySize += chunk.length;
+      if (bodySize > MAX_BODY_SIZE) {
+        req.destroy();
+        if (!res.headersSent) res.writeHead(413);
+        res.end('Request body too large');
+        return;
+      }
+      chunks.push(chunk);
+    });
+
     req.on('end', () => {
+      if (res.writableEnded) return;
       const bodyText = Buffer.concat(chunks).toString('utf-8');
       const substitutedBody = substituteSecrets(bodyText, secrets);
       const bodyBuf = Buffer.from(substitutedBody, 'utf-8');
 
-      if (options.headers && options.headers['content-length'] !== undefined) {
-        (options.headers as Record<string, string>)['content-length'] = String(bodyBuf.length);
+      // Update Content-Length (case-insensitive lookup)
+      const clKey = Object.keys(options.headers!).find(k => k.toLowerCase() === 'content-length');
+      if (clKey !== undefined) {
+        (options.headers as Record<string, string>)[clKey] = String(bodyBuf.length);
       }
 
       const proxyReq = http.request(options, (proxyRes) => {
@@ -53,8 +70,9 @@ export async function startSecretProxy(secrets: SecretMap): Promise<SecretProxy>
       });
 
       proxyReq.on('error', (err) => {
+        console.error(`[secretProxy] upstream error: ${err.message}`);
         if (!res.headersSent) res.writeHead(502);
-        res.end(`Proxy error: ${err.message}`);
+        res.end('Proxy error');
       });
 
       proxyReq.end(bodyBuf);
@@ -72,7 +90,8 @@ export async function startSecretProxy(secrets: SecretMap): Promise<SecretProxy>
       clientSocket.pipe(serverSocket);
     });
 
-    serverSocket.on('error', () => {
+    serverSocket.on('error', (err) => {
+      console.error(`[secretProxy] CONNECT server socket error: ${err.message}`);
       clientSocket.destroy();
     });
     clientSocket.on('error', () => {

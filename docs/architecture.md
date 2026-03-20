@@ -1,6 +1,6 @@
 # Srijan - Architecture Design
 
-> Version: 0.8.0
+> Version: 0.9.0
 > Date: 2026-03-20
 > Status: Current
 
@@ -15,7 +15,7 @@ Srijan is a self-hosted cloud AI development environment that runs on a single V
 1. **Simple deployment** -- single shell script to set up on any VM
 2. **Mobile-first UI** -- responsive web chat that works on phones
 3. **Agent autonomy** -- agent can build, deploy, and route apps independently
-4. **Security by default** -- secrets never exposed to agent sandbox
+4. **Security by default** -- secrets never exposed to agent sandbox; authenticated encryption; CORS origin allowlist; rate-limited login
 5. **Lightweight** -- runs on a single VM (2-4 vCPU, 4-8GB RAM)
 6. **Pluggable agents** -- support Claude Code, OpenCode, Codex, etc.
 
@@ -126,14 +126,14 @@ Platform Container (:8080)
 |   +-- Add/remove routes via Caddy Admin API (:2019)
 |   +-- Track app -> port mappings
 |
-+-- State Store (SQLite)
++-- State Store (SQLite + WAL mode)
     +-- users             (id, username, password_hash, role, totp_secret, totp_enabled)
-    +-- sessions          (id, user_id, workspace_name, created_at, updated_at)
-    +-- events            (id, session_id, type, data JSON, created_at)
+    +-- sessions          (id, user_id, workspace_name, created_at, updated_at)  [idx: user_id, workspace_name]
+    +-- events            (id, session_id, type, data JSON, created_at)  [idx: session_id]
     +-- secrets           (id, name, encrypted_value, created_at)
     +-- apps              (id, name, workspace_name, port, path, container_id)
     +-- config            (key, value)
-    +-- token_usage       (id, session_id, input_tokens, output_tokens, cost_usd, created_at)
+    +-- token_usage       (id, session_id, input_tokens, output_tokens, cost_usd, created_at)  [idx: session_id]
     +-- git_credentials   (id, workspace_name UNIQUE, provider, username, encrypted_token, created_at, updated_at)
 ```
 
@@ -263,8 +263,8 @@ Agent:
 |  +----------------------------+              |
 |                                              |
 |  Real keys stored in:                        |
-|  /opt/srijan/secrets.enc (AES-256)       |
-|  Only Secret Proxy process can read          |
+|  SQLite (AES-256-GCM encrypted, auth tag) |
+|  Only Secret Proxy process can decrypt       |
 +----------------------------------------------+
 ```
 
@@ -288,9 +288,11 @@ Allowed Docker operations:
 ```
 Browser -> Caddy (HTTPS, auto-TLS) -> Platform API
                               |
-                              +-- Password auth (bcrypt hash)
+                              +-- Username + password auth (bcrypt hash)
+                              +-- Login rate limiting (10 attempts / 15 min per username)
                               +-- JWT session token (24h expiry)
-                              +-- Optional: TOTP 2FA (v2)
+                              +-- Optional: TOTP 2FA (enable/disable via Settings)
+                              +-- CORS origin allowlist (SRIJAN_ORIGIN env var)
 ```
 
 ---
@@ -648,7 +650,7 @@ Srijan/
 |   |   +-- git/
 |   |   |   +-- manager.ts       # Git ops (simple-git); cloneRepo, setRemote, commitAll, pushRepo, pullRepo, deleteWorkspace — all auth-aware
 |   |   +-- lib/
-|   |   |   +-- crypto.ts        # AES-256-CBC encrypt/decrypt
+|   |   |   +-- crypto.ts        # AES-256-GCM encrypt/decrypt (v2); backward-compat CBC (v1)
 |   |   |   +-- gitAuth.ts       # detectProvider, buildAuthUrl, stripAuthFromUrl, credential DB CRUD
 |   |   |   +-- secretProxy.ts   # HTTP+CONNECT proxy; substitutes secret placeholders per agent spawn
 |   |   +-- db/
@@ -758,7 +760,42 @@ Srijan/
 - [x] Auth fields in Link Git Remote panel (atomically sets remote + credentials)
 - [x] Auth edit/remove panel on workspace cards with existing remotes
 
-### Phase 8+ (Planned)
+### Phase 9: Security Hardening (v0.9) — DONE
+- [x] AES-256-GCM authenticated encryption (upgrade from CBC; backward-compatible v1 format still decrypts)
+- [x] JWT secret startup check (logs critical warning if default secret is in use)
+- [x] Login rate limiting (10 attempts / 15 min per username, in-memory)
+- [x] TOTP input validated as exactly 6 digits before OTPAuth call
+- [x] CORS origin allowlist (`SRIJAN_ORIGIN` env var; empty = allow same-origin only)
+- [x] Caddy security headers: CSP, X-Frame-Options, HSTS, X-Content-Type-Options, Referrer-Policy; HTTP→HTTPS redirect
+- [x] Docker Compose: resource limits (`mem_limit`/`cpus`), structured logging, required secrets use `:?` syntax
+- [x] `requireAdmin` on all config `PUT` routes + config key allowlist
+- [x] `requireAdmin` on secrets POST/DELETE
+- [x] Secret name validation (alphanumeric + underscore, max 64 chars)
+- [x] App name validation + port range check (1–65535); Caddy-first insert ordering (rollback on failure)
+- [x] Username format validation + minimum 8-char password on create/change
+- [x] Agent blocklist: case-insensitive normalization (catches `RM -RF /`)
+- [x] Runner cleaned from map on subprocess error
+- [x] Secret proxy: case-insensitive Content-Length; 10 MB body limit; sanitized error logging
+- [x] `getSessionEvents()`: try/catch around JSON.parse — skips corrupt events with warning
+- [x] Workspace name validation (`/^[a-zA-Z0-9_-]+$/`) in git manager, git routes, workspace routes, gitAuth
+- [x] Credentials saved only after successful clone (not before); credential decrypt wrapped in try/catch
+- [x] Git error messages sanitized (strip embedded `user:pass@` credentials)
+- [x] Auth URL restoration guaranteed by `finally` blocks in push/pull
+- [x] Symlink rejection in file browser (`lstatSync().isSymbolicLink()`); path length limit (4096)
+- [x] File write: auto-creates parent dirs; rejects symlinks at target path
+- [x] Terminal PTY spawns with sanitized env (strips `SRIJAN_*`, `ANTHROPIC_*`, `GOOGLE_*`, proxy vars)
+- [x] Terminal resize: cols/rows clamped to 1–500
+- [x] WebSocket: validates `type` field on incoming messages; ownership check on `join_session`; workspace name validated
+- [x] WS reconnect: exponential backoff (3s → 6s → 12s → max 60s)
+- [x] Message IDs use `crypto.randomUUID()` instead of `Date.now()`
+- [x] Login: dynamic username field (replaces hardcoded `'admin'`); HTTP 429 feedback
+- [x] DB indexes: `sessions(user_id)`, `sessions(workspace_name)`, `events(session_id)`, `token_usage(session_id)`
+- [x] Migration logging: unexpected errors logged (not silently swallowed)
+- [x] Caddy client: app name validated; Caddy-down vs. conflict errors distinguished; full body logged on non-2xx
+- [x] Global Express JSON error handler (all unhandled errors return `{ error: { code, message } }`)
+- [x] React `ErrorBoundary` wraps authenticated app content
+
+### Phase 10+ (Planned)
 - [ ] Local model support (Ollama)
 - [ ] GitHub bot (@mention on PRs/issues triggers agent)
 - [ ] Webhook notifications (Slack/Discord)

@@ -221,6 +221,7 @@ export class AgentRunner extends EventEmitter implements IAgentRunner {
 
       proc.on('error', async (err: Error) => {
         this.subprocess = null;
+        runners.delete(this.sessionId);
         await secretProxy.close().catch(() => {});
         const errEvent = createEvent(this.sessionId, 'error', { message: err.message });
         saveEvent(errEvent);
@@ -260,7 +261,11 @@ export class AgentRunner extends EventEmitter implements IAgentRunner {
             // Agent boundary check for Bash commands
             if (block.name === 'Bash') {
               const cmd: string = block.input?.command || '';
-              const blocked = getBoundaryBlocklist().find((p) => cmd.includes(p));
+              // Normalize: lowercase and collapse whitespace for case-insensitive matching
+              const normalizedCmd = cmd.toLowerCase().replace(/\s+/g, ' ');
+              const blocked = getBoundaryBlocklist().find((p) =>
+                normalizedCmd.includes(p.toLowerCase().replace(/\s+/g, ' '))
+              );
               if (blocked) {
                 this.subprocess?.kill('SIGKILL');
                 this.subprocess = null;

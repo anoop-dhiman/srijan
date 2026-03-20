@@ -5,6 +5,12 @@ import { createSession, getSession, listSessions, getSessionEvents, deleteSessio
 import { getOrCreateRunner, getRunner, getApiKey, getModel, getVertexConfig, getLiteLLMConfig } from '../agent/runner.js';
 import { getWorkspaceRoot } from '../git/manager.js';
 
+const SAFE_WORKSPACE_NAME_RE = /^[a-zA-Z0-9_-]+$/;
+
+function isValidWorkspaceName(name: unknown): name is string {
+  return typeof name === 'string' && SAFE_WORKSPACE_NAME_RE.test(name);
+}
+
 export const chatWss = new WebSocketServer({ noServer: true });
 
 // Called by server.ts upgrade dispatcher after auth is verified
@@ -38,6 +44,11 @@ export function setupWebSocket(): void {
       try {
         const msg = JSON.parse(data.toString());
 
+        if (!msg || typeof msg.type !== 'string') {
+          ws.send(JSON.stringify({ type: 'error', data: { message: 'Invalid message: type field required' } }));
+          return;
+        }
+
         switch (msg.type) {
           case 'list_sessions': {
             const sessions = listSessions(user.userId);
@@ -50,6 +61,10 @@ export function setupWebSocket(): void {
               ws.send(JSON.stringify({ type: 'error', data: { message: 'A workspace must be selected before starting a new session.' } }));
               break;
             }
+            if (!isValidWorkspaceName(msg.workspaceName)) {
+              ws.send(JSON.stringify({ type: 'error', data: { message: 'Invalid workspace name' } }));
+              break;
+            }
             const session = createSession(user.userId, msg.title, msg.workspaceName);
             currentSessionId = session.id;
             ws.send(JSON.stringify({ type: 'session_created', data: session }));
@@ -59,7 +74,7 @@ export function setupWebSocket(): void {
 
           case 'join_session': {
             const session = getSession(msg.sessionId);
-            if (!session) {
+            if (!session || session.userId !== user.userId) {
               ws.send(JSON.stringify({ type: 'error', data: { message: 'Session not found' } }));
               break;
             }
@@ -85,6 +100,10 @@ export function setupWebSocket(): void {
           case 'message': {
             if (!currentSessionId && !msg.workspaceName) {
               ws.send(JSON.stringify({ type: 'error', data: { message: 'A workspace must be selected before sending a message.' } }));
+              break;
+            }
+            if (!currentSessionId && !isValidWorkspaceName(msg.workspaceName)) {
+              ws.send(JSON.stringify({ type: 'error', data: { message: 'Invalid workspace name' } }));
               break;
             }
             if (!currentSessionId) {

@@ -12,10 +12,21 @@ import {
 const router = Router();
 router.use(authMiddleware);
 
+const VALID_PROVIDERS: GitProvider[] = ['github', 'azure', 'generic'];
+const GIT_URL_RE = /^(https?:\/\/|git@)/i;
+
+function isValidGitUrl(url: string): boolean {
+  return GIT_URL_RE.test(url);
+}
+
 router.post('/clone', async (req: Request, res: Response) => {
   const { url, name } = req.body;
   if (!url || !name) {
     res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'url and name required' } });
+    return;
+  }
+  if (!isValidGitUrl(url)) {
+    res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'Invalid git URL format' } });
     return;
   }
   try {
@@ -109,9 +120,8 @@ router.post('/:name/credentials', (req: Request, res: Response) => {
     return;
   }
   try {
-    const resolvedProvider: GitProvider = (['github', 'azure', 'generic'].includes(provider)
-      ? provider
-      : 'generic') as GitProvider;
+    // Normalize unknown providers to 'generic'
+    const resolvedProvider: GitProvider = (VALID_PROVIDERS.includes(provider) ? provider : 'generic') as GitProvider;
     saveWorkspaceCredentials(req.params.name, resolvedProvider, username || '', token);
     res.json({ ok: true, provider: resolvedProvider });
   } catch (err: any) {

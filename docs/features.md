@@ -15,7 +15,7 @@
 | 2 | Agent Backend | Claude Code CLI subprocess with stream-json output | **Done** |
 | 3 | Docker Access | Agent can build images, run/stop containers via mounted socket | **Done** |
 | 4 | Caddy Route Management | Auto-configure routes via Caddy Admin API, provide live URLs | **Done** |
-| 5 | Secret Management | Encrypted storage (AES-256), write-once display, CRUD via UI | **Done** |
+| 5 | Secret Management | Encrypted storage (AES-256-GCM), write-once display, CRUD via UI | **Done** |
 | 6 | LLM Config | Anthropic API + Vertex AI provider toggle, model selection via UI | **Done** |
 | 7 | Git Support | Clone, init, pull, status operations via REST API | **Done** |
 | 8 | Shell Script Deploy | `curl \| bash` to set up on any VM with domain + SSL | **Done** |
@@ -112,9 +112,44 @@
 | 56 | Settings agent mode tests | Auto/Confirm toggle, Save Agent Settings endpoint, system prompt textarea, blocklist textarea | **Done** |
 | 57 | FileBrowser dirty-cancel tests | Cancel with dirty changes shows confirm dialog; proceed clears edit; decline stays in edit mode | **Done** |
 
-**Test totals: 216 backend (20 files) + 186 frontend (10 files) = 402 tests**
+**Test totals: 218 backend (20 files) + 187 frontend (10 files) = 405 tests**
 
-### Phase 10+ (Planned)
+### Phase 10: Security Hardening — Done
+
+| # | Feature | Description | Status |
+|---|---------|-------------|--------|
+| 58 | AES-256-GCM encryption | Upgraded from CBC to GCM (authenticated); versioned format (`v2:`) with backward-compat CBC decryption | **Done** |
+| 59 | SHA-256 key derivation | Replaced fragile `padEnd(32)` with proper SHA-256 digest for full 256-bit key entropy | **Done** |
+| 60 | Login rate limiting | In-memory per-username rate limit (10 attempts / 15 min); 429 response with error code | **Done** |
+| 61 | TOTP digit validation | Validates 6-digit format before calling OTPAuth library | **Done** |
+| 62 | CORS origin allowlist | `SRIJAN_ORIGIN` env var restricts allowed origins; required secrets validated at startup | **Done** |
+| 63 | Caddy security headers | HTTP→HTTPS redirect, CSP, HSTS, X-Frame-Options, X-Content-Type-Options on HTTPS vhost | **Done** |
+| 64 | Docker resource limits | `mem_limit: 1G`, `cpus: "2.0"`, structured JSON logging with size rotation in docker-compose | **Done** |
+| 65 | Config key allowlist | `PUT /api/config/:key` restricted to `WRITABLE_KEYS` set; rejects unknown keys with 400 | **Done** |
+| 66 | Secrets admin-only | `POST/DELETE /api/secrets` require `requireAdmin`; secret names validated (`/^[a-zA-Z0-9_]{1,64}$/`) | **Done** |
+| 67 | Apps: Caddy-first insert | Caddy route registered first; DB insert rolled back (Caddy route removed) on failure | **Done** |
+| 68 | Password minimum length | API enforces 8+ character minimum on user creation and password change | **Done** |
+| 69 | Username format validation | Usernames validated against `/^[a-zA-Z0-9_-]{1,64}$/` at API layer | **Done** |
+| 70 | Blocklist normalization | Agent boundaries checked case-insensitively (lowercase + collapse whitespace) | **Done** |
+| 71 | Secret proxy hardening | Case-insensitive Content-Length header lookup; 10 MB body size limit; sanitized error logging | **Done** |
+| 72 | Corrupt event skipping | `getSessionEvents()` wraps `JSON.parse` in try/catch; skips corrupt events with a warning | **Done** |
+| 73 | Workspace name validation | `/^[a-zA-Z0-9_-]+$/` enforced in git manager, gitAuth, workspaces route, and chat route | **Done** |
+| 74 | Git error sanitization | `sanitizeError()` strips `user:pass@` from git error messages before HTTP responses | **Done** |
+| 75 | Credentials after clone | `saveWorkspaceCredentials` called only after successful clone (no orphaned DB records) | **Done** |
+| 76 | Symlink traversal rejection | File browser rejects symlinks via `lstatSync().isSymbolicLink()` with 403 | **Done** |
+| 77 | Terminal env sanitization | PTY spawned with stripped env (`SRIJAN_*`, `ANTHROPIC_*`, `GOOGLE_*`, `HTTP_PROXY`, etc.) | **Done** |
+| 78 | Terminal resize clamping | `cols`/`rows` clamped to 1–500; invalid values use defaults | **Done** |
+| 79 | WS message validation | `type` field required and string-typed; ownership check on `join_session` | **Done** |
+| 80 | Exponential backoff reconnect | WS reconnect uses 3s→6s→12s→max 60s backoff; attempt counter reset on successful open | **Done** |
+| 81 | UUID message IDs | `crypto.randomUUID()` replaces `Date.now()` for collision-free message keys | **Done** |
+| 82 | Dynamic username login | Login form uses a text input for username (multi-user support); 429 feedback on rate limit | **Done** |
+| 83 | DB performance indexes | Indexes on `sessions(user_id)`, `sessions(workspace_name)`, `events(session_id)`, `token_usage(session_id)` | **Done** |
+| 84 | Migration error logging | `tryMigrate()` logs unexpected errors; silently ignores expected `duplicate column` / `already exists` | **Done** |
+| 85 | Global JSON error handler | Express 4-param error handler ensures all unhandled errors return `{ error: { code, message } }` JSON | **Done** |
+| 86 | React ErrorBoundary | `ErrorBoundary` class component wraps authenticated app content; shows reload button on crash | **Done** |
+| 87 | UNIQUE constraint detection | `err.code === 'SQLITE_CONSTRAINT_UNIQUE'` replaces fragile message substring checks in secrets, users, apps | **Done** |
+
+### Phase 11+ (Planned)
 
 | # | Feature | Description | Source Inspiration |
 |---|---------|-------------|-------------------|

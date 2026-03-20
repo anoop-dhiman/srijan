@@ -4,6 +4,9 @@ import { authMiddleware, requireAdmin, createUser, deleteUser, changePassword, l
 const router = Router();
 router.use(authMiddleware);
 
+const USERNAME_RE = /^[a-zA-Z0-9_-]{1,64}$/;
+const MIN_PASSWORD_LENGTH = 8;
+
 router.get('/', requireAdmin, (_req: Request, res: Response) => {
   res.json(listUsers());
 });
@@ -14,6 +17,14 @@ router.post('/', requireAdmin, (req: Request, res: Response) => {
     res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'username, password, and role are required' } });
     return;
   }
+  if (!USERNAME_RE.test(username)) {
+    res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'username must be 1–64 alphanumeric/hyphen/underscore characters' } });
+    return;
+  }
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    res.status(400).json({ error: { code: 'BAD_REQUEST', message: `Password must be at least ${MIN_PASSWORD_LENGTH} characters` } });
+    return;
+  }
   if (!['admin', 'user'].includes(role)) {
     res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'role must be admin or user' } });
     return;
@@ -22,7 +33,7 @@ router.post('/', requireAdmin, (req: Request, res: Response) => {
     const result = createUser(username, password, role);
     res.status(201).json(result);
   } catch (err: any) {
-    if (err.message?.includes('UNIQUE')) {
+    if (err.code === 'SQLITE_CONSTRAINT_UNIQUE' || err.message?.includes('UNIQUE')) {
       res.status(409).json({ error: { code: 'CONFLICT', message: 'Username already exists' } });
       return;
     }
@@ -48,6 +59,11 @@ router.put('/:id/password', (req: Request, res: Response) => {
 
   if (!password) {
     res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'password is required' } });
+    return;
+  }
+
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    res.status(400).json({ error: { code: 'BAD_REQUEST', message: `Password must be at least ${MIN_PASSWORD_LENGTH} characters` } });
     return;
   }
 

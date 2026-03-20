@@ -18,6 +18,16 @@ services:
       - ACME_EMAIL=${ACME_EMAIL:-}
     networks:
       - srijan
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 128M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   platform:
     image: srijan/platform:latest
@@ -26,17 +36,22 @@ services:
     expose:
       - "8080"
     volumes:
+      # WARNING: Mounting the Docker socket grants the container full control over the
+      # Docker daemon (equivalent to root on the host). This is required for Srijan to
+      # manage user app containers. Restrict access using a Docker socket proxy in
+      # high-security deployments (e.g. Tecnativa/docker-socket-proxy).
       - /var/run/docker.sock:/var/run/docker.sock
       - srijan_workspaces:/workspaces
       - srijan_data:/data
     environment:
       - PORT=8080
-      - SRIJAN_ADMIN_PASSWORD=${SRIJAN_ADMIN_PASSWORD:-admin}
-      - SRIJAN_JWT_SECRET=${SRIJAN_JWT_SECRET}
-      - SRIJAN_SECRETS_KEY=${SRIJAN_SECRETS_KEY}
+      - SRIJAN_ADMIN_PASSWORD=${SRIJAN_ADMIN_PASSWORD:?SRIJAN_ADMIN_PASSWORD is required}
+      - SRIJAN_JWT_SECRET=${SRIJAN_JWT_SECRET:?SRIJAN_JWT_SECRET is required}
+      - SRIJAN_SECRETS_KEY=${SRIJAN_SECRETS_KEY:?SRIJAN_SECRETS_KEY is required}
       - SRIJAN_DATA_DIR=/data
       - WORKSPACE_ROOT=/workspaces
       - SRIJAN_DOMAIN=${SRIJAN_DOMAIN:-localhost}
+      - SRIJAN_ORIGIN=${SRIJAN_ORIGIN:-}
       - CADDY_ADMIN_URL=http://caddy:2019
     depends_on:
       - caddy
@@ -47,6 +62,16 @@ services:
       retries: 3
     networks:
       - srijan
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 1G
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
 
 volumes:
   caddy_data:

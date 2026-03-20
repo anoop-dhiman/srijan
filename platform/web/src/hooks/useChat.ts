@@ -54,6 +54,15 @@ function formatToolLabel(name: string, input: any): string {
   }
 }
 
+const RECONNECT_BASE_MS = 3000;
+const RECONNECT_MAX_MS = 60000;
+
+function genId(): string {
+  return typeof crypto !== 'undefined' && crypto.randomUUID
+    ? crypto.randomUUID()
+    : Math.random().toString(36).slice(2);
+}
+
 export function useChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -70,6 +79,7 @@ export function useChat() {
   const streamBufferRef = useRef('');
   const currentSessionRef = useRef<Session | null>(null);
   const currentWorkspaceRef = useRef<string | null>(currentWorkspace);
+  const reconnectAttemptRef = useRef(0);
 
   // Keep refs in sync with state
   currentSessionRef.current = currentSession;
@@ -96,6 +106,7 @@ export function useChat() {
 
     ws.onopen = () => {
       setIsConnected(true);
+      reconnectAttemptRef.current = 0;
       ws.send(JSON.stringify({ type: 'list_sessions' }));
       fetchWorkspaces();
     };
@@ -253,7 +264,7 @@ export function useChat() {
                 return [
                   ...prev,
                   {
-                    id: `msg-${Date.now()}`,
+                    id: genId(),
                     role: 'assistant',
                     content: streamBufferRef.current,
                     streaming: true,
@@ -272,7 +283,7 @@ export function useChat() {
                 }
                 if (finalContent) {
                   return [...prev, {
-                    id: `msg-${Date.now()}`,
+                    id: genId(),
                     role: 'assistant' as const,
                     content: finalContent,
                     streaming: false,
@@ -318,7 +329,7 @@ export function useChat() {
             setMessages((prev) => [
               ...prev,
               {
-                id: `err-${Date.now()}`,
+                id: genId(),
                 role: 'system',
                 content: evt.data.message,
                 timestamp: Date.now(),
@@ -332,7 +343,7 @@ export function useChat() {
           setMessages((prev) => [
             ...prev,
             {
-              id: `err-${Date.now()}`,
+              id: genId(),
               role: 'system',
               content: msg.data.message,
               timestamp: Date.now(),
@@ -350,7 +361,9 @@ export function useChat() {
 
     ws.onclose = () => {
       setIsConnected(false);
-      setTimeout(connect, 3000);
+      const attempt = reconnectAttemptRef.current++;
+      const delay = Math.min(RECONNECT_BASE_MS * Math.pow(2, attempt), RECONNECT_MAX_MS);
+      setTimeout(connect, delay);
     };
 
     ws.onerror = () => {
@@ -369,7 +382,7 @@ export function useChat() {
     if (!currentSessionRef.current && !currentWorkspaceRef.current) return;
 
     const userMsg: ChatMessage = {
-      id: `msg-${Date.now()}`,
+      id: genId(),
       role: 'user',
       content,
       timestamp: Date.now(),

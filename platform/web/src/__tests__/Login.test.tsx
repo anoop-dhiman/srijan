@@ -21,20 +21,21 @@ describe('Login', () => {
   it('should render login form', () => {
     render(<Login onLogin={mockOnLogin} />);
     expect(screen.getByText('Srijan')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Username')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Password')).toBeInTheDocument();
     expect(screen.getByText('Sign In')).toBeInTheDocument();
   });
 
-  it('should disable button when password is empty', () => {
+  it('should disable button when fields are empty', () => {
     render(<Login onLogin={mockOnLogin} />);
     const button = screen.getByText('Sign In');
     expect(button).toBeDisabled();
   });
 
-  it('should enable button when password is entered', async () => {
+  it('should enable button when both username and password are entered', async () => {
     render(<Login onLogin={mockOnLogin} />);
-    const input = screen.getByPlaceholderText('Password');
-    await userEvent.type(input, 'admin');
+    await userEvent.type(screen.getByPlaceholderText('Username'), 'admin');
+    await userEvent.type(screen.getByPlaceholderText('Password'), 'secret');
     const button = screen.getByText('Sign In');
     expect(button).not.toBeDisabled();
   });
@@ -43,8 +44,8 @@ describe('Login', () => {
     vi.mocked(apiFetch).mockResolvedValueOnce({ token: 'test-jwt-token' });
 
     render(<Login onLogin={mockOnLogin} />);
-    const input = screen.getByPlaceholderText('Password');
-    await userEvent.type(input, 'admin');
+    await userEvent.type(screen.getByPlaceholderText('Username'), 'admin');
+    await userEvent.type(screen.getByPlaceholderText('Password'), 'admin');
     await userEvent.click(screen.getByText('Sign In'));
 
     await waitFor(() => {
@@ -64,6 +65,7 @@ describe('Login', () => {
     });
 
     render(<Login onLogin={mockOnLogin} />);
+    await userEvent.type(screen.getByPlaceholderText('Username'), 'admin');
     await userEvent.type(screen.getByPlaceholderText('Password'), 'admin');
     await userEvent.click(screen.getByText('Sign In'));
 
@@ -81,6 +83,7 @@ describe('Login', () => {
       .mockResolvedValueOnce({ token: 'full-jwt-token' });
 
     render(<Login onLogin={mockOnLogin} />);
+    await userEvent.type(screen.getByPlaceholderText('Username'), 'admin');
     await userEvent.type(screen.getByPlaceholderText('Password'), 'admin');
     await userEvent.click(screen.getByText('Sign In'));
 
@@ -104,6 +107,7 @@ describe('Login', () => {
       .mockRejectedValueOnce(new Error('Invalid TOTP code'));
 
     render(<Login onLogin={mockOnLogin} />);
+    await userEvent.type(screen.getByPlaceholderText('Username'), 'admin');
     await userEvent.type(screen.getByPlaceholderText('Password'), 'admin');
     await userEvent.click(screen.getByText('Sign In'));
 
@@ -123,6 +127,7 @@ describe('Login', () => {
     });
 
     render(<Login onLogin={mockOnLogin} />);
+    await userEvent.type(screen.getByPlaceholderText('Username'), 'admin');
     await userEvent.type(screen.getByPlaceholderText('Password'), 'admin');
     await userEvent.click(screen.getByText('Sign In'));
 
@@ -137,13 +142,27 @@ describe('Login', () => {
     vi.mocked(apiFetch).mockRejectedValueOnce(new Error('Invalid credentials'));
 
     render(<Login onLogin={mockOnLogin} />);
-    const input = screen.getByPlaceholderText('Password');
-    await userEvent.type(input, 'wrong');
+    await userEvent.type(screen.getByPlaceholderText('Username'), 'admin');
+    await userEvent.type(screen.getByPlaceholderText('Password'), 'wrong');
     await userEvent.click(screen.getByText('Sign In'));
 
     await waitFor(() => {
       expect(screen.getByText('Invalid credentials')).toBeInTheDocument();
     });
     expect(mockOnLogin).not.toHaveBeenCalled();
+  });
+
+  it('should show rate limit message on 429 error', async () => {
+    const err = Object.assign(new Error('Too many attempts'), { status: 429 });
+    vi.mocked(apiFetch).mockRejectedValueOnce(err);
+
+    render(<Login onLogin={mockOnLogin} />);
+    await userEvent.type(screen.getByPlaceholderText('Username'), 'admin');
+    await userEvent.type(screen.getByPlaceholderText('Password'), 'wrong');
+    await userEvent.click(screen.getByText('Sign In'));
+
+    await waitFor(() => {
+      expect(screen.getByText(/too many login attempts/i)).toBeInTheDocument();
+    });
   });
 });

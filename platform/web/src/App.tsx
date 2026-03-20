@@ -1,4 +1,4 @@
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { useState, useEffect, lazy, Suspense, Component, type ReactNode } from 'react';
 import { Sun, Moon } from 'lucide-react';
 import { Login } from './components/Login';
 import { Chat } from './components/Chat';
@@ -8,6 +8,28 @@ import { FileBrowser } from './components/FileBrowser';
 import { SessionRecording } from './components/SessionRecording';
 import { isAuthenticated, logout, apiFetch, getCurrentUser } from './lib/api';
 import { useChat } from './hooks/useChat';
+
+class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
+  state = { error: null };
+  static getDerivedStateFromError(error: Error) { return { error }; }
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="flex flex-col items-center justify-center h-dvh gap-4 p-8 text-center">
+          <h2 className="text-xl font-semibold text-destructive">Something went wrong</h2>
+          <p className="text-muted-foreground text-sm max-w-md">{(this.state.error as Error).message}</p>
+          <button
+            onClick={() => { this.setState({ error: null }); window.location.reload(); }}
+            className="px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 text-sm"
+          >
+            Reload
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 const Terminal = lazy(() => import('./components/Terminal').then((m) => ({ default: m.Terminal })));
 
@@ -152,6 +174,7 @@ function App() {
   };
 
   return (
+    <ErrorBoundary>
     <div className="flex flex-col h-dvh">
       <header className="h-16 flex items-center justify-between px-6 bg-muted border-b-2 border-primary/40 shadow-md shrink-0 z-10">
         <div className="flex items-center gap-5">
@@ -219,6 +242,7 @@ function App() {
         {renderMain()}
       </div>
     </div>
+    </ErrorBoundary>
   );
 }
 
