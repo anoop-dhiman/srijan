@@ -49,6 +49,13 @@ export function getDb(): Database.Database {
     tryMigrate(`CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)`);
     tryMigrate(`CREATE INDEX IF NOT EXISTS idx_secrets_name ON secrets(name)`);
     tryMigrate(`CREATE INDEX IF NOT EXISTS idx_apps_name ON apps(name)`);
+    tryMigrate(`ALTER TABLE users ADD COLUMN spending_limit_usd REAL`);
+    tryMigrate(`ALTER TABLE users ADD COLUMN spending_reset_at TEXT`);
+    tryMigrate(`ALTER TABLE token_usage ADD COLUMN user_id TEXT`);
+    tryMigrate(`ALTER TABLE token_usage ADD COLUMN workspace_name TEXT`);
+    tryMigrate(`CREATE INDEX IF NOT EXISTS idx_token_usage_user_id ON token_usage(user_id)`);
+    tryMigrate(`CREATE INDEX IF NOT EXISTS idx_token_usage_workspace_name ON token_usage(workspace_name)`);
+    tryMigrate(`CREATE TABLE IF NOT EXISTS workspace_spending (workspace_name TEXT PRIMARY KEY, spending_limit_usd REAL, spending_reset_at TEXT)`);
   }
   return db;
 }

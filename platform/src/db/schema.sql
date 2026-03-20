@@ -73,6 +73,12 @@ CREATE TABLE IF NOT EXISTS token_usage (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE TABLE IF NOT EXISTS workspace_spending (
+  workspace_name TEXT PRIMARY KEY,
+  spending_limit_usd REAL,
+  spending_reset_at TEXT
+);
+
 -- Indexes for common query patterns
 CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_workspace_name ON sessions(workspace_name);

@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { authMiddleware, requireAdmin, createUser, deleteUser, changePassword, listUsers } from '../security/auth.js';
+import { getDb } from '../db/store.js';
 
 const router = Router();
 router.use(authMiddleware);
@@ -75,6 +76,23 @@ router.put('/:id/password', (req: Request, res: Response) => {
 
   changePassword(id, password);
   res.json({ ok: true });
+});
+
+router.put('/:id/spending-limit', requireAdmin, (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { spending_limit_usd } = req.body;
+
+  if (spending_limit_usd !== null && spending_limit_usd !== undefined) {
+    if (typeof spending_limit_usd !== 'number' || spending_limit_usd < 0) {
+      res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'spending_limit_usd must be a non-negative number or null' } });
+      return;
+    }
+  }
+
+  const db = getDb();
+  const limit = spending_limit_usd == null ? null : spending_limit_usd;
+  db.prepare('UPDATE users SET spending_limit_usd = ? WHERE id = ?').run(limit, id);
+  res.json({ id, spending_limit_usd: limit });
 });
 
 export default router;

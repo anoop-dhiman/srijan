@@ -209,6 +209,76 @@ describe('Users API', () => {
     });
   });
 
+  describe('PUT /api/users/:id/spending-limit', () => {
+    let targetId: string;
+    let nonAdminToken: string;
+
+    beforeAll(async () => {
+      const username = 'spendlimituser-' + Date.now();
+      const createRes = await request(app)
+        .post('/api/users')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ username, password: 'password!1', role: 'user' });
+      targetId = createRes.body.id;
+
+      const loginRes = await request(app)
+        .post('/api/auth/login')
+        .send({ username, password: 'password!1' });
+      nonAdminToken = loginRes.body.token;
+    });
+
+    it('admin can set spending limit', async () => {
+      const res = await request(app)
+        .put(`/api/users/${targetId}/spending-limit`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ spending_limit_usd: 50 });
+      expect(res.status).toBe(200);
+      expect(res.body.spending_limit_usd).toBe(50);
+    });
+
+    it('admin can reset limit to null', async () => {
+      const res = await request(app)
+        .put(`/api/users/${targetId}/spending-limit`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ spending_limit_usd: null });
+      expect(res.status).toBe(200);
+      expect(res.body.spending_limit_usd).toBeNull();
+    });
+
+    it('non-admin cannot set spending limit', async () => {
+      const res = await request(app)
+        .put(`/api/users/${targetId}/spending-limit`)
+        .set('Authorization', `Bearer ${nonAdminToken}`)
+        .send({ spending_limit_usd: 10 });
+      expect(res.status).toBe(403);
+    });
+
+    it('rejects negative spending limit', async () => {
+      const res = await request(app)
+        .put(`/api/users/${targetId}/spending-limit`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ spending_limit_usd: -1 });
+      expect(res.status).toBe(400);
+    });
+
+    it('rejects non-numeric spending limit', async () => {
+      const res = await request(app)
+        .put(`/api/users/${targetId}/spending-limit`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ spending_limit_usd: 'bad' });
+      expect(res.status).toBe(400);
+    });
+
+    it('allows zero as a limit', async () => {
+      const res = await request(app)
+        .put(`/api/users/${targetId}/spending-limit`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ spending_limit_usd: 0 });
+      expect(res.status).toBe(200);
+      expect(res.body.spending_limit_usd).toBe(0);
+    });
+  });
+
   describe('Non-admin access', () => {
     let userToken: string;
 

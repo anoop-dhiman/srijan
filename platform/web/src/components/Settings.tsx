@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { Eye, EyeOff, Plus, Trash2, Save, RotateCcw, Shield, Lock, Users as UsersIcon, Copy, Check, Bot, Terminal } from 'lucide-react';
+import { Eye, EyeOff, Plus, Trash2, Save, RotateCcw, Shield, Lock, Users as UsersIcon, Copy, Check, Bot, Terminal, DollarSign } from 'lucide-react';
 import { apiFetch } from '../lib/api';
 
 interface SettingsProps {
@@ -22,7 +22,7 @@ interface User {
   createdAt: string;
 }
 
-type SettingsSection = 'ai-provider' | 'agent' | 'security' | 'secrets' | 'users';
+type SettingsSection = 'ai-provider' | 'agent' | 'security' | 'secrets' | 'users' | 'spending';
 
 export function Settings({ open, onClose, isAdmin = false }: SettingsProps) {
   const [provider, setProvider] = useState<'anthropic' | 'vertex' | 'litellm'>('anthropic');
@@ -74,6 +74,15 @@ export function Settings({ open, onClose, isAdmin = false }: SettingsProps) {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState<SettingsSection>('ai-provider');
 
+  // Spending state
+  interface SpendingUser { id: string; username: string; spent_usd: number; limit_usd: number | null; percent: number | null; }
+  interface SpendingWorkspace { workspace_name: string; spent_usd: number; limit_usd: number | null; percent: number | null; }
+  const [spendingUsers, setSpendingUsers] = useState<SpendingUser[]>([]);
+  const [spendingWorkspaces, setSpendingWorkspaces] = useState<SpendingWorkspace[]>([]);
+  const [spendingUserLimits, setSpendingUserLimits] = useState<Record<string, string>>({});
+  const [spendingWsLimits, setSpendingWsLimits] = useState<Record<string, string>>({});
+  const [spendingMessage, setSpendingMessage] = useState('');
+
   useEffect(() => {
     if (!open) return;
     loadConfig();
@@ -81,6 +90,10 @@ export function Settings({ open, onClose, isAdmin = false }: SettingsProps) {
     loadTotpStatus();
     if (isAdmin) loadUsers();
   }, [open, isAdmin]);
+
+  useEffect(() => {
+    if (open && isAdmin && activeSection === 'spending') loadSpending();
+  }, [open, isAdmin, activeSection]);
 
   const loadConfig = async () => {
     try {
@@ -128,6 +141,67 @@ export function Settings({ open, onClose, isAdmin = false }: SettingsProps) {
       const me = await apiFetch('/auth/me');
       setCurrentUserId(me.user?.userId || null);
     } catch {}
+  };
+
+  const loadSpending = async () => {
+    try {
+      const [usersData, wsData] = await Promise.all([
+        apiFetch('/spending/users'),
+        apiFetch('/spending/workspaces'),
+      ]);
+      setSpendingUsers(usersData);
+      setSpendingWorkspaces(wsData);
+      const userLimits: Record<string, string> = {};
+      for (const u of usersData) {
+        userLimits[u.id] = u.limit_usd != null ? String(u.limit_usd) : '';
+      }
+      setSpendingUserLimits(userLimits);
+      const wsLimits: Record<string, string> = {};
+      for (const w of wsData) {
+        wsLimits[w.workspace_name] = w.limit_usd != null ? String(w.limit_usd) : '';
+      }
+      setSpendingWsLimits(wsLimits);
+    } catch {}
+  };
+
+  const saveUserSpendingLimit = async (userId: string) => {
+    const raw = spendingUserLimits[userId];
+    const limit = raw === '' ? null : parseFloat(raw);
+    if (limit !== null && (isNaN(limit) || limit < 0)) {
+      setSpendingMessage('Invalid limit value');
+      return;
+    }
+    try {
+      await apiFetch(`/users/${userId}/spending-limit`, {
+        method: 'PUT',
+        body: JSON.stringify({ spending_limit_usd: limit }),
+      });
+      setSpendingMessage('Limit saved');
+      setTimeout(() => setSpendingMessage(''), 2000);
+      loadSpending();
+    } catch (err: any) {
+      setSpendingMessage(err.message);
+    }
+  };
+
+  const saveWsSpendingLimit = async (workspaceName: string) => {
+    const raw = spendingWsLimits[workspaceName];
+    const limit = raw === '' ? null : parseFloat(raw);
+    if (limit !== null && (isNaN(limit) || limit < 0)) {
+      setSpendingMessage('Invalid limit value');
+      return;
+    }
+    try {
+      await apiFetch(`/workspaces/${workspaceName}/spending-limit`, {
+        method: 'PUT',
+        body: JSON.stringify({ spending_limit_usd: limit }),
+      });
+      setSpendingMessage('Limit saved');
+      setTimeout(() => setSpendingMessage(''), 2000);
+      loadSpending();
+    } catch (err: any) {
+      setSpendingMessage(err.message);
+    }
   };
 
   const saveSecuritySettings = async () => {
@@ -338,6 +412,7 @@ export function Settings({ open, onClose, isAdmin = false }: SettingsProps) {
     { key: 'security',    label: 'Security',    icon: <Lock size={15} /> },
     { key: 'secrets',     label: 'Secrets',     icon: <Shield size={15} /> },
     ...(isAdmin ? [{ key: 'users' as const, label: 'Users', icon: <UsersIcon size={15} /> }] : []),
+    ...(isAdmin ? [{ key: 'spending' as const, label: 'Spending', icon: <DollarSign size={15} /> }] : []),
   ];
 
   return (
@@ -935,6 +1010,75 @@ export function Settings({ open, onClose, isAdmin = false }: SettingsProps) {
             </div>
 
             {usersMessage && <p className="text-sm text-secondary-foreground">{usersMessage}</p>}
+          </section>
+        </>}
+
+        {/* Spending section — admin only */}
+        {activeSection === 'spending' && isAdmin && <>
+          <section className="space-y-4">
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
+              <DollarSign size={13} />
+              User Spending Limits (monthly)
+            </h3>
+            <div className="space-y-2">
+              {spendingUsers.map((u) => (
+                <div key={u.id} className="flex items-center gap-3 rounded-xl border border-border px-4 py-3">
+                  <span className="flex-1 text-sm font-mono">{u.username}</span>
+                  <span className="text-xs text-muted-foreground">${u.spent_usd.toFixed(4)} spent</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="No limit"
+                    value={spendingUserLimits[u.id] ?? ''}
+                    onChange={(e) => setSpendingUserLimits((prev) => ({ ...prev, [u.id]: e.target.value }))}
+                    className="w-28 rounded-lg border border-border bg-muted px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                  <button
+                    onClick={() => saveUserSpendingLimit(u.id)}
+                    className="flex items-center gap-1 rounded-lg bg-secondary px-3 py-1.5 text-xs font-medium text-secondary-foreground hover:bg-secondary/80 transition-colors"
+                  >
+                    <Save size={12} />
+                    Save
+                  </button>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="space-y-4">
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
+              <DollarSign size={13} />
+              Workspace Spending Limits (monthly)
+            </h3>
+            <div className="space-y-2">
+              {spendingWorkspaces.map((w) => (
+                <div key={w.workspace_name} className="flex items-center gap-3 rounded-xl border border-border px-4 py-3">
+                  <span className="flex-1 text-sm font-mono">{w.workspace_name}</span>
+                  <span className="text-xs text-muted-foreground">${w.spent_usd.toFixed(4)} spent</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="No limit"
+                    value={spendingWsLimits[w.workspace_name] ?? ''}
+                    onChange={(e) => setSpendingWsLimits((prev) => ({ ...prev, [w.workspace_name]: e.target.value }))}
+                    className="w-28 rounded-lg border border-border bg-muted px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                  <button
+                    onClick={() => saveWsSpendingLimit(w.workspace_name)}
+                    className="flex items-center gap-1 rounded-lg bg-secondary px-3 py-1.5 text-xs font-medium text-secondary-foreground hover:bg-secondary/80 transition-colors"
+                  >
+                    <Save size={12} />
+                    Save
+                  </button>
+                </div>
+              ))}
+              {spendingWorkspaces.length === 0 && (
+                <p className="text-sm text-muted-foreground">No workspaces yet.</p>
+              )}
+            </div>
+            {spendingMessage && <p className="text-sm text-secondary-foreground">{spendingMessage}</p>}
           </section>
         </>}
 

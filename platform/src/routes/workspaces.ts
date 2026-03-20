@@ -140,6 +140,27 @@ router.post('/', async (req: Request, res: Response) => {
   }
 });
 
+router.put('/:name/spending-limit', requireAdmin, (req: Request, res: Response) => {
+  const { name } = req.params;
+  const { spending_limit_usd } = req.body;
+
+  if (spending_limit_usd !== null && spending_limit_usd !== undefined) {
+    if (typeof spending_limit_usd !== 'number' || spending_limit_usd < 0) {
+      res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'spending_limit_usd must be a non-negative number or null' } });
+      return;
+    }
+  }
+
+  const db = getDb();
+  const limit = spending_limit_usd == null ? null : spending_limit_usd;
+  db.prepare(
+    `INSERT INTO workspace_spending (workspace_name, spending_limit_usd)
+     VALUES (?, ?)
+     ON CONFLICT(workspace_name) DO UPDATE SET spending_limit_usd = excluded.spending_limit_usd`
+  ).run(name, limit);
+  res.json({ workspace_name: name, spending_limit_usd: limit });
+});
+
 router.delete('/:name', requireAdmin, async (req: Request, res: Response) => {
   const { name } = req.params;
   if (!name || typeof name !== 'string') {

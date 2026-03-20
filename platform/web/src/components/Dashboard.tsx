@@ -610,10 +610,11 @@ function GitSection({ workspaceName }: { workspaceName: string }) {
   );
 }
 
-function WorkspaceCard({ workspace, onViewSessions, onDeleteWorkspace }: {
+function WorkspaceCard({ workspace, onViewSessions, onDeleteWorkspace, spendingInfo }: {
   workspace: WorkspaceInfo;
   onViewSessions: (name: string) => void;
   onDeleteWorkspace: (ws: WorkspaceInfo) => void;
+  spendingInfo?: { spent_usd: number; limit_usd: number | null } | null;
 }) {
   const [containersOpen, setContainersOpen] = useState(false);
   const [containers, setContainers] = useState<ContainerInfo[]>([]);
@@ -696,6 +697,11 @@ function WorkspaceCard({ workspace, onViewSessions, onDeleteWorkspace }: {
           <div className="flex flex-wrap items-center gap-2 shrink-0">
             {workspace.totalCostUsd != null && (
               <span className="text-sm font-mono text-muted-foreground">${workspace.totalCostUsd.toFixed(4)}</span>
+            )}
+            {spendingInfo != null && (
+              <span className="text-xs font-mono text-muted-foreground/70 border border-border rounded px-1.5 py-0.5">
+                ${spendingInfo.spent_usd.toFixed(4)}{spendingInfo.limit_usd != null ? ` / $${spendingInfo.limit_usd.toFixed(2)}` : ''} this month
+              </span>
             )}
             <button
               onClick={() => onDeleteWorkspace(workspace)}
@@ -1008,6 +1014,17 @@ export function Dashboard({ workspaces, onRefresh, onViewSessions, onCreateWorks
   const [showCreate, setShowCreate] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<WorkspaceInfo | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [wsSpending, setWsSpending] = useState<Record<string, { spent_usd: number; limit_usd: number | null }>>({});
+
+  useEffect(() => {
+    apiFetch('/spending/workspaces').then((data: { workspace_name: string; spent_usd: number; limit_usd: number | null }[]) => {
+      const map: Record<string, { spent_usd: number; limit_usd: number | null }> = {};
+      for (const w of data) {
+        map[w.workspace_name] = { spent_usd: w.spent_usd, limit_usd: w.limit_usd };
+      }
+      setWsSpending(map);
+    }).catch(() => {});
+  }, [workspaces]);
 
   const handleConfirmDelete = async () => {
     if (!deleteTarget || deleting) return;
@@ -1069,6 +1086,7 @@ export function Dashboard({ workspaces, onRefresh, onViewSessions, onCreateWorks
                 workspace={ws}
                 onViewSessions={onViewSessions}
                 onDeleteWorkspace={setDeleteTarget}
+                spendingInfo={wsSpending[ws.name] ?? null}
               />
             ))
           )}

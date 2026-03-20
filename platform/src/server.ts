@@ -27,6 +27,7 @@ import workspacesRouter from './routes/workspaces.js';
 import filesRouter from './routes/files.js';
 import sessionsRouter from './routes/sessions.js';
 import usersRouter from './routes/users.js';
+import spendingRouter from './routes/spending.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -74,6 +75,7 @@ app.use('/api/workspaces', workspacesRouter);
 app.use('/api/workspaces', filesRouter);
 app.use('/api/sessions', sessionsRouter);
 app.use('/api/users', usersRouter);
+app.use('/api/spending', spendingRouter);
 
 // Health check
 app.get('/health', async (_req, res) => {

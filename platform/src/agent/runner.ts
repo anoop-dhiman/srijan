@@ -9,6 +9,7 @@ import { saveEvent } from './session.js';
 import { getDb } from '../db/store.js';
 import { decrypt } from '../lib/crypto.js';
 import { startSecretProxy, type SecretMap } from './secretProxy.js';
+import { checkSpendingLimits } from '../lib/spending.js';
 import type { IAgentRunner } from './IAgentRunner.js';
 import { OpenCodeRunner } from './OpenCodeRunner.js';
 import { createLogger } from '../lib/logger.js';
@@ -85,6 +86,7 @@ interface RunnerOptions {
   sessionToken?: string;
   vertexConfig?: VertexConfig;
   litellmConfig?: LiteLLMConfig;
+  userId?: string;
 }
 
 export class AgentRunner extends EventEmitter implements IAgentRunner {
@@ -98,6 +100,7 @@ export class AgentRunner extends EventEmitter implements IAgentRunner {
   private litellmConfig: LiteLLMConfig | undefined;
   private claudeSessionId: string | null = null;
   private subprocess: ReturnType<typeof spawn> | null = null;
+  private readonly userId: string;
 
   constructor(options: RunnerOptions) {
     super();
@@ -109,6 +112,7 @@ export class AgentRunner extends EventEmitter implements IAgentRunner {
     this.sessionToken = options.sessionToken || '';
     this.vertexConfig = options.vertexConfig;
     this.litellmConfig = options.litellmConfig;
+    this.userId = options.userId || '';
 
     if (!existsSync(this.workspacePath)) {
       mkdirSync(this.workspacePath, { recursive: true });
@@ -116,6 +120,17 @@ export class AgentRunner extends EventEmitter implements IAgentRunner {
   }
 
   async sendMessage(message: string): Promise<void> {
+    // Spending pre-check: block spawn if limit exceeded
+    if (this.userId && this.workspaceName) {
+      const check = checkSpendingLimits(this.userId, this.workspaceName);
+      if (!check.allowed) {
+        const errEvent = createEvent(this.sessionId, 'error', { message: check.reason });
+        saveEvent(errEvent);
+        this.emit('event', errEvent);
+        return;
+      }
+    }
+
     const userEvent = createEvent(this.sessionId, 'user_message', { content: message });
     saveEvent(userEvent);
     this.emit('event', userEvent);
@@ -333,14 +348,16 @@ export class AgentRunner extends EventEmitter implements IAgentRunner {
         if (usage || typeof msg.cost_usd === 'number') {
           try {
             getDb().prepare(
-              `INSERT INTO token_usage (session_id, input_tokens, output_tokens, cost_usd, model)
-               VALUES (?, ?, ?, ?, ?)`
+              `INSERT INTO token_usage (session_id, input_tokens, output_tokens, cost_usd, model, user_id, workspace_name)
+               VALUES (?, ?, ?, ?, ?, ?, ?)`
             ).run(
               this.sessionId,
               usage?.input_tokens ?? 0,
               usage?.output_tokens ?? 0,
               msg.cost_usd ?? null,
               this.model,
+              this.userId || null,
+              this.workspaceName || null,
             );
           } catch { /* non-fatal */ }
         }

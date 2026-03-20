@@ -6,7 +6,7 @@ import { DEFAULT_SYSTEM_PROMPT } from '../agent/runner.js';
 const router = Router();
 
 // Allowlist of config keys that can be written via the API
-const WRITABLE_KEYS = new Set(['llm', 'system_prompt', 'agentMode', 'agent_boundaries', 'agentSdk']);
+const WRITABLE_KEYS = new Set(['llm', 'system_prompt', 'agentMode', 'agent_boundaries', 'agentSdk', 'spending_alert_threshold']);
 
 router.use(authMiddleware);
 

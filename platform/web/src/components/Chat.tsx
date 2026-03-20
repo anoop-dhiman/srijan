@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback, FormEvent } from 'react';
 import {
   Send, Plus, Menu, Loader2, Trash2, PlayCircle,
   PanelLeftClose, PanelLeftOpen, CheckCircle2, XCircle, Terminal,
-  FileText, Search, FolderSearch, Bot, ChevronDown, ChevronRight,
+  FileText, Search, FolderSearch, Bot, ChevronDown, ChevronRight, AlertTriangle,
 } from 'lucide-react';
 import type { ChatMessage, Session, WorkspaceInfo, SessionActivity } from '../hooks/useChat';
 import ReactMarkdown from 'react-markdown';
@@ -218,6 +218,17 @@ export function Chat({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const isResizing = useRef(false);
+  const [spendingWarning, setSpendingWarning] = useState<{ percent: number; limit_usd: number } | null>(null);
+
+  useEffect(() => {
+    apiFetch('/spending/me').then((data) => {
+      if (data.limit_usd != null && data.percent != null && data.percent >= 80) {
+        setSpendingWarning({ percent: data.percent, limit_usd: data.limit_usd });
+      } else {
+        setSpendingWarning(null);
+      }
+    }).catch(() => {});
+  }, []);
 
   const isPendingApproval = currentSession
     ? !!(sessionActivity[currentSession.id]?.pendingApproval)
@@ -432,6 +443,16 @@ export function Chat({
             <Menu size={20} />
           </button>
         </div>
+
+        {/* Spending warning banner */}
+        {spendingWarning && (
+          <div className="mx-6 mt-3 flex items-center gap-2 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-700 px-4 py-2.5">
+            <AlertTriangle size={15} className="shrink-0 text-amber-600 dark:text-amber-400" />
+            <span className="text-sm text-amber-800 dark:text-amber-300">
+              You've used {Math.round(spendingWarning.percent)}% of your ${spendingWarning.limit_usd.toFixed(2)} monthly limit
+            </span>
+          </div>
+        )}
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto py-6">

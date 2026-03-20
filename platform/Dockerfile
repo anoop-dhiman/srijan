@@ -9,7 +9,7 @@ RUN npm ci
 # Build backend
 COPY tsconfig.json ./
 COPY src/ ./src/
-RUN npx tsc
+RUN npx tsc && cp src/db/schema.sql dist/db/schema.sql
 
 # Install and build frontend
 COPY web/package.json web/package-lock.json ./web/
@@ -30,7 +30,6 @@ RUN npm ci --omit=dev
 
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/web/dist ./web/dist
-COPY src/db/schema.sql ./dist/db/schema.sql
 
 ENV NODE_ENV=production
 EXPOSE 8080

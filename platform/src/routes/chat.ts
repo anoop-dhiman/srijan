@@ -141,6 +141,7 @@ export function setupWebSocket(): void {
               sessionToken,
               vertexConfig,
               litellmConfig,
+              userId: user.userId,
             });
 
             // Attach persistent forwarder (idempotent — no-op if already attached)
