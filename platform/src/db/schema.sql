@@ -78,3 +78,6 @@ CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_workspace_name ON sessions(workspace_name);
 CREATE INDEX IF NOT EXISTS idx_events_session_id ON events(session_id);
 CREATE INDEX IF NOT EXISTS idx_token_usage_session_id ON token_usage(session_id);
+CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
+CREATE INDEX IF NOT EXISTS idx_secrets_name ON secrets(name);
+CREATE INDEX IF NOT EXISTS idx_apps_name ON apps(name);

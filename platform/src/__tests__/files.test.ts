@@ -86,6 +86,22 @@ describe('Files API', () => {
       expect(res.body.error.code).toBe('PATH_TRAVERSAL');
     });
 
+    it('rejects URL-encoded path traversal (%2e%2e%2f)', async () => {
+      const res = await request(app)
+        .get('/api/workspaces/myapp/files?path=%2e%2e%2fetc')
+        .set('Authorization', `Bearer ${token}`);
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe('PATH_TRAVERSAL');
+    });
+
+    it('rejects double URL-encoded path traversal (%252e%252e%252f)', async () => {
+      const res = await request(app)
+        .get('/api/workspaces/myapp/files?path=%252e%252e%252fetc')
+        .set('Authorization', `Bearer ${token}`);
+      // Either 400 (caught) or 404 (decoded path doesn't exist) is acceptable
+      expect([400, 404]).toContain(res.status);
+    });
+
     it('returns 404 for non-existent path', async () => {
       const res = await request(app)
         .get('/api/workspaces/myapp/files?path=doesnotexist')
@@ -119,6 +135,14 @@ describe('Files API', () => {
     it('rejects path traversal attempts', async () => {
       const res = await request(app)
         .get('/api/workspaces/myapp/file?path=../../etc/passwd')
+        .set('Authorization', `Bearer ${token}`);
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe('PATH_TRAVERSAL');
+    });
+
+    it('rejects URL-encoded path traversal (%2e%2e%2f)', async () => {
+      const res = await request(app)
+        .get('/api/workspaces/myapp/file?path=%2e%2e%2fetc%2fpasswd')
         .set('Authorization', `Bearer ${token}`);
       expect(res.status).toBe(400);
       expect(res.body.error.code).toBe('PATH_TRAVERSAL');

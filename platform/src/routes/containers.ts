@@ -1,6 +1,8 @@
 import { Router, Request, Response } from 'express';
-import { authMiddleware } from '../security/auth.js';
+import { authMiddleware, requireAdmin } from '../security/auth.js';
 import { listContainers, getContainerLogs, startContainer, stopContainer } from '../docker/manager.js';
+
+const CONTAINER_ID_RE = /^[a-zA-Z0-9][a-zA-Z0-9_.-]+$/;
 
 const router = Router();
 router.use(authMiddleware);
@@ -28,7 +30,11 @@ router.get('/', async (req: Request, res: Response) => {
 });
 
 router.get('/:id/logs', async (req: Request, res: Response) => {
-  const tail = parseInt(req.query.tail as string || '100', 10);
+  if (!CONTAINER_ID_RE.test(req.params.id)) {
+    res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'Invalid container id' } });
+    return;
+  }
+  const tail = Math.min(Math.max(parseInt(req.query.tail as string || '100', 10) || 100, 1), 10000);
   try {
     const logs = await getContainerLogs(req.params.id, tail);
     res.json({ logs });
@@ -37,7 +43,11 @@ router.get('/:id/logs', async (req: Request, res: Response) => {
   }
 });
 
-router.post('/:id/start', async (req: Request, res: Response) => {
+router.post('/:id/start', requireAdmin, async (req: Request, res: Response) => {
+  if (!CONTAINER_ID_RE.test(req.params.id)) {
+    res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'Invalid container id' } });
+    return;
+  }
   try {
     await startContainer(req.params.id);
     res.json({ started: true });
@@ -46,7 +56,11 @@ router.post('/:id/start', async (req: Request, res: Response) => {
   }
 });
 
-router.post('/:id/stop', async (req: Request, res: Response) => {
+router.post('/:id/stop', requireAdmin, async (req: Request, res: Response) => {
+  if (!CONTAINER_ID_RE.test(req.params.id)) {
+    res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'Invalid container id' } });
+    return;
+  }
   try {
     await stopContainer(req.params.id);
     res.json({ stopped: true });

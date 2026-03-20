@@ -1,9 +1,12 @@
 import { describe, it, expect, beforeAll } from 'vitest';
+import request from 'supertest';
+import express from 'express';
 import {
   setupAdmin, login, verifyToken, generateTotpSecret, verifyTotpCode,
   enableTotp, disableTotp, getTotpStatus, verifyTotpChallenge, createUser,
 } from '../security/auth.js';
 import { getDb } from '../db/store.js';
+import authRouter from '../routes/auth.js';
 
 describe('Auth', () => {
   beforeAll(() => {
@@ -177,5 +180,35 @@ describe('Auth', () => {
       expect(disableTotp(testUserId, code)).toBe(true);
       expect(getTotpStatus(testUserId)).toBe(false);
     });
+  });
+});
+
+describe('Rate limiting', () => {
+  const app = express();
+  app.use(express.json());
+  app.use('/api/auth', authRouter);
+
+  // Use a unique username so its counter starts at 0
+  const rlUser = 'rl-test-' + Date.now();
+
+  beforeAll(() => {
+    getDb();
+    setupAdmin('testpass');
+    createUser(rlUser, 'pass', 'user');
+  });
+
+  it('returns 429 after 10 consecutive failed login attempts', async () => {
+    // Make 10 failed attempts (wrong password)
+    for (let i = 0; i < 10; i++) {
+      await request(app)
+        .post('/api/auth/login')
+        .send({ username: rlUser, password: 'wrong' });
+    }
+    // The 11th attempt must be rate-limited
+    const res = await request(app)
+      .post('/api/auth/login')
+      .send({ username: rlUser, password: 'wrong' });
+    expect(res.status).toBe(429);
+    expect(res.body.error.code).toBe('RATE_LIMITED');
   });
 });

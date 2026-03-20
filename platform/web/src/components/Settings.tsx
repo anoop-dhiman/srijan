@@ -63,6 +63,7 @@ export function Settings({ open, onClose, isAdmin = false }: SettingsProps) {
   const [totpMessage, setTotpMessage] = useState('');
   const [totpLoading, setTotpLoading] = useState(false);
   const [totpCopied, setTotpCopied] = useState(false);
+  const [totpSecretVisible, setTotpSecretVisible] = useState(false);
 
   // Users state
   const [users, setUsers] = useState<User[]>([]);
@@ -737,8 +738,15 @@ export function Settings({ open, onClose, isAdmin = false }: SettingsProps) {
                     <p className="text-xs text-muted-foreground">Or enter this key manually:</p>
                     <div className="flex items-center gap-2">
                       <code className="flex-1 rounded-xl border border-border bg-muted px-4 py-3 text-sm font-mono break-all">
-                        {totpSetupSecret}
+                        {totpSecretVisible ? totpSetupSecret : '••••••••••••••••••••••••••••••••'}
                       </code>
+                      <button
+                        onClick={() => setTotpSecretVisible(!totpSecretVisible)}
+                        className="shrink-0 p-2 rounded-lg border border-border hover:bg-muted transition-colors"
+                        title={totpSecretVisible ? 'Hide secret' : 'Show secret'}
+                      >
+                        {totpSecretVisible ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
                       <button
                         onClick={() => copyToClipboard(totpSetupSecret!)}
                         className="shrink-0 p-2 rounded-lg border border-border hover:bg-muted transition-colors"

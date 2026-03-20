@@ -1,4 +1,4 @@
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { Folder, FolderOpen, FileText, ChevronRight, ChevronDown, Loader2, Pencil, Save, X } from 'lucide-react';
 import type { WorkspaceInfo } from '../hooks/useChat';
 import { apiFetch } from '../lib/api';
@@ -154,6 +154,7 @@ export function FileBrowser({ workspaces, currentWorkspace, theme = 'dark' }: Fi
   const [isDirty, setIsDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const fileAbortRef = useRef<AbortController | null>(null);
 
   const loadDir = async (ws: string, path: string): Promise<TreeNode[]> => {
     const data = await apiFetch(`/workspaces/${encodeURIComponent(ws)}/files?path=${encodeURIComponent(path)}`);
@@ -205,6 +206,11 @@ export function FileBrowser({ workspaces, currentWorkspace, theme = 'dark' }: Fi
   };
 
   const handleSelectFile = async (path: string) => {
+    // R5: cancel any previous in-flight file load to prevent out-of-order updates
+    fileAbortRef.current?.abort();
+    const controller = new AbortController();
+    fileAbortRef.current = controller;
+
     // Reset edit state when switching files
     setIsEditing(false);
     setIsDirty(false);
@@ -215,11 +221,11 @@ export function FileBrowser({ workspaces, currentWorkspace, theme = 'dark' }: Fi
     setFileContent(null);
     setError(null);
     try {
-      const data = await apiFetch(`/workspaces/${encodeURIComponent(workspace)}/file?path=${encodeURIComponent(path)}`);
+      const data = await apiFetch(`/workspaces/${encodeURIComponent(workspace)}/file?path=${encodeURIComponent(path)}`, { signal: controller.signal });
       setFileContent(data.content);
       setEditContent(data.content);
     } catch (err: any) {
-      setError(err.message);
+      if (err.name !== 'AbortError') setError(err.message);
     } finally {
       setLoadingFile(false);
     }
@@ -322,7 +328,7 @@ export function FileBrowser({ workspaces, currentWorkspace, theme = 'dark' }: Fi
             {/* Breadcrumb + action buttons */}
             <div className="px-4 py-2 border-b border-border shrink-0 bg-muted flex items-center justify-between gap-3">
               <p className="text-xs font-mono text-muted-foreground truncate">
-                {workspace} / {selectedFile}
+                {workspace} / {selectedFile}{isDirty ? ' •' : ''}
               </p>
               <div className="flex items-center gap-1.5 shrink-0">
                 {!isEditing ? (

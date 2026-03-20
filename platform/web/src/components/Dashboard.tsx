@@ -620,6 +620,7 @@ function WorkspaceCard({ workspace, onViewSessions, onDeleteWorkspace }: {
   const [apps, setApps] = useState<AppInfo[]>([]);
   const [loadingContainers, setLoadingContainers] = useState(false);
   const [bulkActioning, setBulkActioning] = useState(false);
+  const [bulkError, setBulkError] = useState<string | null>(null);
 
   const fetchContainers = useCallback(async () => {
     const [c, a] = await Promise.all([
@@ -649,16 +650,22 @@ function WorkspaceCard({ workspace, onViewSessions, onDeleteWorkspace }: {
 
   const startAll = async () => {
     setBulkActioning(true);
+    setBulkError(null);
     const stopped = containers.filter(c => c.State !== 'running');
-    await Promise.allSettled(stopped.map(c => apiFetch(`/containers/${c.Id}/start`, { method: 'POST' })));
+    const results = await Promise.allSettled(stopped.map(c => apiFetch(`/containers/${c.Id}/start`, { method: 'POST' })));
+    const failed = results.filter(r => r.status === 'rejected').length;
+    if (failed > 0) setBulkError(`${failed} container${failed > 1 ? 's' : ''} failed to start`);
     await refreshContainers();
     setBulkActioning(false);
   };
 
   const stopAll = async () => {
     setBulkActioning(true);
+    setBulkError(null);
     const running = containers.filter(c => c.State === 'running');
-    await Promise.allSettled(running.map(c => apiFetch(`/containers/${c.Id}/stop`, { method: 'POST' })));
+    const results = await Promise.allSettled(running.map(c => apiFetch(`/containers/${c.Id}/stop`, { method: 'POST' })));
+    const failed = results.filter(r => r.status === 'rejected').length;
+    if (failed > 0) setBulkError(`${failed} container${failed > 1 ? 's' : ''} failed to stop`);
     await refreshContainers();
     setBulkActioning(false);
   };
@@ -757,6 +764,7 @@ function WorkspaceCard({ workspace, onViewSessions, onDeleteWorkspace }: {
                 </button>
               )}
               {bulkActioning && <RefreshCw size={12} className="animate-spin text-muted-foreground" />}
+              {bulkError && <span className="text-xs text-destructive">{bulkError}</span>}
             </div>
           )}
           {containers.length === 0 ? (
@@ -1053,12 +1061,18 @@ export function Dashboard({ workspaces, onRefresh, onViewSessions, onCreateWorks
 
       {/* Delete confirmation modal */}
       {deleteTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-background rounded-xl border border-border shadow-xl w-full max-w-md mx-4 p-6 space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" role="presentation">
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="delete-ws-title"
+            aria-describedby="delete-ws-desc"
+            className="bg-background rounded-xl border border-border shadow-xl w-full max-w-md mx-4 p-6 space-y-4"
+          >
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-center gap-2.5">
                 <Trash2 size={18} className="text-destructive shrink-0" />
-                <h3 className="text-base font-semibold">Delete Workspace</h3>
+                <h3 id="delete-ws-title" className="text-base font-semibold">Delete Workspace</h3>
               </div>
               <button
                 onClick={() => setDeleteTarget(null)}
@@ -1068,7 +1082,7 @@ export function Dashboard({ workspaces, onRefresh, onViewSessions, onCreateWorks
               </button>
             </div>
 
-            <p className="text-sm text-muted-foreground">
+            <p id="delete-ws-desc" className="text-sm text-muted-foreground">
               Are you sure you want to delete{' '}
               <span className="font-semibold text-foreground font-mono">{deleteTarget.name}</span>?
               This will permanently delete the workspace directory, all sessions, session history, and git credentials.

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Loader2, X, Terminal, FileText, Search, FolderSearch, Bot, ChevronDown, ChevronRight, CheckCircle2, XCircle } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import rehypeSanitize from 'rehype-sanitize';
 import { apiFetch } from '../lib/api';
 
 interface RecordingEvent {
@@ -107,7 +108,7 @@ function renderEvent(event: RecordingEvent, idx: number) {
         <div key={idx} className="flex justify-start">
           <div className="max-w-[80%] rounded-2xl px-4 py-3 text-base bg-muted border border-border">
             <div className="prose prose-invert prose-base max-w-none [&_pre]:bg-background [&_pre]:rounded-lg [&_pre]:p-3 [&_code]:text-secondary-foreground">
-              <ReactMarkdown>{event.data?.content || ''}</ReactMarkdown>
+              <ReactMarkdown rehypePlugins={[rehypeSanitize]}>{event.data?.content || ''}</ReactMarkdown>
             </div>
           </div>
         </div>

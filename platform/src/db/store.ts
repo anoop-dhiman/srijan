@@ -31,6 +31,7 @@ export function getDb(): Database.Database {
     db = new Database(dbPath);
     db.pragma('journal_mode = WAL');
     db.pragma('foreign_keys = ON');
+    db.pragma('busy_timeout = 5000');
 
     const schema = readFileSync(join(__dirname, 'schema.sql'), 'utf-8');
     db.exec(schema);
@@ -42,6 +43,9 @@ export function getDb(): Database.Database {
     tryMigrate(`ALTER TABLE users ADD COLUMN totp_secret TEXT`);
     tryMigrate(`ALTER TABLE users ADD COLUMN totp_enabled INTEGER NOT NULL DEFAULT 0`);
     tryMigrate(`CREATE TABLE IF NOT EXISTS git_credentials (id TEXT PRIMARY KEY, workspace_name TEXT UNIQUE NOT NULL, provider TEXT NOT NULL DEFAULT 'generic', username TEXT NOT NULL DEFAULT '', encrypted_token TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')))`);
+    tryMigrate(`CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)`);
+    tryMigrate(`CREATE INDEX IF NOT EXISTS idx_secrets_name ON secrets(name)`);
+    tryMigrate(`CREATE INDEX IF NOT EXISTS idx_apps_name ON apps(name)`);
   }
   return db;
 }

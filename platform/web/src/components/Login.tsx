@@ -115,6 +115,11 @@ export function Login({ onLogin }: LoginProps) {
               placeholder="000000"
               value={totpCode}
               onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, ''))}
+              onPaste={(e) => {
+                e.preventDefault();
+                const pasted = e.clipboardData.getData('text').trim().replace(/\D/g, '').slice(0, 6);
+                setTotpCode(pasted);
+              }}
               className="w-full rounded-xl border border-border bg-muted px-4 py-3.5 text-base text-center font-mono tracking-[0.5em] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
               autoFocus
             />

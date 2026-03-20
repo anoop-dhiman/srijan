@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import type { ChatMessage, Session, WorkspaceInfo, SessionActivity } from '../hooks/useChat';
 import ReactMarkdown from 'react-markdown';
+import rehypeSanitize from 'rehype-sanitize';
 import { apiFetch } from '../lib/api';
 
 interface ChatProps {
@@ -378,8 +379,17 @@ export function Chat({
       {/* Resize handle — desktop only */}
       {!sidebarCollapsed && (
         <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize sidebar"
+          tabIndex={0}
           onMouseDown={handleMouseDown}
-          className="hidden md:flex w-1 cursor-col-resize items-center justify-center hover:bg-primary/30 active:bg-primary/50 transition-colors shrink-0"
+          onKeyDown={(e) => {
+            const step = 16;
+            if (e.key === 'ArrowRight') setSidebarWidth((w) => Math.min(MAX_WIDTH, w + step));
+            else if (e.key === 'ArrowLeft') setSidebarWidth((w) => Math.max(MIN_WIDTH, w - step));
+          }}
+          className="hidden md:flex w-1 cursor-col-resize items-center justify-center hover:bg-primary/30 active:bg-primary/50 focus:bg-primary/30 focus:outline-none transition-colors shrink-0"
         />
       )}
 
@@ -445,7 +455,7 @@ export function Chat({
                   >
                     {msg.role === 'assistant' ? (
                       <div className="prose prose-invert prose-base max-w-none [&_pre]:bg-background [&_pre]:rounded-lg [&_pre]:p-3 [&_code]:text-secondary-foreground">
-                        <ReactMarkdown>{msg.content}</ReactMarkdown>
+                        <ReactMarkdown rehypePlugins={[rehypeSanitize]}>{msg.content}</ReactMarkdown>
                         {msg.streaming && (
                           <span className="inline-block w-2 h-4 bg-primary animate-pulse ml-0.5" />
                         )}

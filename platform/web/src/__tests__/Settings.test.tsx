@@ -271,7 +271,8 @@ describe('Settings', () => {
 
     await waitFor(() => {
       expect(apiFetch).toHaveBeenCalledWith('/auth/totp/setup', { method: 'POST' });
-      expect(screen.getByText('JBSWY3DPEHPK3PXP')).toBeInTheDocument();
+      // Secret is masked by default; reveal button should be present
+      expect(screen.getByTitle('Show secret')).toBeInTheDocument();
       expect(screen.getByText('Activate')).toBeInTheDocument();
     });
   });

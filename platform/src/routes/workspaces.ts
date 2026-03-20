@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { authMiddleware } from '../security/auth.js';
+import { authMiddleware, requireAdmin } from '../security/auth.js';
 import { getWorkspaceRoot, cloneRepo, initRepo, setRemote, commitAll, pushRepo, deleteWorkspace, validateWorkspaceName } from '../git/manager.js';
 import { detectProvider, saveWorkspaceCredentials, deleteWorkspaceCredentials, type GitProvider } from '../lib/gitAuth.js';
 import { getDb } from '../db/store.js';
@@ -126,7 +126,7 @@ router.post('/', async (req: Request, res: Response) => {
   }
 });
 
-router.delete('/:name', async (req: Request, res: Response) => {
+router.delete('/:name', requireAdmin, async (req: Request, res: Response) => {
   const { name } = req.params;
   if (!name || typeof name !== 'string') {
     res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'name is required' } });

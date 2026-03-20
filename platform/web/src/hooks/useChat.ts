@@ -56,6 +56,7 @@ function formatToolLabel(name: string, input: any): string {
 
 const RECONNECT_BASE_MS = 3000;
 const RECONNECT_MAX_MS = 60000;
+const MAX_RECONNECT_ATTEMPTS = 10;
 
 function genId(): string {
   return typeof crypto !== 'undefined' && crypto.randomUUID
@@ -143,6 +144,8 @@ export function useChat() {
         case 'session_joined': {
           setCurrentSession(msg.data.session);
           localStorage.setItem('srijan_session_id', msg.data.session.id);
+          // R8: clear any in-progress stream buffer from the previous session
+          streamBufferRef.current = '';
           // Clear unread for joined session
           setSessionActivity(prev => {
             const cur = prev[msg.data.session.id] || DEFAULT_ACTIVITY;
@@ -361,6 +364,10 @@ export function useChat() {
 
     ws.onclose = () => {
       setIsConnected(false);
+      if (reconnectAttemptRef.current >= MAX_RECONNECT_ATTEMPTS) {
+        console.warn('[useChat] Max reconnect attempts reached. Giving up.');
+        return;
+      }
       const attempt = reconnectAttemptRef.current++;
       const delay = Math.min(RECONNECT_BASE_MS * Math.pow(2, attempt), RECONNECT_MAX_MS);
       setTimeout(connect, delay);

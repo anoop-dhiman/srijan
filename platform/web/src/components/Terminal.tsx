@@ -8,6 +8,8 @@ interface TerminalProps {
   sessionId: string | null;
 }
 
+const MAX_TERMINAL_RECONNECTS = 5;
+
 export function Terminal({ sessionId }: TerminalProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<XTerm | null>(null);
@@ -35,48 +37,67 @@ export function Terminal({ sessionId }: TerminalProps) {
     termRef.current = term;
     fitRef.current = fitAddon;
 
-    // Connect WebSocket
-    const token = getToken();
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = window.location.host;
-    const wsUrl = `${protocol}//${host}/api/terminal?token=${token}${sessionId ? `&sessionId=${sessionId}` : ''}`;
-    const ws = new WebSocket(wsUrl);
-    wsRef.current = ws;
+    let destroyed = false;
+    let reconnectAttempt = 0;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
-    ws.onopen = () => {
-      term.write('\r\n\x1b[32m● Connected to terminal\x1b[0m\r\n\r\n');
-    };
+    function connectWs() {
+      if (destroyed) return;
+      const token = getToken();
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const host = window.location.host;
+      const wsUrl = `${protocol}//${host}/api/terminal?token=${encodeURIComponent(token ?? '')}${sessionId ? `&sessionId=${encodeURIComponent(sessionId)}` : ''}`;
+      const ws = new WebSocket(wsUrl);
+      wsRef.current = ws;
 
-    ws.onmessage = (event) => {
-      term.write(event.data);
-    };
+      ws.onopen = () => {
+        reconnectAttempt = 0;
+        term.write('\r\n\x1b[32m● Connected to terminal\x1b[0m\r\n\r\n');
+      };
 
-    ws.onclose = () => {
-      term.write('\r\n\x1b[31m● Terminal disconnected\x1b[0m\r\n');
-    };
+      ws.onmessage = (event) => {
+        term.write(event.data);
+      };
 
-    ws.onerror = () => {
-      term.write('\r\n\x1b[31m● Connection error\x1b[0m\r\n');
-    };
+      ws.onclose = () => {
+        if (destroyed) return;
+        if (reconnectAttempt < MAX_TERMINAL_RECONNECTS) {
+          const delay = Math.min(1000 * Math.pow(2, reconnectAttempt), 30000);
+          term.write(`\r\n\x1b[33m● Disconnected. Reconnecting in ${Math.round(delay / 1000)}s…\x1b[0m\r\n`);
+          reconnectAttempt++;
+          reconnectTimer = setTimeout(connectWs, delay);
+        } else {
+          term.write('\r\n\x1b[31m● Connection lost. Reload the page to reconnect.\x1b[0m\r\n');
+        }
+      };
+
+      ws.onerror = () => {
+        ws.close();
+      };
+    }
 
     term.onData((data) => {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'input', data }));
+      if (wsRef.current?.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({ type: 'input', data }));
       }
     });
 
     // ResizeObserver to fit on container size change
     const ro = new ResizeObserver(() => {
       fitAddon.fit();
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }));
+      if (wsRef.current?.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }));
       }
     });
     ro.observe(containerRef.current);
 
+    connectWs();
+
     return () => {
+      destroyed = true;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
       ro.disconnect();
-      ws.close();
+      wsRef.current?.close();
       term.dispose();
     };
   }, [sessionId]);

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeAll } from 'vitest';
 import request from 'supertest';
 import express from 'express';
-import { setupAdmin } from '../security/auth.js';
+import { setupAdmin, createUser } from '../security/auth.js';
 import authRouter from '../routes/auth.js';
 
 // Mock the Docker manager so tests don't need a Docker daemon
@@ -35,15 +35,25 @@ function createApp() {
 describe('Containers API', () => {
   let app: ReturnType<typeof createApp>;
   let token: string;
+  let userToken: string;
 
   beforeAll(async () => {
     setupAdmin('testpass');
+    createUser('container-viewer-' + Date.now(), 'userpass', 'user');
     app = createApp();
 
-    const res = await request(app)
+    const adminRes = await request(app)
       .post('/api/auth/login')
       .send({ username: 'admin', password: 'testpass' });
-    token = res.body.token;
+    token = adminRes.body.token;
+
+    // Create a non-admin user and get their token
+    const newUserName = 'container-viewer-' + Date.now();
+    createUser(newUserName, 'userpass', 'user');
+    const userRes = await request(app)
+      .post('/api/auth/login')
+      .send({ username: newUserName, password: 'userpass' });
+    userToken = userRes.body.token;
   });
 
   it('should list all containers when no workspace filter', async () => {
@@ -98,5 +108,19 @@ describe('Containers API', () => {
   it('should require authentication', async () => {
     const res = await request(app).get('/api/containers');
     expect(res.status).toBe(401);
+  });
+
+  it('should forbid non-admin from starting a container', async () => {
+    const res = await request(app)
+      .post('/api/containers/abc123/start')
+      .set('Authorization', `Bearer ${userToken}`);
+    expect(res.status).toBe(403);
+  });
+
+  it('should forbid non-admin from stopping a container', async () => {
+    const res = await request(app)
+      .post('/api/containers/abc123/stop')
+      .set('Authorization', `Bearer ${userToken}`);
+    expect(res.status).toBe(403);
   });
 });

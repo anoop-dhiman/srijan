@@ -2,7 +2,7 @@ import { spawn } from 'child_process';
 import { EventEmitter } from 'events';
 import { fileURLToPath } from 'url';
 import { dirname, resolve, join } from 'path';
-import { existsSync, mkdirSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, writeFileSync, unlinkSync } from 'fs';
 import { tmpdir } from 'os';
 import { createEvent } from './events.js';
 import { saveEvent } from './session.js';
@@ -146,6 +146,15 @@ export class AgentRunner extends EventEmitter implements IAgentRunner {
       env['HTTP_PROXY'] = `http://127.0.0.1:${secretProxy.port}`;
       env['HTTPS_PROXY'] = `http://127.0.0.1:${secretProxy.port}`;
 
+      // S9: track vertex credential temp file so it can always be cleaned up
+      let vertexCredPath: string | null = null;
+      const cleanupVertexCred = () => {
+        if (vertexCredPath) {
+          try { unlinkSync(vertexCredPath); } catch {}
+          vertexCredPath = null;
+        }
+      };
+
       const vertexCfg = this.vertexConfig;
       const litellmCfg = this.litellmConfig;
       if (litellmCfg?.useLiteLLM) {
@@ -158,9 +167,9 @@ export class AgentRunner extends EventEmitter implements IAgentRunner {
         delete env['ANTHROPIC_API_KEY'];
 
         if (vertexCfg.credentialsJson) {
-          const credPath = join(tmpdir(), `srijan-sa-${this.sessionId}.json`);
-          writeFileSync(credPath, vertexCfg.credentialsJson, { mode: 0o600 });
-          env['GOOGLE_APPLICATION_CREDENTIALS'] = credPath;
+          vertexCredPath = join(tmpdir(), `srijan-sa-${this.sessionId}.json`);
+          writeFileSync(vertexCredPath, vertexCfg.credentialsJson, { mode: 0o600 });
+          env['GOOGLE_APPLICATION_CREDENTIALS'] = vertexCredPath;
         }
       } else {
         env['ANTHROPIC_API_KEY'] = this.apiKey;
@@ -205,9 +214,15 @@ export class AgentRunner extends EventEmitter implements IAgentRunner {
         }
         this.subprocess = null;
         await secretProxy.close().catch(() => {});
+        cleanupVertexCred();
         if (code !== 0 && code !== null) {
-          const detail = stderrBuffer.trim();
-          console.error(`[runner] process exited code=${code}${detail ? `\n${detail}` : ''}`);
+          const raw = stderrBuffer.trim();
+          // S8: redact real secret values from stderr before surfacing to users
+          let detail = raw;
+          for (const realValue of Object.values(secretMap)) {
+            if (realValue) detail = detail.replaceAll(realValue, '[REDACTED]');
+          }
+          console.error(`[runner] process exited code=${code}${raw ? `\n${raw}` : ''}`);
           const errEvent = createEvent(this.sessionId, 'error', {
             message: detail
               ? `Agent process exited with code ${code}: ${detail}`
@@ -223,6 +238,7 @@ export class AgentRunner extends EventEmitter implements IAgentRunner {
         this.subprocess = null;
         runners.delete(this.sessionId);
         await secretProxy.close().catch(() => {});
+        cleanupVertexCred();
         const errEvent = createEvent(this.sessionId, 'error', { message: err.message });
         saveEvent(errEvent);
         this.emit('event', errEvent);
