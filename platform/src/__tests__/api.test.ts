@@ -186,12 +186,38 @@ describe('API Routes', () => {
       expect(Array.isArray(res.body)).toBe(true);
     });
 
-    it('should reject app registration without required fields', async () => {
+    it('should reject app registration without registration token', async () => {
       const res = await request(app)
         .post('/api/apps/register')
-        .set('Authorization', `Bearer ${token}`)
+        .send({ name: 'test-app', path: '/test-app', port: 3000 });
+      expect(res.status).toBe(401);
+    });
+
+    it('should reject app registration with invalid registration token', async () => {
+      const res = await request(app)
+        .post('/api/apps/register')
+        .set('X-Registration-Token', 'invalid-token')
+        .send({ name: 'test-app', path: '/test-app', port: 3000 });
+      expect(res.status).toBe(401);
+    });
+
+    it('should reject app registration with valid token but missing fields', async () => {
+      // Insert a session with a known registration token
+      const db = getDb();
+      const regToken = 'test-reg-token-' + Date.now();
+      const sessionId = 'test-session-' + Date.now();
+      const userId = db.prepare('SELECT id FROM users WHERE username = ?').get('admin') as { id: string };
+      db.prepare(
+        `INSERT INTO sessions (id, user_id, title, status, registration_token) VALUES (?, ?, 'Test', 'active', ?)`
+      ).run(sessionId, userId.id, regToken);
+
+      const res = await request(app)
+        .post('/api/apps/register')
+        .set('X-Registration-Token', regToken)
         .send({ name: 'test-app' }); // missing path and port
       expect(res.status).toBe(400);
+
+      db.prepare('DELETE FROM sessions WHERE id = ?').run(sessionId);
     });
   });
 });

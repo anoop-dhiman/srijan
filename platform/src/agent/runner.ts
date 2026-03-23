@@ -1,5 +1,6 @@
 import { spawn } from 'child_process';
 import { EventEmitter } from 'events';
+import { randomBytes } from 'crypto';
 import { fileURLToPath } from 'url';
 import { dirname, resolve, join } from 'path';
 import { existsSync, mkdirSync, writeFileSync, unlinkSync } from 'fs';
@@ -54,7 +55,7 @@ const DEFAULT_SYSTEM_PROMPT = `You are Srijan, an AI development assistant runni
 - Name your services descriptively in docker-compose.yml; they will be prefixed with the workspace name automatically.
 - Always include a Dockerfile for custom services rather than relying solely on base images.
 - Use "docker compose up -d" to start services in the background and verify they are running with "docker compose ps".
-- Apps run on internal ports by default. Only register an app for a public URL when the user explicitly asks for one — use the registration curl command provided in the session context.
+- Apps run on internal ports by default. Only register an app for a public URL when the user explicitly asks for one — use the register_app tool provided in the session context.
 
 ## Communication
 - Be concise and direct.
@@ -83,7 +84,6 @@ interface RunnerOptions {
   workspaceName?: string;
   apiKey: string;
   model: string;
-  sessionToken?: string;
   vertexConfig?: VertexConfig;
   litellmConfig?: LiteLLMConfig;
   userId?: string;
@@ -95,7 +95,7 @@ export class AgentRunner extends EventEmitter implements IAgentRunner {
   private workspaceName: string;
   private apiKey: string;
   private model: string;
-  private sessionToken: string;
+  private registrationToken: string;
   private vertexConfig: VertexConfig | undefined;
   private litellmConfig: LiteLLMConfig | undefined;
   private claudeSessionId: string | null = null;
@@ -110,10 +110,16 @@ export class AgentRunner extends EventEmitter implements IAgentRunner {
     this.workspaceName = options.workspaceName || '';
     this.apiKey = options.apiKey;
     this.model = options.model;
-    this.sessionToken = options.sessionToken || '';
     this.vertexConfig = options.vertexConfig;
     this.litellmConfig = options.litellmConfig;
     this.userId = options.userId || '';
+
+    // Generate a scoped per-session token used only for app registration via MCP
+    this.registrationToken = randomBytes(32).toString('hex');
+    try {
+      getDb().prepare('UPDATE sessions SET registration_token = ? WHERE id = ?')
+        .run(this.registrationToken, this.sessionId);
+    } catch { /* non-fatal */ }
 
     if (!existsSync(this.workspacePath)) {
       mkdirSync(this.workspacePath, { recursive: true });
@@ -140,6 +146,27 @@ export class AgentRunner extends EventEmitter implements IAgentRunner {
     const { envVars, secretMap } = prepareSecrets();
     const secretProxy = await startSecretProxy(secretMap);
 
+    // Build MCP config so the agent can register apps via a scoped tool (no URL/token in prompt)
+    const isTsx = __filename.endsWith('.ts');
+    const mcpServerPath = join(__dirname, isTsx ? 'mcpServer.ts' : 'mcpServer.js');
+    const mcpCmd = isTsx
+      ? resolve(__dirname, '../../node_modules/.bin/tsx')
+      : process.execPath;
+    const mcpConfig = JSON.stringify({
+      mcpServers: {
+        srijan: {
+          type: 'stdio',
+          command: mcpCmd,
+          args: [mcpServerPath],
+          env: {
+            SRIJAN_REG_TOKEN: this.registrationToken,
+            SRIJAN_PLATFORM_URL: process.env.PLATFORM_URL || 'http://host.docker.internal:8080',
+            SRIJAN_WORKSPACE: this.workspaceName || '',
+          },
+        },
+      },
+    });
+
     return new Promise((resolve, reject) => {
       const mode = getAgentMode();
       const args = [
@@ -149,6 +176,8 @@ export class AgentRunner extends EventEmitter implements IAgentRunner {
         '--verbose',
         '--permission-mode', 'bypassPermissions',
         '--model', this.model,
+        '--mcp-config', mcpConfig,
+        '--strict-mcp-config',
         '--append-system-prompt', this.getSystemPromptAddition(mode),
       ];
 
@@ -389,22 +418,17 @@ export class AgentRunner extends EventEmitter implements IAgentRunner {
 
   private getSystemPromptAddition(mode: 'auto' | 'confirm' = 'auto'): string {
     const systemPrompt = getSystemPrompt();
-    const platformUrl = process.env.PLATFORM_URL || 'http://localhost:8080';
     const lines = [
       systemPrompt,
       '',
       `## Session Context`,
       `Your workspace directory is: ${this.workspacePath}`,
       `Workspace name: ${this.workspaceName || 'unknown'}`,
+      '',
+      `## Public URLs`,
+      `To give a running service a public URL (only when the user explicitly requests it), use the register_app tool after the container is running:`,
+      `mcp__srijan__register_app with arguments: name=<appname> port=<port> path=/<appname>`,
     ];
-    if (this.sessionToken) {
-      const wsJson = this.workspaceName ? `,"workspaceName":"${this.workspaceName}"` : '';
-      lines.push(
-        ``,
-        `To give a service a public URL (only when the user explicitly requests it), register it after the container is running:`,
-        `curl -s -X POST ${platformUrl}/api/apps/register -H "Authorization: Bearer ${this.sessionToken}" -H "Content-Type: application/json" -d '{"name":"<appname>","path":"/<appname>","port":<port>${wsJson}}'`,
-      );
-    }
     if (mode === 'confirm') {
       lines.push(
         '',

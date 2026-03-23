@@ -56,6 +56,7 @@ export function getDb(): Database.Database {
     tryMigrate(`CREATE INDEX IF NOT EXISTS idx_token_usage_user_id ON token_usage(user_id)`);
     tryMigrate(`CREATE INDEX IF NOT EXISTS idx_token_usage_workspace_name ON token_usage(workspace_name)`);
     tryMigrate(`CREATE TABLE IF NOT EXISTS workspace_spending (workspace_name TEXT PRIMARY KEY, spending_limit_usd REAL, spending_reset_at TEXT)`);
+    tryMigrate(`ALTER TABLE sessions ADD COLUMN registration_token TEXT`);
   }
   return db;
 }

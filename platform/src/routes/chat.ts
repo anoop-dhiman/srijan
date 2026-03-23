@@ -138,7 +138,6 @@ export function setupWebSocket(): void {
               workspaceName: session.workspaceName || undefined,
               apiKey,
               model: getModel(),
-              sessionToken,
               vertexConfig,
               litellmConfig,
               userId: user.userId,

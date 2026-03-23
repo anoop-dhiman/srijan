@@ -1,21 +1,45 @@
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import { authMiddleware } from '../security/auth.js';
 import { getDb } from '../db/store.js';
 import { v4 as uuidv4 } from 'uuid';
 import { addRoute, removeRoute } from '../docker/caddy.js';
 
 const router = Router();
-router.use(authMiddleware);
 
 const APP_NAME_RE = /^[a-zA-Z0-9_-]{1,64}$/;
 
-router.get('/', (_req: Request, res: Response) => {
+// Middleware for agent-initiated registration: validates X-Registration-Token against sessions table
+function registrationAuth(req: Request, res: Response, next: NextFunction): void {
+  const token = req.headers['x-registration-token'] as string | undefined;
+  if (!token) {
+    res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'Missing registration token' } });
+    return;
+  }
+  const db = getDb();
+  const session = db.prepare(
+    "SELECT id, workspace_name FROM sessions WHERE registration_token = ? AND status != 'deleted'"
+  ).get(token) as { id: string; workspace_name: string | null } | undefined;
+  if (!session) {
+    res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'Invalid registration token' } });
+    return;
+  }
+  // Enforce workspace: if body specifies a workspaceName it must match the session's workspace
+  const { workspaceName } = req.body;
+  if (workspaceName && session.workspace_name && workspaceName !== session.workspace_name) {
+    res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Workspace mismatch' } });
+    return;
+  }
+  (req as any).registrationSession = session;
+  next();
+}
+
+router.get('/', authMiddleware, (_req: Request, res: Response) => {
   const db = getDb();
   const apps = db.prepare('SELECT * FROM apps ORDER BY created_at DESC').all();
   res.json(apps);
 });
 
-router.post('/register', async (req: Request, res: Response) => {
+router.post('/register', registrationAuth, async (req: Request, res: Response) => {
   const { name, path, port, containerId, workspaceName } = req.body;
   if (!name || !path || !port) {
     res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'name, path, and port required' } });
@@ -73,7 +97,7 @@ router.post('/register', async (req: Request, res: Response) => {
   }
 });
 
-router.delete('/:id', async (req: Request, res: Response) => {
+router.delete('/:id', authMiddleware, async (req: Request, res: Response) => {
   const db = getDb();
   const app = db.prepare('SELECT * FROM apps WHERE id = ?').get(req.params.id) as any;
   if (!app) {

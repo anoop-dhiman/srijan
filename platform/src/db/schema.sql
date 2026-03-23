@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS sessions (
   title TEXT DEFAULT 'New Session',
   status TEXT NOT NULL DEFAULT 'active', -- active, paused, completed
   workspace_name TEXT,
+  registration_token TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
