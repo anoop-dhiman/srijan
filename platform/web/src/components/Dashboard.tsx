@@ -157,6 +157,7 @@ function ContainerRow({ container, app, workspaceName, onAction, onRegistered, o
   onAction: () => void;
   onRegistered: () => void;
   onDeregister: (appId: string) => void;
+  onDeleted: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [logs, setLogs] = useState<string>('');
@@ -167,6 +168,7 @@ function ContainerRow({ container, app, workspaceName, onAction, onRegistered, o
   const [regPort, setRegPort] = useState('');
   const [registering, setRegistering] = useState(false);
   const [regError, setRegError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const isRunning = container.State === 'running';
   const displayName = container.Names[0]?.replace(/^\//, '') || container.Id.slice(0, 12);
@@ -206,6 +208,15 @@ function ContainerRow({ container, app, workspaceName, onAction, onRegistered, o
     setRegPort(firstPublicPort ? String(firstPublicPort) : '');
     setRegError(null);
     setShowRegister(true);
+  };
+
+  const deleteContainer = async () => {
+    setDeleting(true);
+    try {
+      await apiFetch(`/containers/${container.Id}?force=${isRunning ? 'true' : 'false'}`, { method: 'DELETE' });
+      onDeleted();
+    } catch { /* ignore */ }
+    setDeleting(false);
   };
 
   const submitRegister = async () => {
@@ -285,6 +296,14 @@ function ContainerRow({ container, app, workspaceName, onAction, onRegistered, o
           className={`p-1.5 rounded-lg transition-colors ${isRunning ? 'hover:bg-destructive/10 hover:text-destructive' : 'hover:bg-green-500/10 hover:text-green-600'} text-muted-foreground`}
         >
           {actioning ? <RefreshCw size={14} className="animate-spin" /> : isRunning ? <Square size={14} /> : <Play size={14} />}
+        </button>
+        <button
+          onClick={deleteContainer}
+          disabled={deleting}
+          title={isRunning ? 'Force delete' : 'Delete container'}
+          className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50"
+        >
+          {deleting ? <RefreshCw size={14} className="animate-spin" /> : <Trash2 size={14} />}
         </button>
       </div>
 
@@ -906,6 +925,7 @@ function WorkspaceCard({ workspace, onViewSessions, onDeleteWorkspace, spendingI
                 onAction={refreshContainers}
                 onRegistered={refreshContainers}
                 onDeregister={deregisterApp}
+                onDeleted={refreshContainers}
               />
             ))
           )}

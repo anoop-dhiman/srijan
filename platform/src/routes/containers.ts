@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { authMiddleware, requireAdmin } from '../security/auth.js';
-import { listContainers, getContainerLogs, startContainer, stopContainer } from '../docker/manager.js';
+import { listContainers, getContainerLogs, startContainer, stopContainer, removeContainer } from '../docker/manager.js';
 
 const CONTAINER_ID_RE = /^[a-zA-Z0-9][a-zA-Z0-9_.-]+$/;
 
@@ -67,6 +67,21 @@ router.post('/:id/stop', requireAdmin, async (req: Request, res: Response) => {
   try {
     await stopContainer(id);
     res.json({ stopped: true });
+  } catch (err: any) {
+    res.status(500).json({ error: { code: 'DOCKER_ERROR', message: err.message } });
+  }
+});
+
+router.delete('/:id', requireAdmin, async (req: Request, res: Response) => {
+  const id = req.params.id as string;
+  if (!CONTAINER_ID_RE.test(id)) {
+    res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'Invalid container id' } });
+    return;
+  }
+  const force = req.query.force === 'true';
+  try {
+    await removeContainer(id, force);
+    res.json({ deleted: true });
   } catch (err: any) {
     res.status(500).json({ error: { code: 'DOCKER_ERROR', message: err.message } });
   }
