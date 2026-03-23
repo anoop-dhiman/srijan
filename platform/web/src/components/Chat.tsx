@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback, FormEvent } from 'react';
 import {
-  Send, Plus, Menu, Loader2, Trash2, PlayCircle,
+  Send, Plus, Menu, Loader2, Trash2, PlayCircle, Square,
   PanelLeftClose, PanelLeftOpen, CheckCircle2, XCircle, Terminal,
   FileText, Search, FolderSearch, Bot, ChevronDown, ChevronRight, AlertTriangle,
 } from 'lucide-react';
@@ -26,6 +26,7 @@ interface ChatProps {
   onWorkspaceChange: (name: string) => void;
   onReplaySession: (sessionId: string) => void;
   onGoToDashboard: () => void;
+  onAbortSession: () => void;
 }
 
 const MIN_WIDTH = 180;
@@ -210,6 +211,7 @@ export function Chat({
   onWorkspaceChange,
   onReplaySession,
   onGoToDashboard,
+  onAbortSession,
 }: ChatProps) {
   const [input, setInput] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -542,13 +544,24 @@ export function Chat({
                 rows={2}
                 className="w-full bg-transparent resize-none px-4 pt-4 pb-14 max-h-[200px] outline-none text-base placeholder:text-muted-foreground disabled:opacity-50 disabled:cursor-not-allowed"
               />
-              <button
-                type="submit"
-                disabled={!input.trim() || isLoading || noWorkspace || isPendingApproval}
-                className="absolute bottom-3 right-3 rounded-xl bg-primary p-2.5 text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
-              >
-                {isLoading ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
-              </button>
+              {isLoading ? (
+                <button
+                  type="button"
+                  onClick={onAbortSession}
+                  className="absolute bottom-3 right-3 rounded-xl bg-destructive p-2.5 text-destructive-foreground hover:bg-destructive/90 transition-colors"
+                  title="Stop agent"
+                >
+                  <Square size={18} />
+                </button>
+              ) : (
+                <button
+                  type="submit"
+                  disabled={!input.trim() || noWorkspace || isPendingApproval}
+                  className="absolute bottom-3 right-3 rounded-xl bg-primary p-2.5 text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                >
+                  <Send size={18} />
+                </button>
+              )}
             </div>
           </form>
         </div>

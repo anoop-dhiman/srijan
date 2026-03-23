@@ -173,6 +173,14 @@ export function setupWebSocket(): void {
             break;
           }
 
+          case 'abort_session': {
+            if (currentSessionId) {
+              const runner = getRunner(currentSessionId);
+              if (runner) runner.abort();
+            }
+            break;
+          }
+
           default:
             ws.send(JSON.stringify({ type: 'error', data: { message: `Unknown message type: ${msg.type}` } }));
         }

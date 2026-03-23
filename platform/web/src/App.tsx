@@ -153,6 +153,7 @@ function App() {
             onWorkspaceChange={chat.setCurrentWorkspace}
             onReplaySession={handleReplaySession}
             onGoToDashboard={() => setActiveView('dashboard')}
+            onAbortSession={chat.abortSession}
           />
         );
       case 'settings':

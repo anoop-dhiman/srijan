@@ -101,6 +101,7 @@ export class AgentRunner extends EventEmitter implements IAgentRunner {
   private claudeSessionId: string | null = null;
   private subprocess: ReturnType<typeof spawn> | null = null;
   private readonly userId: string;
+  private aborted = false;
 
   constructor(options: RunnerOptions) {
     super();
@@ -238,7 +239,13 @@ export class AgentRunner extends EventEmitter implements IAgentRunner {
         this.subprocess = null;
         await secretProxy.close().catch(() => {});
         cleanupVertexCred();
-        if (code !== 0 && code !== null) {
+        if (this.aborted) {
+          // Clean stop — emit a neutral stopped event
+          const stoppedEvent = createEvent(this.sessionId, 'agent_stopped', { message: 'Agent stopped.' });
+          saveEvent(stoppedEvent);
+          this.emit('event', stoppedEvent);
+          this.aborted = false;
+        } else if (code !== 0 && code !== null) {
           const raw = stderrBuffer.trim();
           // S8: redact real secret values from stderr before surfacing to users
           let detail = raw;
@@ -414,6 +421,7 @@ export class AgentRunner extends EventEmitter implements IAgentRunner {
 
   abort(): void {
     if (this.subprocess) {
+      this.aborted = true;
       this.subprocess.kill('SIGTERM');
       this.subprocess = null;
     }

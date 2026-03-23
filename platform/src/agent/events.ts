@@ -6,7 +6,8 @@ export type EventType =
   | 'tool_result'
   | 'error'
   | 'session_start'
-  | 'session_end';
+  | 'session_end'
+  | 'agent_stopped';
 
 export interface AgentEvent {
   id?: number;

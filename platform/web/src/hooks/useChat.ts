@@ -258,7 +258,7 @@ export function useChat() {
             if (evt.type === 'tool_result') {
               updated.agentStatus = 'Thinking…';
             }
-            if (evt.type === 'error') {
+            if (evt.type === 'error' || evt.type === 'agent_stopped') {
               updated.isLoading = false;
               updated.agentStatus = '';
               updated.pendingApproval = false;
@@ -361,6 +361,10 @@ export function useChat() {
               },
             ]);
           }
+
+          if (evt.type === 'agent_stopped') {
+            streamBufferRef.current = '';
+          }
           break;
         }
 
@@ -455,6 +459,11 @@ export function useChat() {
     wsRef.current.send(JSON.stringify({ type: 'delete_session', sessionId }));
   }, []);
 
+  const abortSession = useCallback(() => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+    wsRef.current.send(JSON.stringify({ type: 'abort_session' }));
+  }, []);
+
   useEffect(() => {
     return () => disconnect();
   }, [disconnect]);
@@ -482,5 +491,6 @@ export function useChat() {
     joinSession,
     newSession,
     deleteSession,
+    abortSession,
   };
 }
