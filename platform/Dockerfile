@@ -24,7 +24,7 @@ RUN cd web && npx vite build
 # Production image
 FROM node:22-alpine
 
-RUN apk add --no-cache curl docker-cli git
+RUN apk add --no-cache bash curl docker-cli git
 
 # Create a 'docker' group and add the existing 'node' user to it.
 # The actual host docker GID is injected at runtime via compose group_add;
@@ -43,6 +43,7 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/web/dist ./web/dist
 
 ENV NODE_ENV=production
+ENV SHELL=/bin/bash
 EXPOSE 8080
 
 # Run as non-root — required by Claude Code CLI (refuses --dangerously-skip-permissions as root)
