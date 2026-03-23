@@ -3,7 +3,7 @@ import { Folder, FolderOpen, FileText, ChevronRight, ChevronDown, Loader2, Penci
 import type { WorkspaceInfo } from '../hooks/useChat';
 import { apiFetch } from '../lib/api';
 
-const MonacoEditor = lazy(() => import('@monaco-editor/react'));
+const MonacoEditor = lazy(() => import('../lib/monaco-setup'));
 
 interface Entry {
   name: string;
