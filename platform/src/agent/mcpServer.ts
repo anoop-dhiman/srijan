@@ -37,7 +37,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
             description: 'Docker container name running the service (e.g. "todo-app-web-1"). Required when the app runs as a Docker container so Caddy can route to it by name.',
           },
         },
-        required: ['name', 'port'],
+        required: ['name', 'port', 'containerName'],
       },
     },
   ],
