@@ -598,6 +598,82 @@ services:
       retries: 3
 ```
 
+### Google Cloud (Vertex AI) Authentication
+
+When using Vertex AI as the LLM provider, the platform container needs Google Cloud credentials. There are three options:
+
+---
+
+#### Option 1: Srijan Settings UI (Recommended)
+
+Configure Vertex AI directly in **Settings → AI Provider → Vertex AI**:
+
+- **Project ID** — your GCP project ID
+- **Region** — e.g. `us-central1`
+- **SA Key (optional)** — paste the full service account JSON content
+
+When a SA key is provided, Srijan encrypts it in the SQLite DB (AES-256-GCM) and writes it to a temporary file (`/tmp/srijan-sa-<sessionId>.json`) at agent spawn time, then sets `GOOGLE_APPLICATION_CREDENTIALS` for that subprocess only. The key is never stored in plain text or exposed to the agent.
+
+Leave the SA Key field blank to use Application Default Credentials (ADC) — see Option 3.
+
+---
+
+#### Option 2: Service Account Key File (docker-compose)
+
+Mount a SA key JSON file into the container and point `GOOGLE_APPLICATION_CREDENTIALS` at it:
+
+```yaml
+# In docker-compose.yml, under the platform service:
+volumes:
+  - ./gcp-sa-key.json:/gcp-sa-key.json:ro
+environment:
+  - GOOGLE_APPLICATION_CREDENTIALS=/gcp-sa-key.json
+```
+
+Add `GOOGLE_APPLICATION_CREDENTIALS` to the `.env` file if you want to keep it configurable:
+
+```bash
+# .env
+GOOGLE_APPLICATION_CREDENTIALS=/gcp-sa-key.json
+```
+
+Then reference it in `docker-compose.yml`:
+
+```yaml
+environment:
+  - GOOGLE_APPLICATION_CREDENTIALS=${GOOGLE_APPLICATION_CREDENTIALS:-}
+```
+
+Set the Vertex provider in Settings with your project ID and region — no SA key paste needed since the mounted file is picked up automatically via ADC.
+
+---
+
+#### Option 3: Workload Identity / Application Default Credentials (GCP-hosted VMs)
+
+If the host VM runs on GCP with an attached service account (Compute Engine, GKE, Cloud Run), ADC works automatically — no key file needed.
+
+For non-GCP hosts that have `gcloud` configured locally, mount the ADC credential directory:
+
+```yaml
+# In docker-compose.yml, under the platform service:
+volumes:
+  - ${HOME}/.config/gcloud:/home/node/.config/gcloud:ro
+environment:
+  - GOOGLE_APPLICATION_CREDENTIALS=/home/node/.config/gcloud/application_default_credentials.json
+```
+
+> **Note**: The platform container runs as user `node`. Mount ADC files into `/home/node/` rather than `/root/`.
+
+---
+
+#### Comparison
+
+| Option | Best for | Key stored |
+|--------|----------|------------|
+| Settings UI | Most deployments | AES-256-GCM encrypted in SQLite |
+| SA key file mount | Ops-managed infra, secret managers | Host filesystem (restrict perms: `chmod 600`) |
+| Workload Identity / ADC | GCP-hosted VMs, GKE | No key — IAM-based |
+
 ---
 
 ## Project Directory Structure
