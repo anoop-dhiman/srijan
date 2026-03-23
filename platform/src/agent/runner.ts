@@ -269,11 +269,18 @@ export class AgentRunner extends EventEmitter implements IAgentRunner {
         await secretProxy.close().catch(() => {});
         cleanupVertexCred();
         if (this.aborted) {
-          // Clean stop — emit a neutral stopped event
+          // User-initiated stop
           const stoppedEvent = createEvent(this.sessionId, 'agent_stopped', { message: 'Agent stopped.' });
           saveEvent(stoppedEvent);
           this.emit('event', stoppedEvent);
           this.aborted = false;
+        } else if (code === 0 || code === null) {
+          // Normal completion — always signal done so the frontend resets loading state
+          // (a tool_use emitted after the final agent_response would otherwise leave
+          // isLoading=true with no subsequent reset event)
+          const doneEvent = createEvent(this.sessionId, 'agent_stopped', { message: '' });
+          saveEvent(doneEvent);
+          this.emit('event', doneEvent);
         } else if (code !== 0 && code !== null) {
           const raw = stderrBuffer.trim();
           // S8: redact real secret values from stderr before surfacing to users
