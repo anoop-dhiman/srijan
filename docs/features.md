@@ -235,7 +235,7 @@
 > As a developer, I want to run a single command on my VM to set up Srijan with SSL, so that I can start using it within minutes.
 
 Acceptance criteria:
-- `curl -sL https://get.srijan.dev | bash -s -- --domain dev.example.com --email me@example.com --password mypass`
+- `curl -sL https://raw.githubusercontent.com/anoop-dhiman/srijan/refs/heads/master/deployment/setup.sh | bash -s -- --domain dev.example.com --email me@example.com --password mypass`
 - Installs Docker if not present
 - Starts Caddy + Platform containers via Docker Compose
 - Caddy auto-provisions SSL certificate

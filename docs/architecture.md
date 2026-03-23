@@ -542,7 +542,7 @@ secrets:
 ```bash
 #!/bin/bash
 # Srijan - One-line setup
-# Usage: curl -sL https://get.srijan.dev | bash -s -- \
+# Usage: curl -sL https://raw.githubusercontent.com/anoop-dhiman/srijan/refs/heads/master/deployment/setup.sh | bash -s -- \
 #          --domain dev.example.com \
 #          --email you@example.com \
 #          --password <admin-password>

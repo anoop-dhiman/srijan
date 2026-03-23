@@ -55,7 +55,7 @@ Login: username `admin`, password `admin` (or set `SRIJAN_ADMIN_PASSWORD` env va
 ### Production (Docker)
 
 ```bash
-curl -sL https://get.srijan.dev | bash -s -- \
+curl -sL https://raw.githubusercontent.com/anoop-dhiman/srijan/refs/heads/master/deployment/setup.sh | bash -s -- \
   --domain dev.example.com \
   --email you@example.com \
   --password <admin-password>

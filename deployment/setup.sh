@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Srijan — one-command setup script
-# Usage: curl -sL https://get.srijan.dev | bash -s -- --domain dev.example.com --email me@example.com --password mypass
+# Usage: curl -sL https://raw.githubusercontent.com/anoop-dhiman/srijan/refs/heads/master/deployment/setup.sh | bash -s -- --domain dev.example.com --email me@example.com --password mypass
 set -euo pipefail
 
 # ── Colours ────────────────────────────────────────────────────────────────────
@@ -16,9 +16,8 @@ error()   { echo -e "${RED}[srijan] ERROR:${RESET} $*" >&2; exit 1; }
 DOMAIN=""
 EMAIL=""
 PASSWORD=""
-INSTALL_DIR="/opt/srijan"
-REPO_URL="https://github.com/anoopdhiman/srijan.git"
-IMAGE_NAME="srijan/platform:latest"
+INSTALL_DIR="${HOME}/srijan"
+IMAGE_NAME="ghcr.io/anoop-dhiman/srijan-platform:latest"
 
 # ── Argument parsing ───────────────────────────────────────────────────────────
 usage() {
@@ -28,7 +27,7 @@ usage() {
   echo "  --domain    Domain name for the Srijan UI (e.g. dev.example.com)"
   echo "  --email     Email for Let's Encrypt TLS certificate"
   echo "  --password  Admin login password"
-  echo "  --dir       Install directory (default: /opt/srijan)"
+  echo "  --dir       Install directory (default: ~/srijan)"
   exit 1
 }
 
@@ -58,86 +57,158 @@ if [[ "$EUID" -ne 0 ]]; then
 fi
 
 # ── OS detection ───────────────────────────────────────────────────────────────
-detect_os() {
-  if [[ -f /etc/os-release ]]; then
-    # shellcheck source=/dev/null
-    . /etc/os-release
-    echo "$ID"
-  elif command -v uname &>/dev/null; then
-    uname -s | tr '[:upper:]' '[:lower:]'
-  else
-    echo "unknown"
-  fi
-}
-
-OS=$(detect_os)
-info "Detected OS: $OS"
-
-# ── Docker install ─────────────────────────────────────────────────────────────
-install_docker() {
-  info "Installing Docker..."
-  case "$OS" in
-    ubuntu|debian)
-      apt-get update -qq
-      apt-get install -y -qq ca-certificates curl gnupg lsb-release
-      install -m 0755 -d /etc/apt/keyrings
-      curl -fsSL https://download.docker.com/linux/"$OS"/gpg \
-        | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-      chmod a+r /etc/apt/keyrings/docker.gpg
-      echo \
-        "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
-        https://download.docker.com/linux/${OS} $(lsb_release -cs) stable" \
-        > /etc/apt/sources.list.d/docker.list
-      apt-get update -qq
-      apt-get install -y -qq docker-ce docker-ce-cli containerd.io docker-compose-plugin
-      ;;
-    amzn|fedora|rhel|centos)
-      dnf install -y docker docker-compose-plugin
-      ;;
-    *)
-      warn "Unsupported OS: $OS. Attempting generic Docker install via get.docker.com..."
-      curl -fsSL https://get.docker.com | sh
-      ;;
-  esac
-  systemctl enable --now docker
-  success "Docker installed."
-}
-
+# ── Dependency checks ──────────────────────────────────────────────────────────
 if ! command -v docker &>/dev/null; then
-  install_docker
-else
-  info "Docker already installed: $(docker --version)"
+  error "Docker is not installed. Install it from https://docs.docker.com/engine/install/ and re-run."
 fi
 
-# Ensure Docker Compose plugin is available
 if ! docker compose version &>/dev/null 2>&1; then
-  error "Docker Compose plugin not found. Install it and re-run this script."
+  error "Docker Compose plugin not found. Install it from https://docs.docker.com/compose/install/ and re-run."
 fi
 
-# ── Prerequisites ──────────────────────────────────────────────────────────────
-for cmd in git curl openssl; do
-  if ! command -v "$cmd" &>/dev/null; then
-    info "Installing $cmd..."
-    case "$OS" in
-      ubuntu|debian) apt-get install -y -qq "$cmd" ;;
-      amzn|fedora|rhel|centos) dnf install -y "$cmd" ;;
-    esac
-  fi
-done
-
-# ── Clone or update repo ───────────────────────────────────────────────────────
-if [[ -d "$INSTALL_DIR/.git" ]]; then
-  info "Srijan already cloned at $INSTALL_DIR — pulling latest..."
-  git -C "$INSTALL_DIR" pull --ff-only
-else
-  info "Cloning Srijan to $INSTALL_DIR..."
-  git clone "$REPO_URL" "$INSTALL_DIR"
+if ! command -v openssl &>/dev/null; then
+  error "openssl is not installed. Install it (e.g. apt install openssl / dnf install openssl) and re-run."
 fi
 
-# ── Build platform image ───────────────────────────────────────────────────────
-info "Building platform Docker image (this takes a few minutes)..."
-docker build -t "$IMAGE_NAME" "$INSTALL_DIR/platform"
-success "Platform image built."
+info "Docker: $(docker --version)"
+info "Docker Compose: $(docker compose version)"
+
+# ── Write deployment files ─────────────────────────────────────────────────────
+info "Writing deployment files to $INSTALL_DIR..."
+mkdir -p "$INSTALL_DIR/deployment/caddy"
+
+cat > "$INSTALL_DIR/deployment/docker-compose.yml" <<'EOF'
+version: "3.8"
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: srijan-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    environment:
+      - SRIJAN_DOMAIN=${SRIJAN_DOMAIN:-localhost}
+      - ACME_EMAIL=${ACME_EMAIL:-}
+    networks:
+      - srijan
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 128M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  platform:
+    image: ghcr.io/anoop-dhiman/srijan-platform:latest
+    container_name: srijan-platform
+    restart: unless-stopped
+    expose:
+      - "8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - srijan_workspaces:/workspaces
+      - srijan_data:/data
+    environment:
+      - PORT=8080
+      - SRIJAN_ADMIN_PASSWORD=${SRIJAN_ADMIN_PASSWORD:?SRIJAN_ADMIN_PASSWORD is required}
+      - SRIJAN_JWT_SECRET=${SRIJAN_JWT_SECRET:?SRIJAN_JWT_SECRET is required}
+      - SRIJAN_SECRETS_KEY=${SRIJAN_SECRETS_KEY:?SRIJAN_SECRETS_KEY is required}
+      - SRIJAN_DATA_DIR=/data
+      - WORKSPACE_ROOT=/workspaces
+      - SRIJAN_DOMAIN=${SRIJAN_DOMAIN:-localhost}
+      - SRIJAN_ORIGIN=${SRIJAN_ORIGIN:-}
+      - CADDY_ADMIN_URL=http://caddy:2019
+    depends_on:
+      - caddy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - srijan
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 1G
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+volumes:
+  caddy_data:
+  caddy_config:
+  srijan_workspaces:
+  srijan_data:
+
+networks:
+  srijan:
+    driver: bridge
+EOF
+
+cat > "$INSTALL_DIR/deployment/caddy/Caddyfile" <<'EOF'
+{
+	email {$ACME_EMAIL:}
+}
+
+http://{$SRIJAN_DOMAIN:localhost} {
+	redir https://{host}{uri} permanent
+}
+
+{$SRIJAN_DOMAIN:localhost} {
+	header {
+		X-Frame-Options "DENY"
+		X-Content-Type-Options "nosniff"
+		X-XSS-Protection "1; mode=block"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ws: wss:; font-src 'self' data:"
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		-Server
+	}
+
+	handle /forge/* {
+		reverse_proxy srijan-platform:8080
+	}
+
+	handle /forge {
+		reverse_proxy srijan-platform:8080
+	}
+
+	handle /api/* {
+		reverse_proxy srijan-platform:8080
+	}
+
+	handle /health {
+		reverse_proxy srijan-platform:8080
+	}
+
+	handle {
+		reverse_proxy srijan-platform:8080
+	}
+}
+EOF
+
+success "Deployment files written."
+
+# ── Pull platform image ────────────────────────────────────────────────────────
+info "Pulling platform image..."
+docker pull "$IMAGE_NAME"
+success "Platform image pulled."
 
 # ── Generate secrets (idempotent — don't overwrite existing) ───────────────────
 ENV_FILE="$INSTALL_DIR/deployment/.env"
@@ -208,7 +279,7 @@ echo -e "  Login:    admin / <your password>"
 echo
 echo -e "  Logs:     ${YELLOW}docker logs -f srijan-platform${RESET}"
 echo -e "  Stop:     ${YELLOW}docker compose -f ${INSTALL_DIR}/deployment/docker-compose.yml down${RESET}"
-echo -e "  Update:   ${YELLOW}curl -sL https://get.srijan.dev | sudo bash -s -- --domain ${DOMAIN} --email ${EMAIL} --password <password>${RESET}"
+echo -e "  Update:   ${YELLOW}docker pull ${IMAGE_NAME} && docker compose -f ${INSTALL_DIR}/deployment/docker-compose.yml --env-file ${ENV_FILE} up -d${RESET}"
 echo
 warn "Configure your LLM provider at: https://${DOMAIN}/forge (Settings)"
 echo
