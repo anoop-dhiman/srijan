@@ -97,6 +97,7 @@ jobs:
       SRIJAN_ADMIN_PASSWORD: testpass
       SRIJAN_JWT_SECRET: test-secret
       SRIJAN_SECRETS_KEY: "test-key-32-bytes-long-pad-here!"
+      WORKSPACE_ROOT: ${{ github.workspace }}/e2e-workspaces
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
