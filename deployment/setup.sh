@@ -224,12 +224,13 @@ else
 # Caddy receives plain HTTP on port 80. No cert management.
 {
 	auto_https off
+	servers {
+		# Trust X-Forwarded-* headers from the upstream LB
+		trusted_proxies static private_ranges
+	}
 }
 
 http://{$SRIJAN_DOMAIN:localhost} {
-	# Trust X-Forwarded-* headers from the upstream LB
-	trusted_proxies private_ranges
-
 	header {
 		X-Frame-Options "DENY"
 		X-Content-Type-Options "nosniff"
