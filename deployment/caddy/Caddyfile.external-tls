@@ -3,7 +3,9 @@
 # Use this when terminating TLS at an AWS ALB, Nginx, Cloudflare, etc.
 {
 	auto_https off
-	admin 0.0.0.0:2019
+	admin 0.0.0.0:2019 {
+		origins localhost caddy
+	}
 	servers {
 		# Trust X-Forwarded-* headers from the upstream LB
 		trusted_proxies static private_ranges

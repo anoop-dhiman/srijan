@@ -2,7 +2,9 @@
 # For external TLS termination (LB handles TLS), see Caddyfile.external-tls
 {
 	email {$ACME_EMAIL:}
-	admin 0.0.0.0:2019
+	admin 0.0.0.0:2019 {
+		origins localhost caddy
+	}
 }
 
 http://{$SRIJAN_DOMAIN:localhost} {

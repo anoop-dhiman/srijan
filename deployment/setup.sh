@@ -178,7 +178,9 @@ if [[ "$TLS_MODE" == "caddy" ]]; then
 # Caddy-managed TLS — auto HTTPS via Let's Encrypt
 {
 	email {$ACME_EMAIL:}
-	admin 0.0.0.0:2019
+	admin 0.0.0.0:2019 {
+		origins localhost caddy
+	}
 }
 
 http://{$SRIJAN_DOMAIN:localhost} {
