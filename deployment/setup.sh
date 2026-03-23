@@ -178,6 +178,7 @@ if [[ "$TLS_MODE" == "caddy" ]]; then
 # Caddy-managed TLS — auto HTTPS via Let's Encrypt
 {
 	email {$ACME_EMAIL:}
+	admin 0.0.0.0:2019
 }
 
 http://{$SRIJAN_DOMAIN:localhost} {
@@ -196,23 +197,11 @@ http://{$SRIJAN_DOMAIN:localhost} {
 		-Server
 	}
 
-	handle /forge/* {
+	handle_path /forge/* {
 		reverse_proxy srijan-platform:8080
 	}
 
 	handle /forge {
-		reverse_proxy srijan-platform:8080
-	}
-
-	handle /api/* {
-		reverse_proxy srijan-platform:8080
-	}
-
-	handle /health {
-		reverse_proxy srijan-platform:8080
-	}
-
-	handle {
 		reverse_proxy srijan-platform:8080
 	}
 }
@@ -223,6 +212,7 @@ else
 # Caddy receives plain HTTP on port 80. No cert management.
 {
 	auto_https off
+	admin 0.0.0.0:2019
 	servers {
 		# Trust X-Forwarded-* headers from the upstream LB
 		trusted_proxies static private_ranges
@@ -240,23 +230,11 @@ http://{$SRIJAN_DOMAIN:localhost} {
 		-Server
 	}
 
-	handle /forge/* {
+	handle_path /forge/* {
 		reverse_proxy srijan-platform:8080
 	}
 
 	handle /forge {
-		reverse_proxy srijan-platform:8080
-	}
-
-	handle /api/* {
-		reverse_proxy srijan-platform:8080
-	}
-
-	handle /health {
-		reverse_proxy srijan-platform:8080
-	}
-
-	handle {
 		reverse_proxy srijan-platform:8080
 	}
 }

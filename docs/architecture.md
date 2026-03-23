@@ -128,7 +128,7 @@ Platform Container (:8080)
 |
 +-- State Store (SQLite + WAL mode)
     +-- users             (id, username, password_hash, role, totp_secret, totp_enabled)
-    +-- sessions          (id, user_id, workspace_name, created_at, updated_at)  [idx: user_id, workspace_name]
+    +-- sessions          (id, user_id, workspace_name, registration_token, created_at, updated_at)  [idx: user_id, workspace_name]
     +-- events            (id, session_id, type, data JSON, created_at)  [idx: session_id]
     +-- secrets           (id, name, encrypted_value, created_at)
     +-- apps              (id, name, workspace_name, port, path, container_id)
@@ -149,17 +149,17 @@ Agent Sandbox (within platform container)
 |   +-- docker CLI (via mounted socket, filtered)
 |   +-- git
 |   +-- file read/write (sandboxed to /workspaces)
-|   +-- caddy route management (via Admin API)
+|   +-- mcp__srijan__register_app (MCP tool via per-session stdio server)
 +-- Environment:
 |   +-- SRIJAN_PLACEHOLDER_ANTHROPIC_KEY=placeholder_xxx
 |   +-- SRIJAN_PLACEHOLDER_OPENAI_KEY=placeholder_xxx
-|   +-- GIT_TOKEN=<scoped token>
 |   +-- WORKSPACE_ROOT=/workspaces
 +-- Restrictions:
     +-- Cannot read /opt/srijan/secrets.enc
     +-- Cannot access host filesystem outside /workspaces
     +-- Docker commands filtered (no --privileged, no host network)
     +-- Destructive commands blocked (rm -rf /, docker rm platform, etc.)
+    +-- No internal platform URL or user JWT in agent context
 ```
 
 ---
@@ -171,7 +171,7 @@ Agent Sandbox (within platform container)
 ```
 User (browser)
   |
-  | WebSocket: /api/chat
+  | WebSocket: /forge/api/chat  (Caddy strips /forge -> /api/chat at platform)
   v
 API Server
   |
@@ -222,8 +222,9 @@ Agent:
   6. docker compose build
   7. docker compose up -d
      -> app on :3001, postgres on :5432 (internal)
-  8. POST /api/apps/register
-     {name: "todo", port: 3001, path: "/todo"}
+  8. mcp__srijan__register_app {name: "todo", port: 3001, path: "/todo"}
+     -> MCP server calls POST http://localhost:8080/api/apps/register
+        with X-Registration-Token (scoped per-session, not user JWT)
   9. Caddy Route Manager calls Caddy Admin API:
      POST http://caddy:2019/config/apps/http/servers/srv0/routes
      -> adds reverse_proxy to todo-app:3001
@@ -629,7 +630,8 @@ Srijan/
 |   |   |   +-- sessions.ts      # GET /api/sessions/:id/recording
 |   |   |   +-- users.ts         # CRUD /api/users (admin only)
 |   |   +-- agent/
-|   |   |   +-- runner.ts        # Claude Code CLI subprocess, Vertex AI, boundaries, cost
+|   |   |   +-- runner.ts        # Claude Code CLI subprocess, Vertex AI, boundaries, cost; injects --mcp-config per spawn
+|   |   |   +-- mcpServer.ts     # Stdio MCP server: register_app tool; called by Claude Code CLI via --mcp-config
 |   |   |   +-- IAgentRunner.ts  # Interface for pluggable agent SDKs
 |   |   |   +-- OpenCodeRunner.ts # OpenCode SDK stub (emits error event)
 |   |   |   +-- events.ts        # Event type definitions

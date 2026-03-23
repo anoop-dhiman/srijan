@@ -47,7 +47,7 @@ npm run dev                  # Backend on :8080
 
 cd web
 npm install
-npx vite                     # Frontend on :5173 (proxies /api -> :8080)
+npx vite                     # Frontend on :5173 (proxies /forge -> :8080, strips prefix)
 ```
 
 Login: username `admin`, password `admin` (or set `SRIJAN_ADMIN_PASSWORD` env var).
@@ -73,10 +73,10 @@ Then visit `https://dev.example.com/forge` from any device.
 
 ```bash
 cd platform
-npm test                     # 279 backend tests
+npm test                     # 286 backend tests
 
 cd web
-npx vitest run               # 196 frontend unit tests
+npx vitest run               # 197 frontend unit tests
 npx playwright test          # 22 E2E tests (requires running server)
 ```
 
@@ -151,6 +151,7 @@ npx playwright test          # 22 E2E tests (requires running server)
 | Phase 12 | Observability (pino logging, health endpoint, request tracing), workspace templates, agent permission UI, mobile polish — 447 tests | **Done** |
 | Phase 13 | Production Dockerfile + CI/CD (GitHub Actions → ghcr.io), monthly spending caps, Playwright E2E tests — 497 tests | **Done** |
 | Phase 13.1 | CI/CD improvements: merged build+push job, path filters, E2E race condition fixes, self-contained setup.sh (pull prebuilt image, no git clone) | **Done** |
+| Phase 13.2 | Security: MCP-based app registration (agent never sees platform URL or user JWT); platform served exclusively at `/forge`; scoped per-session registration tokens | **Done** |
 | Phase 14 | Local models (Ollama), GitHub bot, webhook notifications | Planned |
 
 ## Tech Stack
