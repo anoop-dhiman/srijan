@@ -111,18 +111,18 @@ jobs:
           node-version: 22
       - name: Install backend deps
         run: cd platform && npm ci
-      - name: Build backend
-        run: cd platform && npm run build
       - name: Install frontend deps
         run: cd platform/web && npm ci
+      - name: Build backend
+        run: cd platform && npm run build
+      - name: Build frontend
+        run: cd platform/web && npm run build
       - name: Install Playwright browsers
         run: cd platform/web && npx playwright install --with-deps chromium
-      - name: Start backend
+      - name: Start backend (serves built frontend)
         run: cd platform && npm start &
-      - name: Start frontend
-        run: cd platform/web && npm run dev &
-      - name: Wait for servers
-        run: npx wait-on http://localhost:8080/health http://localhost:5173 --timeout 30000
+      - name: Wait for server
+        run: npx wait-on http://localhost:8080/health --timeout 30000
       - name: Run E2E tests
         run: cd platform/web && npm run test:e2e
       - name: Upload Playwright report

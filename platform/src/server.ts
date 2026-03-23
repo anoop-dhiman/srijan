@@ -115,12 +115,13 @@ app.use((err: any, _req: any, res: any, _next: any) => {
 });
 
 // Serve frontend static files (after build)
+// Mount at both root and /forge so assets work with or without Caddy prefix stripping
 const webDist = join(__dirname, '../web/dist');
 if (existsSync(webDist)) {
+  app.use('/forge', express.static(webDist));
   app.use(express.static(webDist));
-  app.get('/{*splat}', (_req, res) => {
-    res.sendFile(join(webDist, 'index.html'));
-  });
+  app.get('/forge/{*splat}', (_req, res) => res.sendFile(join(webDist, 'index.html')));
+  app.get('/{*splat}', (_req, res) => res.sendFile(join(webDist, 'index.html')));
 }
 
 // Initialize
