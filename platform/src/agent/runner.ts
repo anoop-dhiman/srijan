@@ -427,7 +427,10 @@ export class AgentRunner extends EventEmitter implements IAgentRunner {
       '',
       `## Public URLs`,
       `To give a running service a public URL (only when the user explicitly requests it), use the register_app tool after the container is running:`,
-      `mcp__srijan__register_app with arguments: name=<appname> port=<port> path=/<appname>`,
+      `1. Run: docker ps --format '{{.Names}}' to find the exact container name.`,
+      `2. Call: mcp__srijan__register_app with arguments: name=<appname> port=<container_port> path=/<appname> containerName=<exact_container_name>`,
+      `   - port is the PORT the process listens on INSIDE the container (e.g. 3000), NOT the host-mapped port.`,
+      `   - containerName MUST be the full container name from "docker ps" (e.g. "todo-app-web-1").`,
     ];
     if (mode === 'confirm') {
       lines.push(

@@ -16,7 +16,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     {
       name: 'register_app',
       description:
-        'Register a running service to get a public URL. Call this after the container is running and only when the user explicitly asks for a public URL.',
+        'Register a running Docker container to get a public URL via Caddy reverse proxy. Call this ONLY when the user explicitly asks for a public URL. Before calling, run "docker ps --format \'{{.Names}}\'" to get the exact container name and pass it as containerName. Use the container\'s internal port (not the host-mapped port).',
       inputSchema: {
         type: 'object',
         properties: {
