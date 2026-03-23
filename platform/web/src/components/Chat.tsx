@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect, useCallback, FormEvent } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import type { FormEvent } from 'react';
 import {
   Send, Plus, Menu, Loader2, Trash2, PlayCircle, Square,
   PanelLeftClose, PanelLeftOpen, CheckCircle2, XCircle, Terminal,

@@ -84,6 +84,7 @@ const mockChat = {
   joinSession: vi.fn(),
   newSession: vi.fn(),
   deleteSession: vi.fn(),
+  abortSession: vi.fn(),
 };
 
 describe('App', () => {

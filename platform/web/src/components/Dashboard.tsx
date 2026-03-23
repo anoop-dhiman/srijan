@@ -150,7 +150,7 @@ function GitAuthFields({
   );
 }
 
-function ContainerRow({ container, app, workspaceName, onAction, onRegistered, onDeregister }: {
+function ContainerRow({ container, app, workspaceName, onAction, onRegistered, onDeregister, onDeleted }: {
   container: ContainerInfo;
   app?: AppInfo;
   workspaceName: string;
