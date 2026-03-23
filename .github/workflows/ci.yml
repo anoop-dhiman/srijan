@@ -20,7 +20,13 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: platform/web/package-lock.json
+          cache-dependency-path: |
+            platform/package-lock.json
+            platform/web/package-lock.json
+      - name: Install backend deps
+        run: cd platform && npm ci
+      - name: Type-check backend
+        run: cd platform && npx tsc --noEmit
       - name: Install frontend deps
         run: cd platform/web && npm ci
       - name: Lint frontend
@@ -40,7 +46,9 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: platform/package-lock.json
+          cache-dependency-path: |
+            platform/package-lock.json
+            platform/web/package-lock.json
       - name: Install backend deps
         run: cd platform && npm ci
       - name: Run backend tests
@@ -112,6 +120,8 @@ jobs:
           node-version: 22
       - name: Install backend deps
         run: cd platform && npm ci
+      - name: Build backend
+        run: cd platform && npm run build
       - name: Install frontend deps
         run: cd platform/web && npm ci
       - name: Install Playwright browsers
