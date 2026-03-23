@@ -26,6 +26,13 @@ FROM node:22-alpine
 
 RUN apk add --no-cache curl docker-cli git
 
+# Add a 'docker' group (GID 999 — common Linux default) and add the existing
+# 'node' user to it so it can access /var/run/docker.sock.
+# docker-compose passes the actual host docker GID via group_add, which takes
+# precedence at runtime; this just ensures a sensible fallback in the image.
+RUN addgroup -g 999 docker 2>/dev/null || true \
+ && adduser node docker
+
 WORKDIR /app
 
 COPY package.json package-lock.json ./
@@ -38,5 +45,8 @@ COPY --from=builder /app/web/dist ./web/dist
 
 ENV NODE_ENV=production
 EXPOSE 8080
+
+# Run as non-root — required by Claude Code CLI (refuses --dangerously-skip-permissions as root)
+USER node
 
 CMD ["node", "dist/server.js"]

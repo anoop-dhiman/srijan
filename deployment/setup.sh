@@ -86,12 +86,14 @@ echo
 [[ ${#PASSWORD} -lt 8 ]] && error "Password must be at least 8 characters."
 [[ "$TLS_MODE" == "caddy" && -z "$EMAIL" ]] && error "Email is required for Caddy-managed TLS."
 
-info "Domain: ${DOMAIN}  TLS: ${TLS_MODE}  Install dir: ${INSTALL_DIR}"
+DOCKER_GID=$(stat -c '%g' /var/run/docker.sock 2>/dev/null || echo "999")
+info "Domain: ${DOMAIN}  TLS: ${TLS_MODE}  Install dir: ${INSTALL_DIR}  Docker GID: ${DOCKER_GID}"
 echo
 
 # ── Write deployment files ─────────────────────────────────────────────────────
 info "Writing deployment files to $INSTALL_DIR..."
-mkdir -p "$INSTALL_DIR/caddy"
+mkdir -p "$INSTALL_DIR/caddy/data" "$INSTALL_DIR/caddy/config" \
+         "$INSTALL_DIR/workspaces" "$INSTALL_DIR/data"
 
 cat > "$INSTALL_DIR/docker-compose.yml" <<'COMPOSE'
 services:
@@ -127,6 +129,9 @@ services:
     image: ghcr.io/anoop-dhiman/srijan-platform:latest
     container_name: srijan-platform
     restart: unless-stopped
+    user: "node"
+    group_add:
+      - "${DOCKER_GID:-999}"
     expose:
       - "8080"
     volumes:
@@ -289,6 +294,7 @@ WORKSPACE_ROOT=/workspaces
 CADDY_ADMIN_URL=http://caddy:2019
 ACME_EMAIL=${EMAIL}
 TLS_MODE=${TLS_MODE}
+DOCKER_GID=${DOCKER_GID}
 EOF
   chmod 600 "$ENV_FILE"
 }

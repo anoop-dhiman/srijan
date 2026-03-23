@@ -31,6 +31,9 @@ services:
     image: ghcr.io/anoop-dhiman/srijan-platform:latest
     container_name: srijan-platform
     restart: unless-stopped
+    user: "node"
+    group_add:
+      - "${DOCKER_GID:-999}"
     expose:
       - "8080"
     volumes:
