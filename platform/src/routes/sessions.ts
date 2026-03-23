@@ -7,7 +7,7 @@ const router = Router();
 router.use(authMiddleware);
 
 router.get('/:id/recording', (req: Request, res: Response) => {
-  const { id } = req.params;
+  const id = req.params.id as string;
   const user = (req as any).user;
 
   const session = getSession(id);

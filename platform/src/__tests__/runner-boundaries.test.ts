@@ -70,7 +70,7 @@ describe('Agent Boundaries', () => {
 
   it('should not check non-Bash tools', () => {
     // Non-Bash tool_use should never be checked against blocklist
-    const toolName = 'Read';
+    const toolName: string = 'Read';
     const isBash = toolName === 'Bash';
     expect(isBash).toBe(false);
     // No boundary check performed for non-Bash

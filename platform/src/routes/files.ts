@@ -24,7 +24,7 @@ function isUnderBase(resolvedPath: string, base: string): boolean {
 }
 
 router.get('/:name/files', (req: Request, res: Response) => {
-  const { name } = req.params;
+  const name = req.params.name as string;
   const requestedPath = (req.query.path as string) || '';
 
   if (requestedPath.length > MAX_PATH_LENGTH) {
@@ -83,7 +83,7 @@ router.get('/:name/files', (req: Request, res: Response) => {
 });
 
 router.get('/:name/file', (req: Request, res: Response) => {
-  const { name } = req.params;
+  const name = req.params.name as string;
   const requestedPath = (req.query.path as string) || '';
 
   if (!requestedPath) {
@@ -138,7 +138,7 @@ router.get('/:name/file', (req: Request, res: Response) => {
 });
 
 router.put('/:name/file', (req: Request, res: Response) => {
-  const { name } = req.params;
+  const name = req.params.name as string;
   const requestedPath = (req.query.path as string) || '';
 
   if (!requestedPath) {

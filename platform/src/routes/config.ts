@@ -23,7 +23,7 @@ router.get('/', (_req: Request, res: Response) => {
 });
 
 router.put('/:key', requireAdmin, (req: Request, res: Response) => {
-  const { key } = req.params;
+  const key = req.params.key as string;
   const { value } = req.body;
   if (value === undefined) {
     res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'Value required' } });

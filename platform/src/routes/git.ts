@@ -53,7 +53,8 @@ router.post('/init', async (req: Request, res: Response) => {
 
 router.get('/:name/status', async (req: Request, res: Response) => {
   try {
-    const git = getGit(req.params.name);
+    const name = req.params.name as string;
+    const git = getGit(name);
     const [status, remotes] = await Promise.all([git.status(), git.getRemotes(true)]);
     const remoteUrl = remotes.find(r => r.name === 'origin')?.refs?.push ?? null;
     res.json({
@@ -69,8 +70,9 @@ router.get('/:name/status', async (req: Request, res: Response) => {
 
 router.post('/:name/pull', async (req: Request, res: Response) => {
   try {
-    const creds = getWorkspaceCredentials(req.params.name) ?? undefined;
-    const result = await pullRepo(req.params.name, creds);
+    const name = req.params.name as string;
+    const creds = getWorkspaceCredentials(name) ?? undefined;
+    const result = await pullRepo(name, creds);
     res.json(result);
   } catch (err: any) {
     res.status(500).json({ error: { code: 'GIT_ERROR', message: err.message } });
@@ -84,7 +86,7 @@ router.post('/:name/remote', async (req: Request, res: Response) => {
     return;
   }
   try {
-    await setRemote(req.params.name, url);
+    await setRemote(req.params.name as string, url);
     res.json({ ok: true });
   } catch (err: any) {
     res.status(500).json({ error: { code: 'GIT_ERROR', message: err.message } });
@@ -93,8 +95,9 @@ router.post('/:name/remote', async (req: Request, res: Response) => {
 
 router.post('/:name/push', async (req: Request, res: Response) => {
   try {
-    const creds = getWorkspaceCredentials(req.params.name) ?? undefined;
-    await pushRepo(req.params.name, creds);
+    const name = req.params.name as string;
+    const creds = getWorkspaceCredentials(name) ?? undefined;
+    await pushRepo(name, creds);
     res.json({ ok: true });
   } catch (err: any) {
     res.status(500).json({ error: { code: 'GIT_ERROR', message: err.message } });
@@ -104,7 +107,7 @@ router.post('/:name/push', async (req: Request, res: Response) => {
 // --- Git credential management ---
 
 router.get('/:name/credentials', (req: Request, res: Response) => {
-  const creds = getWorkspaceCredentials(req.params.name);
+  const creds = getWorkspaceCredentials(req.params.name as string);
   if (!creds) {
     res.json({ configured: false });
     return;
@@ -122,7 +125,7 @@ router.post('/:name/credentials', (req: Request, res: Response) => {
   try {
     // Normalize unknown providers to 'generic'
     const resolvedProvider: GitProvider = (VALID_PROVIDERS.includes(provider) ? provider : 'generic') as GitProvider;
-    saveWorkspaceCredentials(req.params.name, resolvedProvider, username || '', token);
+    saveWorkspaceCredentials(req.params.name as string, resolvedProvider, username || '', token);
     res.json({ ok: true, provider: resolvedProvider });
   } catch (err: any) {
     res.status(500).json({ error: { code: 'DB_ERROR', message: err.message } });
@@ -130,7 +133,7 @@ router.post('/:name/credentials', (req: Request, res: Response) => {
 });
 
 router.delete('/:name/credentials', (req: Request, res: Response) => {
-  deleteWorkspaceCredentials(req.params.name);
+  deleteWorkspaceCredentials(req.params.name as string);
   res.json({ ok: true });
 });
 

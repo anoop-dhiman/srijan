@@ -30,13 +30,14 @@ router.get('/', async (req: Request, res: Response) => {
 });
 
 router.get('/:id/logs', async (req: Request, res: Response) => {
-  if (!CONTAINER_ID_RE.test(req.params.id)) {
+  const id = req.params.id as string;
+  if (!CONTAINER_ID_RE.test(id)) {
     res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'Invalid container id' } });
     return;
   }
   const tail = Math.min(Math.max(parseInt(req.query.tail as string || '100', 10) || 100, 1), 10000);
   try {
-    const logs = await getContainerLogs(req.params.id, tail);
+    const logs = await getContainerLogs(id, tail);
     res.json({ logs });
   } catch (err: any) {
     res.status(500).json({ error: { code: 'DOCKER_ERROR', message: err.message } });
@@ -44,12 +45,13 @@ router.get('/:id/logs', async (req: Request, res: Response) => {
 });
 
 router.post('/:id/start', requireAdmin, async (req: Request, res: Response) => {
-  if (!CONTAINER_ID_RE.test(req.params.id)) {
+  const id = req.params.id as string;
+  if (!CONTAINER_ID_RE.test(id)) {
     res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'Invalid container id' } });
     return;
   }
   try {
-    await startContainer(req.params.id);
+    await startContainer(id);
     res.json({ started: true });
   } catch (err: any) {
     res.status(500).json({ error: { code: 'DOCKER_ERROR', message: err.message } });
@@ -57,12 +59,13 @@ router.post('/:id/start', requireAdmin, async (req: Request, res: Response) => {
 });
 
 router.post('/:id/stop', requireAdmin, async (req: Request, res: Response) => {
-  if (!CONTAINER_ID_RE.test(req.params.id)) {
+  const id = req.params.id as string;
+  if (!CONTAINER_ID_RE.test(id)) {
     res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'Invalid container id' } });
     return;
   }
   try {
-    await stopContainer(req.params.id);
+    await stopContainer(id);
     res.json({ stopped: true });
   } catch (err: any) {
     res.status(500).json({ error: { code: 'DOCKER_ERROR', message: err.message } });

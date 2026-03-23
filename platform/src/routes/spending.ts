@@ -60,7 +60,7 @@ router.get('/workspaces', requireAdmin, (_req: Request, res: Response) => {
 });
 
 router.get('/workspace/:name', requireAdmin, (req: Request, res: Response) => {
-  const { name } = req.params;
+  const name = req.params.name as string;
   const windowStart = getMonthWindowStart();
   const spending = getWorkspaceSpending(name, windowStart);
   res.json({

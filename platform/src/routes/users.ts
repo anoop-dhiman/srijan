@@ -43,7 +43,7 @@ router.post('/', requireAdmin, (req: Request, res: Response) => {
 });
 
 router.delete('/:id', requireAdmin, (req: Request, res: Response) => {
-  const { id } = req.params;
+  const id = req.params.id as string;
   const self = (req as any).user;
   if (id === self.userId) {
     res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'Cannot delete your own account' } });
@@ -54,7 +54,7 @@ router.delete('/:id', requireAdmin, (req: Request, res: Response) => {
 });
 
 router.put('/:id/password', (req: Request, res: Response) => {
-  const { id } = req.params;
+  const id = req.params.id as string;
   const { password } = req.body;
   const self = (req as any).user;
 
@@ -79,7 +79,7 @@ router.put('/:id/password', (req: Request, res: Response) => {
 });
 
 router.put('/:id/spending-limit', requireAdmin, (req: Request, res: Response) => {
-  const { id } = req.params;
+  const id = req.params.id as string;
   const { spending_limit_usd } = req.body;
 
   if (spending_limit_usd !== null && spending_limit_usd !== undefined) {
