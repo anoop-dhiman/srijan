@@ -3,6 +3,7 @@ import * as pty from 'node-pty';
 import { getWorkspaceRoot } from '../git/manager.js';
 import { getSession } from '../agent/session.js';
 import { join } from 'path';
+import { existsSync } from 'fs';
 
 export const terminalWss = new WebSocketServer({ noServer: true });
 
@@ -38,14 +39,19 @@ export function setupTerminal(): void {
       }
     }
 
+    const shell = process.env.SHELL ||
+      (existsSync('/bin/bash') ? '/bin/bash' : '/bin/sh');
+
     let ptyProc: ReturnType<typeof pty.spawn>;
     try {
-      ptyProc = pty.spawn('bash', [], {
+      const env = buildCleanEnv();
+      if (!env['SHELL']) env['SHELL'] = shell;
+      ptyProc = pty.spawn(shell, [], {
         name: 'xterm-256color',
         cols: 80,
         rows: 24,
         cwd,
-        env: buildCleanEnv(),
+        env,
       });
     } catch (err: any) {
       if (ws.readyState === WebSocket.OPEN) {
