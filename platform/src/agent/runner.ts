@@ -160,7 +160,7 @@ export class AgentRunner extends EventEmitter implements IAgentRunner {
           args: [mcpServerPath],
           env: {
             SRIJAN_REG_TOKEN: this.registrationToken,
-            SRIJAN_PLATFORM_URL: process.env.PLATFORM_URL || 'http://host.docker.internal:8080',
+            SRIJAN_PLATFORM_URL: process.env.PLATFORM_URL || 'http://localhost:8080',
             SRIJAN_WORKSPACE: this.workspaceName || '',
           },
         },
