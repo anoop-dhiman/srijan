@@ -1,7 +1,7 @@
 # Srijan — Agent Handoff Summary
 
 > Date: 2026-03-23
-> Latest commit: `11597d2` (CI path filters — 497 tests total: 279 backend + 196 frontend unit + 22 E2E)
+> Latest commit: `60c96a6` (interactive setup.sh overhaul — 497 tests total: 279 backend + 196 frontend unit + 22 E2E)
 > Location: `/Users/anoop.dhiman/Documents/Srijan`
 
 ---
@@ -96,8 +96,10 @@ Srijan/
 ├── deployment/
 │   ├── docker-compose.yml    # Caddy (:80/:443) + Platform (:8080); uses ghcr.io/anoop-dhiman/srijan-platform:latest
 │   ├── docker-compose.dev.yml # Dev config with hot-reload, port 2019 exposed
-│   ├── setup.sh              # Self-contained installer: checks deps, embeds compose+Caddyfile as heredocs, pulls prebuilt image
-│   └── caddy/Caddyfile       # Base routing config
+│   ├── setup.sh              # Interactive installer: prompts domain/TLS/email/password/dir; embeds compose+Caddyfile as heredocs; pulls prebuilt image; preserves secrets on re-run
+│   └── caddy/
+│       ├── Caddyfile             # Base routing config (caddy TLS mode)
+│       └── Caddyfile.external-tls # Reference config for external TLS termination (auto_https off, trusted_proxies)
 └── README.md
 ```
 
@@ -200,7 +202,8 @@ Supported providers: `github` (PAT), `azure` (Azure DevOps PAT), `generic` (any 
 - **Users (RBAC)**: `GET/POST/DELETE /api/users` (admin only); `role` column in users table; `requireAdmin` middleware; `PUT /api/users/:id/spending-limit` (admin)
 - **Spending caps**: `lib/spending.ts` — `checkSpendingLimits(userId, workspaceName)` called before agent spawn; `getMonthWindowStart()` for calendar-month windows; `getUserSpending` / `getWorkspaceSpending` aggregate `token_usage` by month; agent spawn blocked (503) when limit exceeded
 - **Spending routes**: `GET /api/spending/me`, `GET /api/spending/users` (admin), `GET /api/spending/workspaces` (admin), `GET /api/spending/workspace/:name`
-- **CI/CD**: `.github/workflows/ci.yml` — `lint → test → build-and-push → e2e`; build and push merged into one job (no double build); path filters skip CI for non-platform changes; `WORKSPACE_ROOT` set to writable path in E2E job; E2E Playwright tests fix race conditions with `toBeEnabled()` waits and `data-testid="workspace-card"` selector
+- **CI/CD**: `.github/workflows/ci.yml` — `lint → test → build-and-push → e2e`; build and push merged into one job (no double build); path filters (`platform/**`, `.github/workflows/ci.yml`) skip CI for doc/deployment-only changes; `WORKSPACE_ROOT` set to writable path in E2E job; E2E race conditions fixed with `toBeEnabled()` waits and `data-testid="workspace-card"` selector
+- **setup.sh**: fully interactive (prompts via `/dev/tty` — works with `curl | bash`); prompts: domain, TLS mode (`caddy` = auto HTTPS / `external` = LB handles TLS), email (caddy only), admin password (hidden + confirm, min 8 chars), install dir (default `$(pwd)/srijan`); dependency checks before prompts; embeds `docker-compose.yml` + appropriate `Caddyfile` as heredocs; pulls `ghcr.io/anoop-dhiman/srijan-platform:latest`; re-runs preserve existing `JWT_SECRET`/`SECRETS_KEY` and only rewrite domain/email/password; no `sudo` required; trap on INT/TERM for clean exit
 
 ### Frontend (196 unit tests + 22 E2E tests passing)
 - **Login**: multi-user username + password fields; optional TOTP challenge step; 429 rate-limit feedback; JWT stored in localStorage

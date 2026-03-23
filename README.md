@@ -55,11 +55,17 @@ Login: username `admin`, password `admin` (or set `SRIJAN_ADMIN_PASSWORD` env va
 ### Production (Docker)
 
 ```bash
-curl -sL https://raw.githubusercontent.com/anoop-dhiman/srijan/refs/heads/master/deployment/setup.sh | bash -s -- \
-  --domain dev.example.com \
-  --email you@example.com \
-  --password <admin-password>
+curl -sL https://raw.githubusercontent.com/anoop-dhiman/srijan/refs/heads/master/deployment/setup.sh | bash
 ```
+
+The script is fully interactive — it will prompt for:
+- **Domain** (e.g. `dev.example.com`)
+- **TLS mode**: `caddy` (auto HTTPS via Let's Encrypt) or `external` (TLS terminated upstream by an ALB/Nginx/Cloudflare)
+- **Email** (Let's Encrypt, only if TLS mode is `caddy`)
+- **Admin password** (entered securely, never echoed)
+- **Install directory** (defaults to `./srijan`)
+
+Re-running the script preserves existing secrets (`JWT_SECRET`, `SECRETS_KEY`) and only updates domain/email/password.
 
 Then visit `https://dev.example.com/forge` from any device.
 
