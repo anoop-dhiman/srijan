@@ -26,11 +26,15 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
           },
           port: {
             type: 'number',
-            description: 'Host port the service is listening on',
+            description: 'Container port the service is listening on (NOT the host-mapped port)',
           },
           path: {
             type: 'string',
             description: 'URL path prefix (defaults to /<name>)',
+          },
+          containerName: {
+            type: 'string',
+            description: 'Docker container name running the service (e.g. "todo-app-web-1"). Required when the app runs as a Docker container so Caddy can route to it by name.',
           },
         },
         required: ['name', 'port'],
@@ -47,14 +51,16 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
     };
   }
 
-  const { name, port, path } = req.params.arguments as {
+  const { name, port, path, containerName } = req.params.arguments as {
     name: string;
     port: number;
     path?: string;
+    containerName?: string;
   };
 
   const body: Record<string, unknown> = { name, port };
   if (path) body.path = path;
+  if (containerName) body.containerName = containerName;
   if (WORKSPACE) body.workspaceName = WORKSPACE;
 
   try {

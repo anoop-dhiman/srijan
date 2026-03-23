@@ -1,8 +1,23 @@
 import { createLogger } from '../lib/logger.js';
+import { docker } from './manager.js';
 
 const log = createLogger('caddy');
 const CADDY_ADMIN_URL = process.env.CADDY_ADMIN_URL || 'http://localhost:2019';
+const SRIJAN_NETWORK = process.env.SRIJAN_NETWORK || 'srijan_srijan';
 const APP_NAME_RE = /^[a-zA-Z0-9_-]{1,64}$/;
+
+async function connectContainerToNetwork(containerName: string): Promise<void> {
+  try {
+    const network = docker.getNetwork(SRIJAN_NETWORK);
+    await network.connect({ Container: containerName });
+    log.info({ containerName, network: SRIJAN_NETWORK }, 'connected container to srijan network');
+  } catch (err: any) {
+    // Already connected is fine
+    if (!err.message?.includes('already exists') && !err.message?.includes('endpoint with name')) {
+      log.warn({ containerName, err: err.message }, 'could not connect container to srijan network');
+    }
+  }
+}
 
 function validateAppName(name: string): void {
   if (!APP_NAME_RE.test(name)) {
@@ -10,8 +25,16 @@ function validateAppName(name: string): void {
   }
 }
 
-export async function addRoute(appName: string, path: string, port: number): Promise<void> {
+export async function addRoute(appName: string, path: string, port: number, containerName?: string): Promise<void> {
   validateAppName(appName);
+
+  let dial: string;
+  if (containerName) {
+    await connectContainerToNetwork(containerName);
+    dial = `${containerName}:${port}`;
+  } else {
+    dial = `host.docker.internal:${port}`;
+  }
 
   const route = {
     '@id': `app-${appName}`,
@@ -28,7 +51,7 @@ export async function addRoute(appName: string, path: string, port: number): Pro
               },
               {
                 handler: 'reverse_proxy',
-                upstreams: [{ dial: `host.docker.internal:${port}` }],
+                upstreams: [{ dial }],
               },
             ],
           },

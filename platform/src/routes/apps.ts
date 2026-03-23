@@ -40,7 +40,7 @@ router.get('/', authMiddleware, (_req: Request, res: Response) => {
 });
 
 router.post('/register', registrationAuth, async (req: Request, res: Response) => {
-  const { name, path, port, containerId, workspaceName } = req.body;
+  const { name, path, port, containerId, containerName, workspaceName } = req.body;
   if (!name || !path || !port) {
     res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'name, path, and port required' } });
     return;
@@ -63,7 +63,7 @@ router.post('/register', registrationAuth, async (req: Request, res: Response) =
 
   try {
     // Register with Caddy first — if it fails we don't pollute the DB
-    await addRoute(name, appPath, portNum);
+    await addRoute(name, appPath, portNum, containerName || undefined);
 
     try {
       db.prepare(
