@@ -9,7 +9,12 @@ const APP_NAME_RE = /^[a-zA-Z0-9_-]{1,64}$/;
 // Resolved once at startup by initCaddyRouteId().
 let appRoutesPath: string | null = null;
 
-async function connectContainerToNetwork(containerName: string): Promise<void> {
+/**
+ * Connects a container to the Srijan network and returns its IP address on
+ * that network. Using the IP avoids Docker DNS timing issues that arise when
+ * a container is freshly connected and the embedded DNS hasn't propagated yet.
+ */
+async function connectContainerToNetwork(containerName: string): Promise<string | null> {
   try {
     const network = docker.getNetwork(SRIJAN_NETWORK);
     await network.connect({ Container: containerName });
@@ -20,6 +25,21 @@ async function connectContainerToNetwork(containerName: string): Promise<void> {
       log.warn({ containerName, err: err.message }, 'could not connect container to srijan network');
     }
   }
+
+  // Inspect to get the container's IP on the srijan network
+  try {
+    const container = docker.getContainer(containerName);
+    const info = await container.inspect();
+    const ip = info.NetworkSettings?.Networks?.[SRIJAN_NETWORK]?.IPAddress;
+    if (ip) {
+      log.info({ containerName, ip }, 'resolved container IP on srijan network');
+      return ip;
+    }
+  } catch (err: any) {
+    log.warn({ containerName, err: err.message }, 'could not inspect container for IP');
+  }
+
+  return null;
 }
 
 function validateAppName(name: string): void {
@@ -52,8 +72,10 @@ export async function addRoute(appName: string, path: string, port: number, cont
 
   let dial: string;
   if (containerName) {
-    await connectContainerToNetwork(containerName);
-    dial = `${containerName}:${port}`;
+    const ip = await connectContainerToNetwork(containerName);
+    // Prefer IP over hostname — avoids Docker DNS propagation lag after
+    // a container is freshly connected to the network (SERVFAIL / 502).
+    dial = ip ? `${ip}:${port}` : `${containerName}:${port}`;
   } else {
     dial = `host.docker.internal:${port}`;
   }
