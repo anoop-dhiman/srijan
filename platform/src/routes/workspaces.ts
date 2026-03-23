@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { authMiddleware, requireAdmin } from '../security/auth.js';
-import { getWorkspaceRoot, cloneRepo, initRepo, setRemote, commitAll, pushRepo, deleteWorkspace, validateWorkspaceName } from '../git/manager.js';
+import { getWorkspaceRoot, cloneRepo, initRepo, setRemote, commitAll, pushRepo, deleteWorkspace, validateWorkspaceName, setGitIdentity } from '../git/manager.js';
 import { detectProvider, saveWorkspaceCredentials, deleteWorkspaceCredentials, type GitProvider } from '../lib/gitAuth.js';
 import { getDb } from '../db/store.js';
 import { listContainers } from '../docker/manager.js';
@@ -94,9 +94,20 @@ router.post('/', async (req: Request, res: Response) => {
   const creds = hasCreds ? { provider: gitProvider, username: gitUsername || '', token: gitToken } : undefined;
 
   try {
+    // Load default git identity from config (if set)
+    const db = getDb();
+    let defaultIdentity: { name: string; email: string } | undefined;
+    try {
+      const row = db.prepare('SELECT value FROM config WHERE key = ?').get('git_identity') as { value: string } | undefined;
+      if (row) {
+        const parsed = JSON.parse(row.value);
+        if (parsed.name || parsed.email) defaultIdentity = parsed;
+      }
+    } catch { /* non-fatal */ }
+
     let path: string;
     if (cloneUrl) {
-      path = await cloneRepo(cloneUrl, name, creds);
+      path = await cloneRepo(cloneUrl, name, creds, defaultIdentity);
       // Persist credentials only after successful clone
       if (hasCreds) {
         const targetUrl = cloneUrl || remoteUrl || '';
@@ -106,7 +117,7 @@ router.post('/', async (req: Request, res: Response) => {
         saveWorkspaceCredentials(name, provider, gitUsername || '', gitToken);
       }
     } else {
-      path = await initRepo(name);
+      path = await initRepo(name, defaultIdentity);
 
       // Apply template if provided (non-fatal)
       if (template && VALID_TEMPLATES.includes(template as TemplateId) && template !== 'none') {

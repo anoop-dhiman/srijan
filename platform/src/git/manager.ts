@@ -36,7 +36,27 @@ export function getGit(repoName: string): SimpleGit {
   return simpleGit(repoPath).env({ GIT_TERMINAL_PROMPT: '0' });
 }
 
-export async function cloneRepo(url: string, name: string, creds?: GitCredentials): Promise<string> {
+export interface GitIdentity {
+  name: string;
+  email: string;
+}
+
+export async function setGitIdentity(repoName: string, identity: GitIdentity): Promise<void> {
+  const git = getGit(repoName);
+  if (identity.name) await git.addConfig('user.name', identity.name, false, 'local');
+  if (identity.email) await git.addConfig('user.email', identity.email, false, 'local');
+}
+
+export async function getGitIdentity(repoName: string): Promise<GitIdentity> {
+  const git = getGit(repoName);
+  let name = '';
+  let email = '';
+  try { name = (await git.getConfig('user.name')).value || ''; } catch { /* not set */ }
+  try { email = (await git.getConfig('user.email')).value || ''; } catch { /* not set */ }
+  return { name, email };
+}
+
+export async function cloneRepo(url: string, name: string, creds?: GitCredentials, identity?: GitIdentity): Promise<string> {
   validateWorkspaceName(name);
   const targetPath = join(getWorkspaceRoot(), name);
   if (existsSync(join(targetPath, '.git'))) {
@@ -58,14 +78,17 @@ export async function cloneRepo(url: string, name: string, creds?: GitCredential
     await git.remote(['set-url', 'origin', cleanUrl]);
   }
 
+  if (identity) await setGitIdentity(name, identity);
+
   return targetPath;
 }
 
-export async function initRepo(name: string): Promise<string> {
+export async function initRepo(name: string, identity?: GitIdentity): Promise<string> {
   const targetPath = join(getWorkspaceRoot(), name);
   mkdirSync(targetPath, { recursive: true });
   const git = simpleGit(targetPath);
   await git.init();
+  if (identity) await setGitIdentity(name, identity);
   return targetPath;
 }
 

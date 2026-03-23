@@ -23,6 +23,8 @@ vi.mock('../git/manager.js', () => ({
   commitAll: vi.fn().mockResolvedValue(undefined),
   pushRepo: vi.fn().mockResolvedValue(undefined),
   deleteWorkspace: vi.fn().mockResolvedValue(undefined),
+  setGitIdentity: vi.fn().mockResolvedValue(undefined),
+  validateWorkspaceName: vi.fn(),
 }));
 
 vi.mock('../lib/gitAuth.js', () => ({
@@ -133,7 +135,7 @@ describe('Workspaces API', () => {
         .send({ name: 'new-ws' });
       expect(res.status).toBe(201);
       expect(res.body.name).toBe('new-ws');
-      expect(initRepo).toHaveBeenCalledWith('new-ws');
+      expect(initRepo).toHaveBeenCalledWith('new-ws', undefined);
     });
 
     it('sets remote, commits, and pushes when remoteUrl provided', async () => {
@@ -197,6 +199,7 @@ describe('Workspaces API', () => {
       expect(cloneRepo).toHaveBeenCalledWith(
         'https://github.com/example/repo.git',
         'cloned-ws',
+        undefined,
         undefined
       );
     });
@@ -221,7 +224,8 @@ describe('Workspaces API', () => {
       expect(cloneRepo).toHaveBeenCalledWith(
         'https://github.com/example/private.git',
         'auth-clone-ws',
-        expect.objectContaining({ token: 'ghp_token123' })
+        expect.objectContaining({ token: 'ghp_token123' }),
+        undefined
       );
     });
 

@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { authMiddleware } from '../security/auth.js';
-import { cloneRepo, initRepo, getGit, setRemote, pushRepo, pullRepo } from '../git/manager.js';
+import { cloneRepo, initRepo, getGit, setRemote, pushRepo, pullRepo, getGitIdentity, setGitIdentity } from '../git/manager.js';
 import {
   detectProvider,
   getWorkspaceCredentials,
@@ -98,6 +98,31 @@ router.post('/:name/push', async (req: Request, res: Response) => {
     const name = req.params.name as string;
     const creds = getWorkspaceCredentials(name) ?? undefined;
     await pushRepo(name, creds);
+    res.json({ ok: true });
+  } catch (err: any) {
+    res.status(500).json({ error: { code: 'GIT_ERROR', message: err.message } });
+  }
+});
+
+// --- Git identity (user.name / user.email) ---
+
+router.get('/:name/identity', async (req: Request, res: Response) => {
+  try {
+    const identity = await getGitIdentity(req.params.name as string);
+    res.json(identity);
+  } catch (err: any) {
+    res.status(500).json({ error: { code: 'GIT_ERROR', message: err.message } });
+  }
+});
+
+router.put('/:name/identity', async (req: Request, res: Response) => {
+  const { name, email } = req.body;
+  if (!name && !email) {
+    res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'name or email required' } });
+    return;
+  }
+  try {
+    await setGitIdentity(req.params.name as string, { name: name || '', email: email || '' });
     res.json({ ok: true });
   } catch (err: any) {
     res.status(500).json({ error: { code: 'GIT_ERROR', message: err.message } });

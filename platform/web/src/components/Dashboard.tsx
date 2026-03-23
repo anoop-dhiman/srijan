@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import {
   RefreshCw, Play, Square, ChevronDown, ChevronRight, ExternalLink, FolderOpen,
-  MessageSquare, Globe, GitBranch, Link, Plus, X, Upload, Lock, LockOpen, KeyRound, Trash2,
+  MessageSquare, Globe, GitBranch, Link, Plus, X, Upload, Lock, LockOpen, KeyRound, Trash2, User,
 } from 'lucide-react';
 import { apiFetch } from '../lib/api';
 import type { WorkspaceInfo } from '../hooks/useChat';
@@ -342,6 +342,14 @@ function GitSection({ workspaceName }: { workspaceName: string }) {
   const [linking, setLinking] = useState(false);
   const [linkError, setLinkError] = useState<string | null>(null);
 
+  // Git identity state
+  const [identityInfo, setIdentityInfo] = useState<{ name: string; email: string } | null>(null);
+  const [showIdentityPanel, setShowIdentityPanel] = useState(false);
+  const [idName, setIdName] = useState('');
+  const [idEmail, setIdEmail] = useState('');
+  const [savingIdentity, setSavingIdentity] = useState(false);
+  const [identityError, setIdentityError] = useState<string | null>(null);
+
   // "Edit auth" panel state (when remote already linked)
   const [showAuthPanel, setShowAuthPanel] = useState(false);
   const [authProvider, setAuthProvider] = useState<GitProvider>('generic');
@@ -352,9 +360,10 @@ function GitSection({ workspaceName }: { workspaceName: string }) {
 
   const loadGitInfo = useCallback(async () => {
     try {
-      const [status, creds] = await Promise.all([
+      const [status, creds, identity] = await Promise.all([
         apiFetch(`/git/${workspaceName}/status`),
         apiFetch(`/git/${workspaceName}/credentials`),
+        apiFetch(`/git/${workspaceName}/identity`),
       ]);
       setGitInfo({ branch: status.branch, remoteUrl: status.remoteUrl });
       setCredInfo(creds);
@@ -362,6 +371,9 @@ function GitSection({ workspaceName }: { workspaceName: string }) {
         setAuthProvider(creds.provider);
         setAuthUsername(creds.username || '');
       }
+      setIdentityInfo(identity);
+      setIdName(identity.name || '');
+      setIdEmail(identity.email || '');
     } catch { /* ignore */ }
   }, [workspaceName]);
 
@@ -436,6 +448,23 @@ function GitSection({ workspaceName }: { workspaceName: string }) {
     } catch { /* ignore */ }
   };
 
+  const handleSaveIdentity = async () => {
+    if (savingIdentity) return;
+    setSavingIdentity(true);
+    setIdentityError(null);
+    try {
+      await apiFetch(`/git/${workspaceName}/identity`, {
+        method: 'PUT',
+        body: JSON.stringify({ name: idName, email: idEmail }),
+      });
+      await loadGitInfo();
+      setShowIdentityPanel(false);
+    } catch (err: any) {
+      setIdentityError(err.message || 'Failed to save identity');
+    }
+    setSavingIdentity(false);
+  };
+
   if (!gitInfo) return null;
 
   const remoteUrl = gitInfo.remoteUrl;
@@ -501,6 +530,20 @@ function GitSection({ workspaceName }: { workspaceName: string }) {
             Link Git Remote
           </button>
         )}
+
+        {/* Identity badge */}
+        <button
+          onClick={() => { setShowIdentityPanel(v => !v); setIdentityError(null); }}
+          className={`flex items-center gap-1 px-2 py-0.5 rounded-md border transition-colors ${
+            identityInfo?.name
+              ? 'border-border text-muted-foreground hover:bg-muted hover:text-foreground'
+              : 'border-amber-500/40 text-amber-600 bg-amber-500/10'
+          }`}
+          title={identityInfo?.name ? `${identityInfo.name} <${identityInfo.email}>` : 'No git identity configured'}
+        >
+          <User size={11} />
+          {identityInfo?.name || 'Set Identity'}
+        </button>
       </div>
 
       {/* Link remote panel — shown when no remote is set yet */}
@@ -551,6 +594,41 @@ function GitSection({ workspaceName }: { workspaceName: string }) {
           >
             {linking && <RefreshCw size={11} className="animate-spin" />}
             Link Remote
+          </button>
+        </div>
+      )}
+
+      {/* Identity config panel */}
+      {showIdentityPanel && (
+        <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold flex items-center gap-1.5">
+              <User size={12} />
+              Git Identity
+            </span>
+            <button onClick={() => { setShowIdentityPanel(false); setIdentityError(null); }} className="text-muted-foreground hover:text-foreground">
+              <X size={13} />
+            </button>
+          </div>
+          <div className="space-y-2">
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Author Name</label>
+              <input type="text" value={idName} onChange={e => setIdName(e.target.value)}
+                placeholder="Jane Doe"
+                className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary" />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Author Email</label>
+              <input type="email" value={idEmail} onChange={e => setIdEmail(e.target.value)}
+                placeholder="jane@example.com"
+                className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary" />
+            </div>
+          </div>
+          {identityError && <p className="text-xs text-destructive">{identityError}</p>}
+          <button onClick={handleSaveIdentity} disabled={savingIdentity || (!idName.trim() && !idEmail.trim())}
+            className="w-full py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors flex items-center justify-center gap-1.5">
+            {savingIdentity && <RefreshCw size={11} className="animate-spin" />}
+            Save Identity
           </button>
         </div>
       )}

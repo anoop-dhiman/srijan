@@ -6,7 +6,7 @@ import { DEFAULT_SYSTEM_PROMPT, DEFAULT_BLOCKLIST } from '../agent/runner.js';
 const router = Router();
 
 // Allowlist of config keys that can be written via the API
-const WRITABLE_KEYS = new Set(['llm', 'system_prompt', 'agentMode', 'agent_boundaries', 'agentSdk', 'spending_alert_threshold']);
+const WRITABLE_KEYS = new Set(['llm', 'system_prompt', 'agentMode', 'agent_boundaries', 'agentSdk', 'spending_alert_threshold', 'git_identity']);
 
 router.use(authMiddleware);
 

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { Eye, EyeOff, Plus, Trash2, Save, RotateCcw, Shield, Lock, Users as UsersIcon, Copy, Check, Bot, Terminal, DollarSign } from 'lucide-react';
+import { Eye, EyeOff, Plus, Trash2, Save, RotateCcw, Shield, Lock, Users as UsersIcon, Copy, Check, Bot, Terminal, DollarSign, GitBranch } from 'lucide-react';
 import { apiFetch } from '../lib/api';
 
 interface SettingsProps {
@@ -22,7 +22,7 @@ interface User {
   createdAt: string;
 }
 
-type SettingsSection = 'ai-provider' | 'agent' | 'security' | 'secrets' | 'users' | 'spending';
+type SettingsSection = 'ai-provider' | 'agent' | 'git' | 'security' | 'secrets' | 'users' | 'spending';
 
 export function Settings({ open, isAdmin = false }: SettingsProps) {
   const [provider, setProvider] = useState<'anthropic' | 'vertex' | 'litellm'>('anthropic');
@@ -75,6 +75,12 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState<SettingsSection>('ai-provider');
 
+  // Git identity state
+  const [gitName, setGitName] = useState('');
+  const [gitEmail, setGitEmail] = useState('');
+  const [savingGit, setSavingGit] = useState(false);
+  const [gitMessage, setGitMessage] = useState('');
+
   // Spending state
   interface SpendingUser { id: string; username: string; spent_usd: number; limit_usd: number | null; percent: number | null; }
   interface SpendingWorkspace { workspace_name: string; spent_usd: number; limit_usd: number | null; percent: number | null; }
@@ -123,6 +129,10 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
       setDefaultBlocklist(defaults.join('\n'));
       if (config.agent_boundaries) {
         try { setBlocklist(JSON.parse(config.agent_boundaries).join('\n')); } catch { /* ignore */ }
+      }
+      if (config.git_identity) {
+        setGitName(config.git_identity.name || '');
+        setGitEmail(config.git_identity.email || '');
       }
     } catch {
       // Config might not exist yet
@@ -412,6 +422,7 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
   const navItems: { key: SettingsSection; label: string; icon: React.ReactNode }[] = [
     { key: 'ai-provider', label: 'AI Provider', icon: <Bot size={15} /> },
     { key: 'agent',       label: 'Agent',       icon: <Terminal size={15} /> },
+    { key: 'git',         label: 'Git',         icon: <GitBranch size={15} /> },
     { key: 'security',    label: 'Security',    icon: <Lock size={15} /> },
     { key: 'secrets',     label: 'Secrets',     icon: <Shield size={15} /> },
     ...(isAdmin ? [{ key: 'users' as const, label: 'Users', icon: <UsersIcon size={15} /> }] : []),
@@ -755,6 +766,62 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
               {savingSdk ? 'Saving…' : 'Save SDK'}
             </button>
             {sdkMessage && <p className="text-sm text-secondary-foreground">{sdkMessage}</p>}
+          </section>
+        </>}
+
+        {/* Git section */}
+        {activeSection === 'git' && <>
+          <section className="space-y-4">
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Default Git Identity</h3>
+            <p className="text-sm text-muted-foreground">
+              Set the default author name and email for git commits. Applied automatically when creating new workspaces. Per-workspace overrides can be configured in the Dashboard.
+            </p>
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Author Name</label>
+                <input
+                  type="text"
+                  value={gitName}
+                  onChange={(e) => setGitName(e.target.value)}
+                  placeholder="Jane Doe"
+                  className="w-full rounded-xl border border-border bg-muted px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Author Email</label>
+                <input
+                  type="email"
+                  value={gitEmail}
+                  onChange={(e) => setGitEmail(e.target.value)}
+                  placeholder="jane@example.com"
+                  className="w-full rounded-xl border border-border bg-muted px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+            </div>
+            <button
+              onClick={async () => {
+                setSavingGit(true);
+                setGitMessage('');
+                try {
+                  await apiFetch('/config/git_identity', {
+                    method: 'PUT',
+                    body: JSON.stringify({ value: { name: gitName, email: gitEmail } }),
+                  });
+                  setGitMessage('Git identity saved');
+                  setTimeout(() => setGitMessage(''), 2000);
+                } catch (err: any) {
+                  setGitMessage(err.message || 'Failed to save');
+                } finally {
+                  setSavingGit(false);
+                }
+              }}
+              disabled={savingGit}
+              className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-base font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+            >
+              <Save size={16} />
+              {savingGit ? 'Saving…' : 'Save Git Identity'}
+            </button>
+            {gitMessage && <p className="text-sm text-secondary-foreground">{gitMessage}</p>}
           </section>
         </>}
 

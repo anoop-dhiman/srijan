@@ -22,11 +22,13 @@ vi.mock('../git/manager.js', () => ({
     ]),
   }),
   getWorkspaceRoot: vi.fn().mockReturnValue('/workspaces'),
+  setGitIdentity: vi.fn().mockResolvedValue(undefined),
+  getGitIdentity: vi.fn().mockResolvedValue({ name: 'Test User', email: 'test@example.com' }),
 }));
 
 // gitAuth uses real DB — credential routes are tested with actual DB interactions
 const { default: gitRouter } = await import('../routes/git.js');
-const { pushRepo, setRemote } = await import('../git/manager.js');
+const { pushRepo, setRemote, setGitIdentity, getGitIdentity } = await import('../git/manager.js');
 
 function createApp() {
   const app = express();
@@ -170,6 +172,50 @@ describe('Git Routes', () => {
 
     it('should reject without auth', async () => {
       const res = await request(app).post('/api/git/my-repo/push');
+      expect(res.status).toBe(401);
+    });
+  });
+
+  describe('GET /api/git/:name/identity', () => {
+    it('should return git identity', async () => {
+      const res = await request(app)
+        .get('/api/git/my-repo/identity')
+        .set('Authorization', `Bearer ${token}`);
+      expect(res.status).toBe(200);
+      expect(res.body.name).toBe('Test User');
+      expect(res.body.email).toBe('test@example.com');
+      expect(getGitIdentity).toHaveBeenCalledWith('my-repo');
+    });
+
+    it('should reject without auth', async () => {
+      const res = await request(app).get('/api/git/my-repo/identity');
+      expect(res.status).toBe(401);
+    });
+  });
+
+  describe('PUT /api/git/:name/identity', () => {
+    it('should set git identity', async () => {
+      const res = await request(app)
+        .put('/api/git/my-repo/identity')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ name: 'New User', email: 'new@example.com' });
+      expect(res.status).toBe(200);
+      expect(res.body.ok).toBe(true);
+      expect(setGitIdentity).toHaveBeenCalledWith('my-repo', { name: 'New User', email: 'new@example.com' });
+    });
+
+    it('should return 400 when both name and email are missing', async () => {
+      const res = await request(app)
+        .put('/api/git/my-repo/identity')
+        .set('Authorization', `Bearer ${token}`)
+        .send({});
+      expect(res.status).toBe(400);
+    });
+
+    it('should reject without auth', async () => {
+      const res = await request(app)
+        .put('/api/git/my-repo/identity')
+        .send({ name: 'Test', email: 'test@test.com' });
       expect(res.status).toBe(401);
     });
   });
