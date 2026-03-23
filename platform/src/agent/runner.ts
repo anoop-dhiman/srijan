@@ -55,7 +55,7 @@ const DEFAULT_SYSTEM_PROMPT = `You are Srijan, an AI development assistant runni
 - Name your services descriptively in docker-compose.yml; they will be prefixed with the workspace name automatically.
 - Always include a Dockerfile for custom services rather than relying solely on base images.
 - Use "docker compose up -d" to start services in the background and verify they are running with "docker compose ps".
-- Apps run on internal ports by default. Only register an app for a public URL when the user explicitly asks for one — use the register_app tool provided in the session context.
+- Always expose a host port in docker-compose.yml (e.g. "3000:3000") for any service that may need a public URL. Only register an app for a public URL when the user explicitly asks for one — use the register_app tool provided in the session context.
 
 ## Communication
 - Be concise and direct.
@@ -434,10 +434,10 @@ export class AgentRunner extends EventEmitter implements IAgentRunner {
       '',
       `## Public URLs`,
       `To give a running service a public URL (only when the user explicitly requests it), use the register_app tool after the container is running:`,
-      `1. Run: docker ps --format '{{.Names}}' to find the exact container name.`,
-      `2. Call: mcp__srijan__register_app with arguments: name=<appname> port=<container_port> path=/<appname> containerName=<exact_container_name>`,
-      `   - port is the PORT the process listens on INSIDE the container (e.g. 3000), NOT the host-mapped port.`,
-      `   - containerName MUST be the full container name from "docker ps" (e.g. "todo-app-web-1").`,
+      `1. Ensure the service exposes a host port in docker-compose.yml (e.g. "3000:3000" under ports).`,
+      `2. Call: mcp__srijan__register_app with arguments: name=<appname> port=<host_port> path=/<appname>`,
+      `   - port is the HOST-mapped port (left side of the -p / ports mapping, e.g. 3000 for "3000:3000").`,
+      `   - Do NOT use the container-internal port if it differs from the host port.`,
     ];
     if (mode === 'confirm') {
       lines.push(

@@ -1,46 +1,11 @@
 import { createLogger } from '../lib/logger.js';
-import { docker } from './manager.js';
 
 const log = createLogger('caddy');
 const CADDY_ADMIN_URL = process.env.CADDY_ADMIN_URL || 'http://localhost:2019';
-const SRIJAN_NETWORK = process.env.SRIJAN_NETWORK || 'srijan_srijan';
 const APP_NAME_RE = /^[a-zA-Z0-9_-]{1,64}$/;
 // Path to the subroute's routes array inside the terminal host route.
 // Resolved once at startup by initCaddyRouteId().
 let appRoutesPath: string | null = null;
-
-/**
- * Connects a container to the Srijan network and returns its IP address on
- * that network. Using the IP avoids Docker DNS timing issues that arise when
- * a container is freshly connected and the embedded DNS hasn't propagated yet.
- */
-async function connectContainerToNetwork(containerName: string): Promise<string | null> {
-  try {
-    const network = docker.getNetwork(SRIJAN_NETWORK);
-    await network.connect({ Container: containerName });
-    log.info({ containerName, network: SRIJAN_NETWORK }, 'connected container to srijan network');
-  } catch (err: any) {
-    // Already connected is fine
-    if (!err.message?.includes('already exists') && !err.message?.includes('endpoint with name')) {
-      log.warn({ containerName, err: err.message }, 'could not connect container to srijan network');
-    }
-  }
-
-  // Inspect to get the container's IP on the srijan network
-  try {
-    const container = docker.getContainer(containerName);
-    const info = await container.inspect();
-    const ip = info.NetworkSettings?.Networks?.[SRIJAN_NETWORK]?.IPAddress;
-    if (ip) {
-      log.info({ containerName, ip }, 'resolved container IP on srijan network');
-      return ip;
-    }
-  } catch (err: any) {
-    log.warn({ containerName, err: err.message }, 'could not inspect container for IP');
-  }
-
-  return null;
-}
 
 function validateAppName(name: string): void {
   if (!APP_NAME_RE.test(name)) {
@@ -67,18 +32,12 @@ export async function initCaddyRouteId(): Promise<void> {
   log.info({ hostRouteIndex, appRoutesPath }, 'caddy app routes path initialized');
 }
 
-export async function addRoute(appName: string, path: string, port: number, containerName?: string): Promise<void> {
+export async function addRoute(appName: string, path: string, port: number): Promise<void> {
   validateAppName(appName);
 
-  let dial: string;
-  if (containerName) {
-    const ip = await connectContainerToNetwork(containerName);
-    // Prefer IP over hostname — avoids Docker DNS propagation lag after
-    // a container is freshly connected to the network (SERVFAIL / 502).
-    dial = ip ? `${ip}:${port}` : `${containerName}:${port}`;
-  } else {
-    dial = `host.docker.internal:${port}`;
-  }
+  // Caddy and platform both run with network_mode: host, so app containers
+  // are always reachable via their host-mapped port on loopback.
+  const dial = `127.0.0.1:${port}`;
 
   const route = {
     '@id': `app-${appName}`,

@@ -25,6 +25,10 @@ describe('Caddy Client', () => {
       const body = JSON.parse(opts.body);
       expect(body['@id']).toBe('app-myapp');
       expect(body.match[0].path).toContain('/myapp');
+      // With host networking, dial must always target loopback
+      const handle = body.handle[0].routes[0].handle;
+      const proxy = handle.find((h: any) => h.handler === 'reverse_proxy');
+      expect(proxy.upstreams[0].dial).toBe('127.0.0.1:3000');
     });
 
     it('should throw on Caddy API failure', async () => {

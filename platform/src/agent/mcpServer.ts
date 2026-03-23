@@ -16,7 +16,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     {
       name: 'register_app',
       description:
-        'Register a running Docker container to get a public URL via Caddy reverse proxy. Call this ONLY when the user explicitly asks for a public URL. Before calling, run "docker ps --format \'{{.Names}}\'" to get the exact container name and pass it as containerName. Use the container\'s internal port (not the host-mapped port).',
+        'Register a running service to get a public URL via Caddy reverse proxy. Call this ONLY when the user explicitly asks for a public URL. The service must expose a host port (via ports: in docker-compose.yml). Pass the HOST-mapped port (left side of the mapping, e.g. 3000 for "3000:3000").',
       inputSchema: {
         type: 'object',
         properties: {
@@ -26,18 +26,14 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
           },
           port: {
             type: 'number',
-            description: 'Container port the service is listening on (NOT the host-mapped port)',
+            description: 'Host-mapped port the service is exposed on (left side of -p / ports mapping, e.g. 3000 for "3000:3000")',
           },
           path: {
             type: 'string',
             description: 'URL path prefix (defaults to /<name>)',
           },
-          containerName: {
-            type: 'string',
-            description: 'Docker container name running the service (e.g. "todo-app-web-1"). Required when the app runs as a Docker container so Caddy can route to it by name.',
-          },
         },
-        required: ['name', 'port', 'containerName'],
+        required: ['name', 'port'],
       },
     },
   ],
@@ -51,16 +47,14 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
     };
   }
 
-  const { name, port, path, containerName } = req.params.arguments as {
+  const { name, port, path } = req.params.arguments as {
     name: string;
     port: number;
     path?: string;
-    containerName?: string;
   };
 
   const body: Record<string, unknown> = { name, port };
   if (path) body.path = path;
-  if (containerName) body.containerName = containerName;
   if (WORKSPACE) body.workspaceName = WORKSPACE;
 
   try {

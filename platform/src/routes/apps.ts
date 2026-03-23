@@ -63,7 +63,7 @@ router.post('/register', registrationAuth, async (req: Request, res: Response) =
 
   try {
     // Register with Caddy first — if it fails we don't pollute the DB
-    await addRoute(name, appPath, portNum, containerName || undefined);
+    await addRoute(name, appPath, portNum);
 
     try {
       db.prepare(
