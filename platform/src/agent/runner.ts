@@ -159,6 +159,11 @@ export class AgentRunner extends EventEmitter implements IAgentRunner {
 
       const env: Record<string, string> = { ...(process.env as any) };
 
+      // Ensure SHELL is set — Claude Code CLI requires a POSIX shell
+      if (!env['SHELL']) {
+        env['SHELL'] = '/bin/sh';
+      }
+
       // Inject placeholders + proxy
       Object.assign(env, envVars);
       env['HTTP_PROXY'] = `http://127.0.0.1:${secretProxy.port}`;
