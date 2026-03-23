@@ -150,12 +150,13 @@ function GitAuthFields({
   );
 }
 
-function ContainerRow({ container, app, workspaceName, onAction, onRegistered }: {
+function ContainerRow({ container, app, workspaceName, onAction, onRegistered, onDeregister }: {
   container: ContainerInfo;
   app?: AppInfo;
   workspaceName: string;
   onAction: () => void;
   onRegistered: () => void;
+  onDeregister: (appId: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [logs, setLogs] = useState<string>('');
@@ -238,15 +239,24 @@ function ContainerRow({ container, app, workspaceName, onAction, onRegistered }:
           <div className="flex items-center gap-2">
             <span className="font-mono text-sm font-medium truncate">{displayName}</span>
             {app && (
-              <a
-                href={app.path}
-                target="_blank"
-                rel="noreferrer"
-                className="flex items-center gap-0.5 text-xs text-primary hover:underline"
-              >
-                <ExternalLink size={11} />
-                {app.path}
-              </a>
+              <>
+                <a
+                  href={app.path}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center gap-0.5 text-xs text-primary hover:underline"
+                >
+                  <ExternalLink size={11} />
+                  {app.path}
+                </a>
+                <button
+                  onClick={() => onDeregister(app.id)}
+                  title="Deregister route"
+                  className="text-muted-foreground hover:text-destructive transition-colors"
+                >
+                  <Trash2 size={11} />
+                </button>
+              </>
             )}
           </div>
           <div className="text-xs text-muted-foreground mt-0.5">{container.Image} · {container.Status}</div>
@@ -696,11 +706,20 @@ function WorkspaceCard({ workspace, onViewSessions, onDeleteWorkspace, spendingI
   spendingInfo?: { spent_usd: number; limit_usd: number | null } | null;
 }) {
   const [containersOpen, setContainersOpen] = useState(false);
+  const [routesOpen, setRoutesOpen] = useState(false);
   const [containers, setContainers] = useState<ContainerInfo[]>([]);
   const [apps, setApps] = useState<AppInfo[]>([]);
   const [loadingContainers, setLoadingContainers] = useState(false);
   const [bulkActioning, setBulkActioning] = useState(false);
   const [bulkError, setBulkError] = useState<string | null>(null);
+  const [deregistering, setDeregistering] = useState<string | null>(null);
+
+  const fetchApps = useCallback(async () => {
+    const a = await apiFetch('/apps');
+    setApps(a);
+  }, []);
+
+  useEffect(() => { fetchApps(); }, [fetchApps]);
 
   const fetchContainers = useCallback(async () => {
     const [c, a] = await Promise.all([
@@ -710,6 +729,15 @@ function WorkspaceCard({ workspace, onViewSessions, onDeleteWorkspace, spendingI
     setContainers(c);
     setApps(a);
   }, [workspace.name]);
+
+  const deregisterApp = async (appId: string) => {
+    setDeregistering(appId);
+    try {
+      await apiFetch(`/apps/${appId}`, { method: 'DELETE' });
+      await fetchApps();
+    } catch { /* ignore */ }
+    setDeregistering(null);
+  };
 
   const toggleContainers = useCallback(async () => {
     if (containersOpen) {
@@ -751,6 +779,7 @@ function WorkspaceCard({ workspace, onViewSessions, onDeleteWorkspace, spendingI
   };
 
   const appByContainer = (id: string) => apps.find(a => a.container_id === id);
+  const workspaceApps = apps.filter(a => a.workspace_name === workspace.name);
 
   const lastActive = workspace.lastActivityAt
     ? new Date(workspace.lastActivityAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
@@ -821,6 +850,19 @@ function WorkspaceCard({ workspace, onViewSessions, onDeleteWorkspace, spendingI
             )}
             Containers
           </button>
+          <button
+            onClick={() => setRoutesOpen(v => !v)}
+            className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border border-border hover:bg-muted transition-colors"
+          >
+            {routesOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+            <Globe size={14} />
+            Routes
+            {workspaceApps.length > 0 && (
+              <span className="text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded-full font-medium">
+                {workspaceApps.length}
+              </span>
+            )}
+          </button>
         </div>
       </div>
 
@@ -863,7 +905,46 @@ function WorkspaceCard({ workspace, onViewSessions, onDeleteWorkspace, spendingI
                 workspaceName={workspace.name}
                 onAction={refreshContainers}
                 onRegistered={refreshContainers}
+                onDeregister={deregisterApp}
               />
+            ))
+          )}
+        </div>
+      )}
+
+      {routesOpen && (
+        <div className="border-t border-border px-4 py-3 space-y-2">
+          {workspaceApps.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-2">No published routes for this workspace.</p>
+          ) : (
+            workspaceApps.map(app => (
+              <div key={app.id} className="flex items-center gap-3 px-3 py-2 rounded-lg border border-border bg-background">
+                <Globe size={13} className="text-muted-foreground shrink-0" />
+                <a
+                  href={app.path}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center gap-1 text-sm text-primary hover:underline font-mono"
+                >
+                  <ExternalLink size={12} />
+                  {app.path}
+                </a>
+                <span className="text-xs text-muted-foreground border border-border rounded px-1.5 py-0.5">
+                  :{app.port}
+                </span>
+                <span className={`text-xs px-1.5 py-0.5 rounded-full ${app.status === 'running' ? 'bg-green-500/15 text-green-600' : 'bg-muted text-muted-foreground'}`}>
+                  {app.status}
+                </span>
+                <div className="flex-1" />
+                <button
+                  onClick={() => deregisterApp(app.id)}
+                  disabled={deregistering === app.id}
+                  title="Deregister route"
+                  className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50"
+                >
+                  {deregistering === app.id ? <RefreshCw size={13} className="animate-spin" /> : <Trash2 size={13} />}
+                </button>
+              </div>
             ))
           )}
         </div>
