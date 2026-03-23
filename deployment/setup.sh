@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Srijan — one-command setup script
-# Usage: curl -sL https://raw.githubusercontent.com/anoop-dhiman/srijan/refs/heads/master/deployment/setup.sh | bash -s -- --domain dev.example.com --email me@example.com --password mypass
+# Usage: curl -sL https://raw.githubusercontent.com/anoop-dhiman/srijan/refs/heads/master/deployment/setup.sh | bash
 set -euo pipefail
 
 # ── Colours ────────────────────────────────────────────────────────────────────
@@ -12,51 +12,45 @@ success() { echo -e "${GREEN}[srijan]${RESET} $*"; }
 warn()    { echo -e "${YELLOW}[srijan]${RESET} $*"; }
 error()   { echo -e "${RED}[srijan] ERROR:${RESET} $*" >&2; exit 1; }
 
-# ── Defaults ───────────────────────────────────────────────────────────────────
-DOMAIN=""
-EMAIL=""
-PASSWORD=""
-INSTALL_DIR="${HOME}/srijan"
+# ── Trap ───────────────────────────────────────────────────────────────────────
+trap 'echo; error "Setup interrupted."' INT TERM
+
 IMAGE_NAME="ghcr.io/anoop-dhiman/srijan-platform:latest"
 
-# ── Argument parsing ───────────────────────────────────────────────────────────
-usage() {
-  echo "Usage: $0 --domain <domain> --email <email> --password <password> [--dir <install-dir>]"
-  echo
-  echo "Options:"
-  echo "  --domain    Domain name for the Srijan UI (e.g. dev.example.com)"
-  echo "  --email     Email for Let's Encrypt TLS certificate"
-  echo "  --password  Admin login password"
-  echo "  --dir       Install directory (default: ~/srijan)"
-  exit 1
+# ── Interactive prompts ────────────────────────────────────────────────────────
+# Read from /dev/tty so prompts work when script is piped via curl | bash
+ask() {
+  local label="$1" default="${2:-}" value
+  if [[ -n "$default" ]]; then
+    printf "${CYAN}[srijan]${RESET} %s [%s]: " "$label" "$default" >/dev/tty
+  else
+    printf "${CYAN}[srijan]${RESET} %s: " "$label" >/dev/tty
+  fi
+  read -r value </dev/tty
+  echo "${value:-$default}"
 }
 
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    --domain)   DOMAIN="$2";   shift 2 ;;
-    --email)    EMAIL="$2";    shift 2 ;;
-    --password) PASSWORD="$2"; shift 2 ;;
-    --dir)      INSTALL_DIR="$2"; shift 2 ;;
-    -h|--help)  usage ;;
-    *)          error "Unknown option: $1" ;;
-  esac
-done
-
-[[ -z "$DOMAIN"   ]] && error "--domain is required"
-[[ -z "$EMAIL"    ]] && error "--email is required"
-[[ -z "$PASSWORD" ]] && error "--password is required"
+ask_secret() {
+  local label="$1" value confirm
+  while true; do
+    printf "${CYAN}[srijan]${RESET} %s: " "$label" >/dev/tty
+    read -rs value </dev/tty
+    echo >/dev/tty
+    printf "${CYAN}[srijan]${RESET} Confirm %s: " "$label" >/dev/tty
+    read -rs confirm </dev/tty
+    echo >/dev/tty
+    if [[ "$value" == "$confirm" ]]; then
+      break
+    fi
+    warn "Values do not match. Try again." >/dev/tty
+  done
+  echo "$value"
+}
 
 echo
 echo -e "${BOLD}Srijan — Cloud AI Development Environment${RESET}"
-echo -e "Domain: ${CYAN}${DOMAIN}${RESET}  Install dir: ${CYAN}${INSTALL_DIR}${RESET}"
 echo
 
-# ── Root check ─────────────────────────────────────────────────────────────────
-if [[ "$EUID" -ne 0 ]]; then
-  error "Please run as root or with sudo."
-fi
-
-# ── OS detection ───────────────────────────────────────────────────────────────
 # ── Dependency checks ──────────────────────────────────────────────────────────
 if ! command -v docker &>/dev/null; then
   error "Docker is not installed. Install it from https://docs.docker.com/engine/install/ and re-run."
@@ -71,15 +65,35 @@ if ! command -v openssl &>/dev/null; then
 fi
 
 info "Docker: $(docker --version)"
-info "Docker Compose: $(docker compose version)"
+info "Docker Compose: $(docker compose version --short)"
+echo
+
+DOMAIN=$(ask "Domain (e.g. dev.example.com)")
+TLS_MODE=$(ask "TLS termination — caddy (auto HTTPS) or external (LB handles TLS)" "caddy")
+[[ "$TLS_MODE" != "caddy" && "$TLS_MODE" != "external" ]] && error "TLS mode must be 'caddy' or 'external'."
+if [[ "$TLS_MODE" == "caddy" ]]; then
+  EMAIL=$(ask "Email for Let's Encrypt TLS certificate")
+else
+  EMAIL=""
+fi
+PASSWORD=$(ask_secret "Admin password")
+INSTALL_DIR=$(ask "Install directory" "$(pwd)/srijan")
+echo
+
+# ── Validation ─────────────────────────────────────────────────────────────────
+[[ -z "$DOMAIN"   ]] && error "Domain is required."
+[[ -z "$PASSWORD" ]] && error "Password is required."
+[[ ${#PASSWORD} -lt 8 ]] && error "Password must be at least 8 characters."
+[[ "$TLS_MODE" == "caddy" && -z "$EMAIL" ]] && error "Email is required for Caddy-managed TLS."
+
+info "Domain: ${DOMAIN}  TLS: ${TLS_MODE}  Install dir: ${INSTALL_DIR}"
+echo
 
 # ── Write deployment files ─────────────────────────────────────────────────────
 info "Writing deployment files to $INSTALL_DIR..."
-mkdir -p "$INSTALL_DIR/deployment/caddy"
+mkdir -p "$INSTALL_DIR/caddy"
 
-cat > "$INSTALL_DIR/deployment/docker-compose.yml" <<'EOF'
-version: "3.8"
-
+cat > "$INSTALL_DIR/docker-compose.yml" <<'COMPOSE'
 services:
   caddy:
     image: caddy:2-alpine
@@ -158,9 +172,11 @@ volumes:
 networks:
   srijan:
     driver: bridge
-EOF
+COMPOSE
 
-cat > "$INSTALL_DIR/deployment/caddy/Caddyfile" <<'EOF'
+if [[ "$TLS_MODE" == "caddy" ]]; then
+  cat > "$INSTALL_DIR/caddy/Caddyfile" <<'CADDYFILE'
+# Caddy-managed TLS — auto HTTPS via Let's Encrypt
 {
 	email {$ACME_EMAIL:}
 }
@@ -201,7 +217,51 @@ http://{$SRIJAN_DOMAIN:localhost} {
 		reverse_proxy srijan-platform:8080
 	}
 }
-EOF
+CADDYFILE
+else
+  cat > "$INSTALL_DIR/caddy/Caddyfile" <<'CADDYFILE'
+# External TLS termination — TLS handled by upstream load balancer.
+# Caddy receives plain HTTP on port 80. No cert management.
+{
+	auto_https off
+}
+
+http://{$SRIJAN_DOMAIN:localhost} {
+	# Trust X-Forwarded-* headers from the upstream LB
+	trusted_proxies private_ranges
+
+	header {
+		X-Frame-Options "DENY"
+		X-Content-Type-Options "nosniff"
+		X-XSS-Protection "1; mode=block"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ws: wss:; font-src 'self' data:"
+		-Server
+	}
+
+	handle /forge/* {
+		reverse_proxy srijan-platform:8080
+	}
+
+	handle /forge {
+		reverse_proxy srijan-platform:8080
+	}
+
+	handle /api/* {
+		reverse_proxy srijan-platform:8080
+	}
+
+	handle /health {
+		reverse_proxy srijan-platform:8080
+	}
+
+	handle {
+		reverse_proxy srijan-platform:8080
+	}
+}
+CADDYFILE
+fi
 
 success "Deployment files written."
 
@@ -209,9 +269,10 @@ success "Deployment files written."
 info "Pulling platform image..."
 docker pull "$IMAGE_NAME"
 success "Platform image pulled."
+echo
 
-# ── Generate secrets (idempotent — don't overwrite existing) ───────────────────
-ENV_FILE="$INSTALL_DIR/deployment/.env"
+# ── Generate / preserve secrets ────────────────────────────────────────────────
+ENV_FILE="$INSTALL_DIR/.env"
 
 gen_secret() {
   openssl rand -base64 48 | tr -d '\n/+=' | head -c 64
@@ -221,19 +282,9 @@ gen_key32() {
   openssl rand -base64 32 | tr -d '\n/+=' | head -c 32
 }
 
-if [[ -f "$ENV_FILE" ]]; then
-  warn ".env already exists at $ENV_FILE — keeping existing secrets."
-  # Update domain, email and password if they changed
-  sed -i "s|^SRIJAN_DOMAIN=.*|SRIJAN_DOMAIN=${DOMAIN}|" "$ENV_FILE"
-  sed -i "s|^SRIJAN_ADMIN_PASSWORD=.*|SRIJAN_ADMIN_PASSWORD=${PASSWORD}|" "$ENV_FILE"
-  sed -i "s|^ACME_EMAIL=.*|ACME_EMAIL=${EMAIL}|" "$ENV_FILE"
-else
-  info "Generating secrets..."
-  JWT_SECRET=$(gen_secret)
-  SECRETS_KEY=$(gen_key32)
-
+write_env() {
   cat > "$ENV_FILE" <<EOF
-# Srijan — generated by setup.sh
+# Srijan — generated by setup.sh on $(date -u '+%Y-%m-%d %H:%M UTC')
 SRIJAN_DOMAIN=${DOMAIN}
 SRIJAN_ADMIN_PASSWORD=${PASSWORD}
 SRIJAN_JWT_SECRET=${JWT_SECRET}
@@ -242,14 +293,32 @@ SRIJAN_DATA_DIR=/data
 WORKSPACE_ROOT=/workspaces
 CADDY_ADMIN_URL=http://caddy:2019
 ACME_EMAIL=${EMAIL}
+TLS_MODE=${TLS_MODE}
 EOF
   chmod 600 "$ENV_FILE"
-  success "Secrets generated and written to $ENV_FILE"
+}
+
+if [[ -f "$ENV_FILE" ]]; then
+  warn ".env already exists — preserving existing secrets, updating domain/email/password."
+  JWT_SECRET=$(grep '^SRIJAN_JWT_SECRET=' "$ENV_FILE" | cut -d= -f2- || true)
+  SECRETS_KEY=$(grep '^SRIJAN_SECRETS_KEY=' "$ENV_FILE" | cut -d= -f2- || true)
+  if [[ -z "$JWT_SECRET" || -z "$SECRETS_KEY" ]]; then
+    error "Could not read existing secrets from $ENV_FILE. Delete it to regenerate, or fix it manually."
+  fi
+  write_env
+  success "Secrets preserved. Domain/email/password updated."
+else
+  info "Generating secrets..."
+  JWT_SECRET=$(gen_secret)
+  SECRETS_KEY=$(gen_key32)
+  write_env
+  success "Secrets written to $ENV_FILE"
 fi
+echo
 
 # ── Start services ─────────────────────────────────────────────────────────────
 info "Starting Srijan services..."
-docker compose -f "$INSTALL_DIR/deployment/docker-compose.yml" \
+docker compose -f "$INSTALL_DIR/docker-compose.yml" \
   --env-file "$ENV_FILE" \
   up -d --remove-orphans
 
@@ -262,7 +331,7 @@ until [[ "$(docker inspect --format='{{.State.Health.Status}}' srijan-platform 2
     echo
     error "Platform did not become healthy after ${MAX_WAIT}s. Check logs: docker logs srijan-platform"
   fi
-  printf '.'
+  printf '.' >&2
   sleep 3
   WAITED=$((WAITED + 3))
 done
@@ -278,8 +347,8 @@ echo -e "  UI:       ${CYAN}https://${DOMAIN}/forge${RESET}"
 echo -e "  Login:    admin / <your password>"
 echo
 echo -e "  Logs:     ${YELLOW}docker logs -f srijan-platform${RESET}"
-echo -e "  Stop:     ${YELLOW}docker compose -f ${INSTALL_DIR}/deployment/docker-compose.yml down${RESET}"
-echo -e "  Update:   ${YELLOW}docker pull ${IMAGE_NAME} && docker compose -f ${INSTALL_DIR}/deployment/docker-compose.yml --env-file ${ENV_FILE} up -d${RESET}"
+echo -e "  Stop:     ${YELLOW}docker compose -f ${INSTALL_DIR}/docker-compose.yml down${RESET}"
+echo -e "  Update:   ${YELLOW}docker pull ${IMAGE_NAME} && docker compose -f ${INSTALL_DIR}/docker-compose.yml --env-file ${ENV_FILE} up -d${RESET}"
 echo
 warn "Configure your LLM provider at: https://${DOMAIN}/forge (Settings)"
 echo
