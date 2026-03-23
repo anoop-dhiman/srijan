@@ -8,6 +8,7 @@ export interface ChatMessage {
   streaming?: boolean;
   timestamp: number;
   toolName?: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   toolInput?: any;
   toolResult?: string;
   toolStatus?: 'running' | 'done' | 'error';
@@ -38,6 +39,7 @@ export interface SessionActivity {
 
 const DEFAULT_ACTIVITY: SessionActivity = { isLoading: false, agentStatus: '', hasUnread: false, pendingApproval: false };
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function formatToolLabel(name: string, input: any): string {
   switch (name) {
     case 'Read': return `Reading ${input?.file_path || 'file'}`;
@@ -82,10 +84,13 @@ export function useChat() {
   const currentSessionRef = useRef<Session | null>(null);
   const currentWorkspaceRef = useRef<string | null>(currentWorkspace);
   const reconnectAttemptRef = useRef(0);
+  const connectRef = useRef<() => void>(() => {});
 
-  // Keep refs in sync with state
-  currentSessionRef.current = currentSession;
-  currentWorkspaceRef.current = currentWorkspace;
+  // Keep refs in sync with state (via effect to comply with react-hooks/refs)
+  useEffect(() => {
+    currentSessionRef.current = currentSession;
+    currentWorkspaceRef.current = currentWorkspace;
+  }, [currentSession, currentWorkspace]);
 
   const setCurrentWorkspace = useCallback((name: string | null) => {
     setCurrentWorkspaceState(name);
@@ -123,9 +128,9 @@ export function useChat() {
           setSessions(msg.data);
           // Fetch costs for all sessions
           for (const s of msg.data as Session[]) {
-            apiFetch(`/sessions/${s.id}/cost`).then((row: any) => {
+            apiFetch(`/sessions/${s.id}/cost`).then((row: Record<string, unknown>) => {
               if (row && row.cost_usd != null) {
-                setSessionCosts((prev) => ({ ...prev, [s.id]: row.cost_usd }));
+                setSessionCosts((prev) => ({ ...prev, [s.id]: row.cost_usd as number }));
               }
             }).catch(() => {});
           }
@@ -228,7 +233,7 @@ export function useChat() {
           // Update per-session activity state
           setSessionActivity(prev => {
             const cur = prev[sid] || DEFAULT_ACTIVITY;
-            let updated = { ...cur };
+            const updated = { ...cur };
 
             if (evt.type === 'session_start') {
               updated.isLoading = true;
@@ -387,13 +392,17 @@ export function useChat() {
       }
       const attempt = reconnectAttemptRef.current++;
       const delay = Math.min(RECONNECT_BASE_MS * Math.pow(2, attempt), RECONNECT_MAX_MS);
-      setTimeout(connect, delay);
+      setTimeout(connectRef.current, delay);
     };
 
     ws.onerror = () => {
       ws.close();
     };
   }, []);
+
+  useEffect(() => {
+    connectRef.current = connect;
+  }, [connect]);
 
   const disconnect = useCallback(() => {
     wsRef.current?.close();

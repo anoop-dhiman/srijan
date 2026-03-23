@@ -234,8 +234,8 @@ export function FileBrowser({ workspaces, currentWorkspace, theme = 'dark' }: Fi
       const data = await apiFetch(`/workspaces/${encodeURIComponent(workspace)}/file?path=${encodeURIComponent(path)}`, { signal: controller.signal });
       setFileContent(data.content);
       setEditContent(data.content);
-    } catch (err: any) {
-      if (err.name !== 'AbortError') setError(err.message);
+    } catch (err: unknown) {
+      if ((err as Error).name !== 'AbortError') setError((err as Error).message);
     } finally {
       setLoadingFile(false);
     }
@@ -260,8 +260,8 @@ export function FileBrowser({ workspaces, currentWorkspace, theme = 'dark' }: Fi
       setFileContent(editContent);
       setIsDirty(false);
       setIsEditing(false);
-    } catch (err: any) {
-      setSaveError(err.message);
+    } catch (err: unknown) {
+      setSaveError((err as Error).message);
     } finally {
       setSaving(false);
     }

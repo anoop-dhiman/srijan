@@ -224,8 +224,8 @@ function ContainerRow({ container, app, workspaceName, onAction, onRegistered }:
       });
       setShowRegister(false);
       onRegistered();
-    } catch (err: any) {
-      setRegError(err.message || 'Registration failed.');
+    } catch (err: unknown) {
+      setRegError((err as Error).message || 'Registration failed.');
     }
     setRegistering(false);
   };
@@ -365,6 +365,7 @@ function GitSection({ workspaceName }: { workspaceName: string }) {
     } catch { /* ignore */ }
   }, [workspaceName]);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { loadGitInfo(); }, [loadGitInfo]);
 
   const handleLink = async () => {
@@ -389,8 +390,8 @@ function GitSection({ workspaceName }: { workspaceName: string }) {
       setLinkUrl('');
       setLinkToken('');
       setLinkUsername('');
-    } catch (err: any) {
-      setLinkError(err.message || 'Failed to set remote');
+    } catch (err: unknown) {
+      setLinkError((err as Error).message || 'Failed to set remote');
     }
     setLinking(false);
   };
@@ -402,9 +403,9 @@ function GitSection({ workspaceName }: { workspaceName: string }) {
       await apiFetch(`/git/${workspaceName}/push`, { method: 'POST' });
       setPushState('done');
       setTimeout(() => setPushState('idle'), 2000);
-    } catch (err: any) {
+    } catch (err: unknown) {
       setPushState('error');
-      setPushError(err.message || 'Push failed');
+      setPushError((err as Error).message || 'Push failed');
     }
   };
 
@@ -420,8 +421,8 @@ function GitSection({ workspaceName }: { workspaceName: string }) {
       setAuthToken('');
       setShowAuthPanel(false);
       await loadGitInfo();
-    } catch (err: any) {
-      setAuthError(err.message || 'Failed to save credentials');
+    } catch (err: unknown) {
+      setAuthError((err as Error).message || 'Failed to save credentials');
     }
     setSavingAuth(false);
   };
@@ -846,8 +847,8 @@ function CreateWorkspacePanel({
         ...buildAuthOpts(),
       });
       onClose();
-    } catch (err: any) {
-      setError(err.message || 'Failed to create workspace');
+    } catch (err: unknown) {
+      setError((err as Error).message || 'Failed to create workspace');
     }
     setCreating(false);
   };
@@ -860,8 +861,8 @@ function CreateWorkspacePanel({
     try {
       await onCreateWorkspace(finalName, { cloneUrl: cloneUrl.trim(), ...buildAuthOpts() });
       onClose();
-    } catch (err: any) {
-      setError(err.message || 'Failed to clone repository');
+    } catch (err: unknown) {
+      setError((err as Error).message || 'Failed to clone repository');
     }
     setCreating(false);
   };

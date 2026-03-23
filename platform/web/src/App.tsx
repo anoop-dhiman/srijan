@@ -61,11 +61,11 @@ function App() {
     }
   }, [authed]);
 
-  useEffect(() => {
-    if (chat.workspaces.length === 0 && (activeView === 'chat' || activeView === 'files')) {
-      setActiveView('dashboard');
-    }
-  }, [chat.workspaces.length, activeView]);
+  // Derive effective view: redirect chat/files to dashboard when no workspaces exist
+  const effectiveView: ActiveView =
+    (activeView === 'chat' || activeView === 'files') && chat.workspaces.length === 0
+      ? 'dashboard'
+      : activeView;
 
   if (!authed) {
     return <Login onLogin={() => setAuthed(true)} />;
@@ -122,7 +122,7 @@ function App() {
       );
     }
 
-    switch (activeView) {
+    switch (effectiveView) {
       case 'dashboard':
         return (
           <Dashboard
@@ -186,7 +186,7 @@ function App() {
                 onClick={() => { setActiveView(tab.id); setReplaySessionId(null); }}
                 disabled={isTabDisabled(tab.id)}
                 className={`px-4 py-2 rounded-lg text-base font-medium transition-colors ${
-                  activeView === tab.id && !replaySessionId
+                  effectiveView === tab.id && !replaySessionId
                     ? 'bg-primary text-primary-foreground'
                     : 'text-muted-foreground hover:bg-background/60 hover:text-foreground disabled:opacity-40 disabled:cursor-not-allowed'
                 }`}
@@ -228,7 +228,7 @@ function App() {
             onClick={() => { setActiveView(tab.id); setReplaySessionId(null); }}
             disabled={isTabDisabled(tab.id)}
             className={`flex-1 py-2 text-sm font-medium transition-colors ${
-              activeView === tab.id && !replaySessionId
+              effectiveView === tab.id && !replaySessionId
                 ? 'border-b-2 border-primary text-foreground'
                 : 'text-muted-foreground disabled:opacity-40'
             }`}

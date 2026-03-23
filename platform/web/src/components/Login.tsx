@@ -32,11 +32,12 @@ export function Login({ onLogin }: LoginProps) {
         setToken(data.token);
         onLogin();
       }
-    } catch (err: any) {
-      if (err.status === 429) {
+    } catch (err: unknown) {
+      const e = err as { status?: number; message?: string };
+      if (e.status === 429) {
         setError('Too many login attempts. Please wait a few minutes and try again.');
       } else {
-        setError(err.message || 'Login failed');
+        setError(e.message || 'Login failed');
       }
     } finally {
       setLoading(false);
@@ -55,8 +56,8 @@ export function Login({ onLogin }: LoginProps) {
       });
       setToken(data.token);
       onLogin();
-    } catch (err: any) {
-      setError(err.message || 'Invalid code');
+    } catch (err: unknown) {
+      setError((err as Error).message || 'Invalid code');
     } finally {
       setLoading(false);
     }

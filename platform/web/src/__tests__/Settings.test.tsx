@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -257,7 +258,7 @@ describe('Settings', () => {
   });
 
   it('clicking Enable 2FA calls setup endpoint and shows secret', async () => {
-    vi.mocked(apiFetch).mockImplementation((path: string, opts?: any) => {
+    vi.mocked(apiFetch).mockImplementation((path: string) => {
       if (path === '/auth/totp/status') return Promise.resolve({ enabled: false });
       if (path === '/auth/totp/setup') return Promise.resolve({ secret: 'JBSWY3DPEHPK3PXP', uri: 'otpauth://...' });
       return Promise.resolve([]);

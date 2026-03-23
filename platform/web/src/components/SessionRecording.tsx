@@ -8,6 +8,7 @@ interface RecordingEvent {
   id: number;
   session_id: string;
   type: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   data: any;
   created_at: string;
 }
@@ -150,6 +151,7 @@ export function SessionRecording({ sessionId, onClose }: SessionRecordingProps) 
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
     setError(null);
     apiFetch(`/sessions/${sessionId}/recording`)

@@ -21,6 +21,7 @@ export function logout(): void {
   window.location.reload();
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function apiFetch(path: string, options: RequestInit = {}): Promise<any> {
   const token = getToken();
   const res = await fetch(`${BASE_URL}${path}`, {

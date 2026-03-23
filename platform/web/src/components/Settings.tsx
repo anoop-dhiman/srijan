@@ -24,7 +24,7 @@ interface User {
 
 type SettingsSection = 'ai-provider' | 'agent' | 'security' | 'secrets' | 'users' | 'spending';
 
-export function Settings({ open, onClose, isAdmin = false }: SettingsProps) {
+export function Settings({ open, isAdmin = false }: SettingsProps) {
   const [provider, setProvider] = useState<'anthropic' | 'vertex' | 'litellm'>('anthropic');
   const [apiKey, setApiKey] = useState('');
   const [model, setModel] = useState('claude-sonnet-4-6');
@@ -122,7 +122,7 @@ export function Settings({ open, onClose, isAdmin = false }: SettingsProps) {
       const defaults: string[] = config.default_agent_boundaries || [];
       setDefaultBlocklist(defaults.join('\n'));
       if (config.agent_boundaries) {
-        try { setBlocklist(JSON.parse(config.agent_boundaries).join('\n')); } catch {}
+        try { setBlocklist(JSON.parse(config.agent_boundaries).join('\n')); } catch { /* ignore */ }
       }
     } catch {
       // Config might not exist yet
@@ -133,7 +133,7 @@ export function Settings({ open, onClose, isAdmin = false }: SettingsProps) {
     try {
       const data = await apiFetch('/auth/totp/status');
       setTotpEnabled(data.enabled);
-    } catch {}
+    } catch { /* ignore */ }
   };
 
   const loadUsers = async () => {
@@ -143,7 +143,7 @@ export function Settings({ open, onClose, isAdmin = false }: SettingsProps) {
       // Identify current user from /auth/me
       const me = await apiFetch('/auth/me');
       setCurrentUserId(me.user?.userId || null);
-    } catch {}
+    } catch { /* ignore */ }
   };
 
   const loadSpending = async () => {
@@ -164,7 +164,7 @@ export function Settings({ open, onClose, isAdmin = false }: SettingsProps) {
         wsLimits[w.workspace_name] = w.limit_usd != null ? String(w.limit_usd) : '';
       }
       setSpendingWsLimits(wsLimits);
-    } catch {}
+    } catch { /* ignore */ }
   };
 
   const saveUserSpendingLimit = async (userId: string) => {
@@ -182,8 +182,8 @@ export function Settings({ open, onClose, isAdmin = false }: SettingsProps) {
       setSpendingMessage('Limit saved');
       setTimeout(() => setSpendingMessage(''), 2000);
       loadSpending();
-    } catch (err: any) {
-      setSpendingMessage(err.message);
+    } catch (err: unknown) {
+      setSpendingMessage((err as Error).message);
     }
   };
 
@@ -202,8 +202,8 @@ export function Settings({ open, onClose, isAdmin = false }: SettingsProps) {
       setSpendingMessage('Limit saved');
       setTimeout(() => setSpendingMessage(''), 2000);
       loadSpending();
-    } catch (err: any) {
-      setSpendingMessage(err.message);
+    } catch (err: unknown) {
+      setSpendingMessage((err as Error).message);
     }
   };
 
@@ -222,8 +222,8 @@ export function Settings({ open, onClose, isAdmin = false }: SettingsProps) {
       });
       setModeMessage('Security settings saved');
       setTimeout(() => setModeMessage(''), 2000);
-    } catch (err: any) {
-      setModeMessage(err.message);
+    } catch (err: unknown) {
+      setModeMessage((err as Error).message);
     } finally {
       setSavingMode(false);
     }
@@ -248,8 +248,8 @@ export function Settings({ open, onClose, isAdmin = false }: SettingsProps) {
       });
       setMessage('Settings saved');
       setTimeout(() => setMessage(''), 2000);
-    } catch (err: any) {
-      setMessage(err.message);
+    } catch (err: unknown) {
+      setMessage((err as Error).message);
     } finally {
       setSaving(false);
     }
@@ -265,8 +265,8 @@ export function Settings({ open, onClose, isAdmin = false }: SettingsProps) {
       });
       setSdkMessage('SDK saved');
       setTimeout(() => setSdkMessage(''), 2000);
-    } catch (err: any) {
-      setSdkMessage(err.message);
+    } catch (err: unknown) {
+      setSdkMessage((err as Error).message);
     } finally {
       setSavingSdk(false);
     }
@@ -282,8 +282,8 @@ export function Settings({ open, onClose, isAdmin = false }: SettingsProps) {
       });
       setPromptMessage('System prompt saved');
       setTimeout(() => setPromptMessage(''), 2000);
-    } catch (err: any) {
-      setPromptMessage(err.message);
+    } catch (err: unknown) {
+      setPromptMessage((err as Error).message);
     } finally {
       setSavingPrompt(false);
     }
@@ -299,8 +299,8 @@ export function Settings({ open, onClose, isAdmin = false }: SettingsProps) {
       setNewSecretName('');
       setNewSecretValue('');
       loadSecrets();
-    } catch (err: any) {
-      setMessage(err.message);
+    } catch (err: unknown) {
+      setMessage((err as Error).message);
     }
   };
 
@@ -308,8 +308,8 @@ export function Settings({ open, onClose, isAdmin = false }: SettingsProps) {
     try {
       await apiFetch(`/secrets/${id}`, { method: 'DELETE' });
       loadSecrets();
-    } catch (err: any) {
-      setMessage(err.message);
+    } catch (err: unknown) {
+      setMessage((err as Error).message);
     }
   };
 
@@ -322,8 +322,8 @@ export function Settings({ open, onClose, isAdmin = false }: SettingsProps) {
       setTotpSetupSecret(data.secret);
       setTotpSetupUri(data.uri);
       setTotpCode('');
-    } catch (err: any) {
-      setTotpMessage(err.message);
+    } catch (err: unknown) {
+      setTotpMessage((err as Error).message);
     } finally {
       setTotpLoading(false);
     }
@@ -344,8 +344,8 @@ export function Settings({ open, onClose, isAdmin = false }: SettingsProps) {
       setTotpCode('');
       setTotpMessage('2FA enabled successfully');
       setTimeout(() => setTotpMessage(''), 3000);
-    } catch (err: any) {
-      setTotpMessage(err.message);
+    } catch (err: unknown) {
+      setTotpMessage((err as Error).message);
     } finally {
       setTotpLoading(false);
     }
@@ -364,8 +364,8 @@ export function Settings({ open, onClose, isAdmin = false }: SettingsProps) {
       setTotpCode('');
       setTotpMessage('2FA disabled');
       setTimeout(() => setTotpMessage(''), 3000);
-    } catch (err: any) {
-      setTotpMessage(err.message);
+    } catch (err: unknown) {
+      setTotpMessage((err as Error).message);
     } finally {
       setTotpLoading(false);
     }
@@ -391,8 +391,8 @@ export function Settings({ open, onClose, isAdmin = false }: SettingsProps) {
       setUsersMessage('User created');
       setTimeout(() => setUsersMessage(''), 2000);
       loadUsers();
-    } catch (err: any) {
-      setUsersMessage(err.message);
+    } catch (err: unknown) {
+      setUsersMessage((err as Error).message);
     }
   };
 
@@ -402,8 +402,8 @@ export function Settings({ open, onClose, isAdmin = false }: SettingsProps) {
       setUsersMessage('User deleted');
       setTimeout(() => setUsersMessage(''), 2000);
       loadUsers();
-    } catch (err: any) {
-      setUsersMessage(err.message);
+    } catch (err: unknown) {
+      setUsersMessage((err as Error).message);
     }
   };
 
