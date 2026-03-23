@@ -41,7 +41,7 @@ export async function addRoute(appName: string, path: string, port: number): Pro
   try {
     res = await fetch(`${CADDY_ADMIN_URL}/config/apps/http/servers/srv0/routes`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'Origin': 'http://localhost' },
       body: JSON.stringify(route),
       signal: AbortSignal.timeout(5000),
     });
@@ -66,6 +66,7 @@ export async function removeRoute(appName: string): Promise<void> {
   try {
     res = await fetch(`${CADDY_ADMIN_URL}/id/app-${appName}`, {
       method: 'DELETE',
+      headers: { 'Origin': 'http://localhost' },
       signal: AbortSignal.timeout(5000),
     });
   } catch (err: any) {
@@ -82,6 +83,7 @@ export async function removeRoute(appName: string): Promise<void> {
 export async function listRoutes(): Promise<any[]> {
   try {
     const res = await fetch(`${CADDY_ADMIN_URL}/config/apps/http/servers/srv0/routes`, {
+      headers: { 'Origin': 'http://localhost' },
       signal: AbortSignal.timeout(5000),
     });
     if (!res.ok) return [];
