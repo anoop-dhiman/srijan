@@ -13,10 +13,11 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      '/api': {
+      '/forge': {
         target: 'http://localhost:8080',
         changeOrigin: true,
         ws: true,
+        rewrite: (path: string) => path.replace(/^\/forge/, ''),
       },
     },
   },

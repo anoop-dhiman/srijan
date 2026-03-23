@@ -1,4 +1,4 @@
-const BASE_URL = '/api';
+const BASE_URL = '/forge/api';
 
 export function getToken(): string | null {
   return localStorage.getItem('srijan_token');
@@ -63,5 +63,5 @@ export function createChatSocket(): WebSocket {
   const token = getToken();
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   const host = window.location.host;
-  return new WebSocket(`${protocol}//${host}/api/chat?token=${token}`);
+  return new WebSocket(`${protocol}//${host}/forge/api/chat?token=${token}`);
 }

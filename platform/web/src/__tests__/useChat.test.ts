@@ -51,7 +51,7 @@ vi.stubGlobal('WebSocket', Object.assign(MockWebSocket, {
 
 // ── API mocks ────────────────────────────────────────────────────────────────
 vi.mock('../lib/api', () => ({
-  createChatSocket: vi.fn(() => new MockWebSocket('ws://localhost/api/chat?token=test')),
+  createChatSocket: vi.fn(() => new MockWebSocket('ws://localhost/forge/api/chat?token=test')),
   apiFetch: vi.fn().mockResolvedValue([]),
 }));
 
@@ -68,7 +68,7 @@ describe('useChat hook', () => {
     wsInstances.length = 0;
     vi.mocked(apiFetch).mockResolvedValue([]);
     vi.mocked(createChatSocket).mockImplementation(
-      () => new MockWebSocket('ws://localhost/api/chat?token=test') as any
+      () => new MockWebSocket('ws://localhost/forge/api/chat?token=test') as any
     );
     localStorage.clear();
   });

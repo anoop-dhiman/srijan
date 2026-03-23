@@ -46,7 +46,7 @@ export function Terminal({ sessionId }: TerminalProps) {
       const token = getToken();
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const host = window.location.host;
-      const wsUrl = `${protocol}//${host}/api/terminal?token=${encodeURIComponent(token ?? '')}${sessionId ? `&sessionId=${encodeURIComponent(sessionId)}` : ''}`;
+      const wsUrl = `${protocol}//${host}/forge/api/terminal?token=${encodeURIComponent(token ?? '')}${sessionId ? `&sessionId=${encodeURIComponent(sessionId)}` : ''}`;
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 
