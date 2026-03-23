@@ -40,6 +40,7 @@ const defaultProps = {
   onWorkspaceChange: vi.fn(),
   onReplaySession: vi.fn(),
   onGoToDashboard: vi.fn(),
+  onAbortSession: vi.fn(),
 };
 
 const mockSession: Session = {
@@ -183,12 +184,18 @@ describe('Chat', () => {
       expect(submitBtn).not.toBeDisabled();
     });
 
-    it('send button is disabled when isLoading is true', async () => {
+    it('shows stop button instead of send button when isLoading is true', async () => {
       render(<Chat {...defaultProps} isLoading={true} />);
       const textarea = screen.getByPlaceholderText('Type a message...');
       await userEvent.type(textarea, 'hello');
-      const submitBtn = document.querySelector('form button[type="submit"]') as HTMLButtonElement;
-      expect(submitBtn).toBeDisabled();
+      expect(document.querySelector('form button[type="submit"]')).toBeNull();
+      expect(screen.getByTitle('Stop agent')).toBeInTheDocument();
+    });
+
+    it('calls onAbortSession when stop button is clicked', async () => {
+      render(<Chat {...defaultProps} isLoading={true} />);
+      await userEvent.click(screen.getByTitle('Stop agent'));
+      expect(defaultProps.onAbortSession).toHaveBeenCalledOnce();
     });
 
     it('calls onSendMessage with trimmed content on submit', async () => {
