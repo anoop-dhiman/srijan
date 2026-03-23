@@ -19,15 +19,17 @@ test.describe('Chat', () => {
 
   test('Chat tab is visible and navigable', async ({ page }) => {
     await loginAs(page, 'admin', ADMIN_PASSWORD);
-    await page.getByText(wsName, { exact: true }).waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
-    await page.getByRole('button', { name: /chat/i }).click();
+    const chatBtn = page.getByRole('button', { name: /chat/i });
+    await expect(chatBtn).toBeEnabled({ timeout: 10000 });
+    await chatBtn.click();
     await expect(page.getByText(/Srijan|workspace|session/i).first()).toBeVisible({ timeout: 5000 });
   });
 
   test('new session appears in sidebar after creation', async ({ page }) => {
     await loginAs(page, 'admin', ADMIN_PASSWORD);
-    await page.getByText(wsName, { exact: true }).waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
-    await page.getByRole('button', { name: /chat/i }).click();
+    const chatBtn = page.getByRole('button', { name: /chat/i });
+    await expect(chatBtn).toBeEnabled({ timeout: 10000 });
+    await chatBtn.click();
 
     // Switch to the test workspace first
     const wsButton = page.getByText(wsName).first();
@@ -44,14 +46,18 @@ test.describe('Chat', () => {
 
   test('spending warning banner not shown when no limit', async ({ page }) => {
     await loginAs(page, 'admin', ADMIN_PASSWORD);
-    await page.getByRole('button', { name: /chat/i }).click();
+    const chatBtn = page.getByRole('button', { name: /chat/i });
+    await expect(chatBtn).toBeEnabled({ timeout: 10000 });
+    await chatBtn.click();
     // Banner should NOT be visible by default (no limit set)
     await expect(page.getByText(/monthly limit/i)).not.toBeVisible({ timeout: 3000 }).catch(() => {});
   });
 
   test('chat page shows workspace selector or message area', async ({ page }) => {
     await loginAs(page, 'admin', ADMIN_PASSWORD);
-    await page.getByRole('button', { name: /chat/i }).click();
+    const chatBtn = page.getByRole('button', { name: /chat/i });
+    await expect(chatBtn).toBeEnabled({ timeout: 10000 });
+    await chatBtn.click();
     // Either the sidebar or the message area is shown
     const hasSidebar = await page.getByRole('button', { name: /new chat/i }).isVisible().catch(() => false);
     const hasMessage = await page.getByText(/Srijan/i).isVisible().catch(() => false);

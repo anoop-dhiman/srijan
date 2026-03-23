@@ -761,7 +761,7 @@ function WorkspaceCard({ workspace, onViewSessions, onDeleteWorkspace, spendingI
   const hasStopped = containers.some(c => c.State !== 'running');
 
   return (
-    <div className="rounded-xl border border-border bg-background overflow-hidden">
+    <div data-testid="workspace-card" className="rounded-xl border border-border bg-background overflow-hidden">
       <div className="px-5 py-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="flex items-center gap-2.5 min-w-0">

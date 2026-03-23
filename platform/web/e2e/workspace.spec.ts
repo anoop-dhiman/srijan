@@ -39,7 +39,7 @@ test.describe('Workspace management', () => {
     await expect(page.getByText(ws3)).toBeVisible({ timeout: 10000 });
 
     // Find delete button for this workspace and click it
-    const card = page.locator('.rounded-xl').filter({ hasText: ws3 });
+    const card = page.locator('[data-testid="workspace-card"]').filter({ hasText: ws3 });
     await card.getByTitle(/delete workspace/i).click();
     // Confirm deletion in dialog
     await page.locator('[role="alertdialog"]').getByRole('button', { name: /delete workspace/i }).click();

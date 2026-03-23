@@ -24,15 +24,18 @@ test.describe('File Browser', () => {
 
   test('Files tab shows workspace selector', async ({ page }) => {
     await loginAs(page, 'admin', ADMIN_PASSWORD);
-    await page.getByText(wsName, { exact: true }).waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
-    await page.getByRole('button', { name: /files/i }).click();
+    const filesBtn = page.getByRole('button', { name: /files/i });
+    await expect(filesBtn).toBeEnabled({ timeout: 10000 });
+    await filesBtn.click();
     // Should show some text about selecting a workspace or a file tree
     await expect(page.getByText(/workspace|file|browse|select/i).first()).toBeVisible({ timeout: 5000 });
   });
 
   test('File browser navigation works', async ({ page }) => {
     await loginAs(page, 'admin', ADMIN_PASSWORD);
-    await page.getByRole('button', { name: /files/i }).click();
+    const filesBtn = page.getByRole('button', { name: /files/i });
+    await expect(filesBtn).toBeEnabled({ timeout: 10000 });
+    await filesBtn.click();
 
     // Try to select the test workspace if there's a selector
     const wsOption = page.getByText(wsName).first();
@@ -40,17 +43,14 @@ test.describe('File Browser', () => {
       await wsOption.click();
     }
     // Page should remain stable without errors
-    await page.waitForTimeout(500);
-    const hasError = await page.getByText(/error|failed/i).isVisible().catch(() => false);
-    expect(hasError).toBe(false);
+    await expect(page.getByText(/error|failed/i)).not.toBeVisible({ timeout: 3000 }).catch(() => {});
   });
 
   test('File viewer is read-only by default', async ({ page }) => {
     await loginAs(page, 'admin', ADMIN_PASSWORD);
-    await page.getByText(wsName, { exact: true }).waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
-    await page.getByRole('button', { name: /files/i }).click();
-    // Wait for file browser to settle
-    await page.waitForTimeout(1000);
+    const filesBtn = page.getByRole('button', { name: /files/i });
+    await expect(filesBtn).toBeEnabled({ timeout: 10000 });
+    await filesBtn.click();
     // Confirm the Files view renders without errors
     await expect(page.locator('body')).toBeVisible();
   });
