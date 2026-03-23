@@ -1,7 +1,7 @@
 # Srijan — Agent Handoff Summary
 
-> Date: 2026-03-20
-> Latest commit: `ca26946` (default blocklist fix — 497 tests total: 279 backend + 196 frontend unit + 22 E2E)
+> Date: 2026-03-23
+> Latest commit: `11597d2` (CI path filters — 497 tests total: 279 backend + 196 frontend unit + 22 E2E)
 > Location: `/Users/anoop.dhiman/Documents/Srijan`
 
 ---
@@ -94,8 +94,9 @@ Srijan/
 │   ├── vitest.config.ts      # Backend test config (forks pool for SQLite)
 │   └── .env.example
 ├── deployment/
-│   ├── docker-compose.yml    # Caddy (:80/:443) + Platform (:8080)
+│   ├── docker-compose.yml    # Caddy (:80/:443) + Platform (:8080); uses ghcr.io/anoop-dhiman/srijan-platform:latest
 │   ├── docker-compose.dev.yml # Dev config with hot-reload, port 2019 exposed
+│   ├── setup.sh              # Self-contained installer: checks deps, embeds compose+Caddyfile as heredocs, pulls prebuilt image
 │   └── caddy/Caddyfile       # Base routing config
 └── README.md
 ```
@@ -199,7 +200,7 @@ Supported providers: `github` (PAT), `azure` (Azure DevOps PAT), `generic` (any 
 - **Users (RBAC)**: `GET/POST/DELETE /api/users` (admin only); `role` column in users table; `requireAdmin` middleware; `PUT /api/users/:id/spending-limit` (admin)
 - **Spending caps**: `lib/spending.ts` — `checkSpendingLimits(userId, workspaceName)` called before agent spawn; `getMonthWindowStart()` for calendar-month windows; `getUserSpending` / `getWorkspaceSpending` aggregate `token_usage` by month; agent spawn blocked (503) when limit exceeded
 - **Spending routes**: `GET /api/spending/me`, `GET /api/spending/users` (admin), `GET /api/spending/workspaces` (admin), `GET /api/spending/workspace/:name`
-- **CI/CD**: `.github/workflows/ci.yml` — `lint → test → build → push to ghcr.io`; separate E2E job with Playwright
+- **CI/CD**: `.github/workflows/ci.yml` — `lint → test → build-and-push → e2e`; build and push merged into one job (no double build); path filters skip CI for non-platform changes; `WORKSPACE_ROOT` set to writable path in E2E job; E2E Playwright tests fix race conditions with `toBeEnabled()` waits and `data-testid="workspace-card"` selector
 
 ### Frontend (196 unit tests + 22 E2E tests passing)
 - **Login**: multi-user username + password fields; optional TOTP challenge step; 429 rate-limit feedback; JWT stored in localStorage
@@ -367,7 +368,7 @@ Other DB config keys:
 - **Workspace templates** — `applyTemplate(workspacePath, template)` writes scaffold files using module-level string constants (no `__dirname` + file reads); template failure in `workspaces.ts` is non-fatal (caught, logged as warn, still returns 201)
 - **Monthly spending caps** — `getMonthWindowStart()` returns the first-day-of-month UTC timestamp; spending summed from `token_usage` filtered by `user_id`/`workspace_name` and `created_at >= monthStart`; `checkSpendingLimits()` called in `runner.ts` before subprocess spawn; returns 503 with `SPENDING_LIMIT_EXCEEDED` code if over limit; `workspace_spending` table holds per-workspace limits separately from `users.spending_limit_usd`
 - **Dockerfile schema.sql fix** — schema was missing in prod image because `COPY . .` ran before `tsc`; fixed by adding explicit `COPY src/db/schema.sql dist/db/schema.sql` in builder stage
-- **CI/CD pipeline** — GitHub Actions: `lint` job runs `tsc --noEmit` + ESLint; `test` job runs backend vitest + frontend vitest; `build` job builds and pushes image to `ghcr.io`; `e2e` job spins up the server and runs Playwright; jobs gated so `build` only runs on push to main after `test` passes
+- **CI/CD pipeline** — GitHub Actions: `lint → test → build-and-push → e2e`; `build-and-push` is a single job (login + push conditional on branch, no double build); path filters (`platform/**`, `.github/workflows/ci.yml`) skip CI for doc/deployment-only changes; `WORKSPACE_ROOT` env set to `${{ github.workspace }}/e2e-workspaces` in E2E job (default `/workspaces` not writable on GitHub runners); E2E race conditions fixed — Chat/Files tabs wait for `toBeEnabled()` before click; workspace card uses `data-testid="workspace-card"` instead of `.rounded-xl` CSS selector
 
 ---
 

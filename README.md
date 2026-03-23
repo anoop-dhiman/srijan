@@ -144,6 +144,7 @@ npx playwright test          # 22 E2E tests (requires running server)
 | Phase 11 | Code review — P0 security (XSS, CSP, container auth), P1 reliability (reconnect caps, DB indexes, timeouts), P2 UX/a11y — 411 tests | **Done** |
 | Phase 12 | Observability (pino logging, health endpoint, request tracing), workspace templates, agent permission UI, mobile polish — 447 tests | **Done** |
 | Phase 13 | Production Dockerfile + CI/CD (GitHub Actions → ghcr.io), monthly spending caps, Playwright E2E tests — 497 tests | **Done** |
+| Phase 13.1 | CI/CD improvements: merged build+push job, path filters, E2E race condition fixes, self-contained setup.sh (pull prebuilt image, no git clone) | **Done** |
 | Phase 14 | Local models (Ollama), GitHub bot, webhook notifications | Planned |
 
 ## Tech Stack
