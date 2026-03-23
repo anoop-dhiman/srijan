@@ -5,7 +5,9 @@ const log = createLogger('caddy');
 const CADDY_ADMIN_URL = process.env.CADDY_ADMIN_URL || 'http://localhost:2019';
 const SRIJAN_NETWORK = process.env.SRIJAN_NETWORK || 'srijan_srijan';
 const APP_NAME_RE = /^[a-zA-Z0-9_-]{1,64}$/;
-const APP_ROUTES_ID = 'srijan-app-routes';
+// Path to the subroute's routes array inside the terminal host route.
+// Resolved once at startup by initCaddyRouteId().
+let appRoutesPath: string | null = null;
 
 async function connectContainerToNetwork(containerName: string): Promise<void> {
   try {
@@ -27,24 +29,13 @@ function validateAppName(name: string): void {
 }
 
 /**
- * Finds the terminal host-matched route and tags its subroute handler with
- * @id "srijan-app-routes" so dynamic app routes can be inserted inside it.
+ * Resolves the index-based path to the subroute routes array inside the
+ * terminal host-matched route. Storing this path lets addRoute() insert
+ * app routes inside the host block instead of after it (where terminal:true
+ * would shadow them).
  * Must be called at server startup before any addRoute calls.
  */
 export async function initCaddyRouteId(): Promise<void> {
-  // Check if already initialized
-  try {
-    const res = await fetch(`${CADDY_ADMIN_URL}/config/id/${APP_ROUTES_ID}`, {
-      headers: { 'Origin': 'http://localhost' },
-      signal: AbortSignal.timeout(5000),
-    });
-    if (res.ok) return; // Already tagged
-  } catch {
-    // Caddy not up yet — skip silently
-    return;
-  }
-
-  // Find the terminal host route
   const routes = await listRoutes();
   const hostRouteIndex = routes.findIndex((r: any) => r.terminal === true);
   if (hostRouteIndex === -1) {
@@ -52,25 +43,8 @@ export async function initCaddyRouteId(): Promise<void> {
     return;
   }
 
-  // Tag the subroute handler so we can POST inside it
-  try {
-    const res = await fetch(
-      `${CADDY_ADMIN_URL}/config/apps/http/servers/srv0/routes/${hostRouteIndex}/handle/0/@id`,
-      {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'Origin': 'http://localhost' },
-        body: JSON.stringify(APP_ROUTES_ID),
-        signal: AbortSignal.timeout(5000),
-      },
-    );
-    if (res.ok) {
-      log.info({ hostRouteIndex }, 'caddy subroute tagged with @id srijan-app-routes');
-    } else {
-      log.warn({ status: res.status }, 'initCaddyRouteId: PUT @id failed');
-    }
-  } catch (err: any) {
-    log.warn({ err: err.message }, 'initCaddyRouteId failed');
-  }
+  appRoutesPath = `/config/apps/http/servers/srv0/routes/${hostRouteIndex}/handle/0/routes`;
+  log.info({ hostRouteIndex, appRoutesPath }, 'caddy app routes path initialized');
 }
 
 export async function addRoute(appName: string, path: string, port: number, containerName?: string): Promise<void> {
@@ -108,29 +82,20 @@ export async function addRoute(appName: string, path: string, port: number, cont
     ],
   };
 
-  // Prefer inserting inside the host-matched subroute so the terminal route
-  // does not shadow dynamically added app routes.
-  const insideHostUrl = `${CADDY_ADMIN_URL}/config/id/${APP_ROUTES_ID}/routes`;
-  const topLevelUrl = `${CADDY_ADMIN_URL}/config/apps/http/servers/srv0/routes`;
+  // Insert inside the host-matched subroute when available so the terminal
+  // host route does not shadow dynamically added app routes.
+  const targetUrl = appRoutesPath
+    ? `${CADDY_ADMIN_URL}${appRoutesPath}`
+    : `${CADDY_ADMIN_URL}/config/apps/http/servers/srv0/routes`;
 
   let res: Response;
   try {
-    res = await fetch(insideHostUrl, {
+    res = await fetch(targetUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Origin': 'http://localhost' },
       body: JSON.stringify(route),
       signal: AbortSignal.timeout(5000),
     });
-    // Fall back to top-level if the @id hasn't been initialised yet
-    if (!res.ok && res.status === 404) {
-      log.warn('srijan-app-routes @id not found, falling back to top-level route insertion');
-      res = await fetch(topLevelUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Origin': 'http://localhost' },
-        body: JSON.stringify(route),
-        signal: AbortSignal.timeout(5000),
-      });
-    }
   } catch (err: any) {
     throw new Error(`Caddy is not reachable (${CADDY_ADMIN_URL}): ${err.message}`);
   }
