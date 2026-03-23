@@ -738,6 +738,7 @@ function WorkspaceCard({ workspace, onViewSessions, onDeleteWorkspace, spendingI
     setApps(a);
   }, []);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { fetchApps(); }, [fetchApps]);
 
   const fetchContainers = useCallback(async () => {

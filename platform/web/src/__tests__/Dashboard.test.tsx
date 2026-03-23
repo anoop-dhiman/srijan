@@ -47,7 +47,10 @@ describe('Dashboard', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     // Default: git status returns successfully, containers/apps return empty arrays
-    vi.mocked(apiFetch).mockResolvedValue({ branch: 'main', remoteUrl: null });
+    vi.mocked(apiFetch).mockImplementation(async (url: string) => {
+      if (typeof url === 'string' && url.includes('/apps')) return [];
+      return { branch: 'main', remoteUrl: null };
+    });
   });
 
   it('renders Refresh button', () => {
@@ -194,6 +197,7 @@ describe('Dashboard — Git auth UI', () => {
     vi.mocked(apiFetch).mockImplementation(async (url: string) => {
       if (url.includes('/status')) return { branch: 'main', remoteUrl: 'https://github.com/user/repo.git' };
       if (url.includes('/credentials')) return credInfo;
+      if (url.includes('/apps')) return [];
       return {};
     });
     render(
@@ -238,6 +242,7 @@ describe('Dashboard — Git auth UI', () => {
       if (url.includes('/status')) return { branch: 'main', remoteUrl: 'https://github.com/user/repo.git' };
       if (url.includes('/credentials')) return { configured: true, provider: 'github', username: 'alice' };
       if (url.includes('/push') && opts?.method === 'POST') return { ok: true };
+      if (url.includes('/apps')) return [];
       return {};
     });
 
@@ -277,6 +282,7 @@ describe('Dashboard — Git auth UI', () => {
       if (url.includes('/status')) return { branch: 'main', remoteUrl: 'https://github.com/user/repo.git' };
       if (url.includes('/credentials') && !opts) return { configured: false };
       if (url.includes('/credentials') && opts?.method === 'POST') return { ok: true };
+      if (url.includes('/apps')) return [];
       return {};
     });
 
