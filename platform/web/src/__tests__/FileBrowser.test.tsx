@@ -8,7 +8,7 @@ vi.mock('../lib/api', () => ({
   apiFetch: vi.fn(),
 }));
 
-vi.mock('@monaco-editor/react', () => ({
+vi.mock('../lib/monaco-setup', () => ({
   default: ({ value, onChange, options }: any) => (
     <textarea
       data-testid="monaco-editor"
