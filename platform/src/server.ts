@@ -126,7 +126,14 @@ if (existsSync(webDist)) {
 // Initialize
 checkSecretSecurity();
 const db = getDb();
-setupAdmin(ADMIN_PASSWORD);
+const adminCreated = setupAdmin(ADMIN_PASSWORD);
+if (adminCreated) {
+  if (!process.env.SRIJAN_ADMIN_PASSWORD) {
+    log.warn('Admin user created with default password — set SRIJAN_ADMIN_PASSWORD in production');
+  } else {
+    log.info('Admin user created');
+  }
+}
 
 const server = createServer(app);
 setupWebSocket();
@@ -166,7 +173,6 @@ server.on('upgrade', (request: IncomingMessage, socket, head) => {
 
 server.listen(PORT, () => {
   log.info(`Srijan platform running on http://localhost:${PORT}`);
-  log.info('Admin user created with default password (change in production)');
 });
 
 // Graceful shutdown

@@ -55,10 +55,11 @@ interface ChallengePayload {
   purpose: 'totp';
 }
 
-export function setupAdmin(password: string): void {
+/** Returns true if the admin user was created, false if it already existed. */
+export function setupAdmin(password: string): boolean {
   const db = getDb();
   const existing = db.prepare('SELECT id FROM users WHERE username = ?').get('admin');
-  if (existing) return;
+  if (existing) return false;
 
   const hash = bcrypt.hashSync(password, 12);
   db.prepare('INSERT INTO users (id, username, password_hash, role) VALUES (?, ?, ?, ?)').run(
@@ -67,6 +68,7 @@ export function setupAdmin(password: string): void {
     hash,
     'admin'
   );
+  return true;
 }
 
 export type LoginResult =
