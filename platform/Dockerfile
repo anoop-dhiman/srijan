@@ -26,11 +26,10 @@ FROM node:22-alpine
 
 RUN apk add --no-cache curl docker-cli git
 
-# Add a 'docker' group (GID 999 — common Linux default) and add the existing
-# 'node' user to it so it can access /var/run/docker.sock.
-# docker-compose passes the actual host docker GID via group_add, which takes
-# precedence at runtime; this just ensures a sensible fallback in the image.
-RUN addgroup -g 999 docker 2>/dev/null || true \
+# Create a 'docker' group and add the existing 'node' user to it.
+# The actual host docker GID is injected at runtime via compose group_add;
+# this group is just a named placeholder so adduser succeeds in the image.
+RUN addgroup docker \
  && adduser node docker
 
 WORKDIR /app
