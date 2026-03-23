@@ -105,8 +105,8 @@ services:
       - "443:443/udp"
     volumes:
       - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-      - caddy_config:/config
+      - ./caddy/data:/data
+      - ./caddy/config:/config
     environment:
       - SRIJAN_DOMAIN=${SRIJAN_DOMAIN:-localhost}
       - ACME_EMAIL=${ACME_EMAIL:-}
@@ -131,8 +131,8 @@ services:
       - "8080"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - srijan_workspaces:/workspaces
-      - srijan_data:/data
+      - ./workspaces:/workspaces
+      - ./data:/data
     environment:
       - PORT=8080
       - SRIJAN_ADMIN_PASSWORD=${SRIJAN_ADMIN_PASSWORD:?SRIJAN_ADMIN_PASSWORD is required}
@@ -162,12 +162,6 @@ services:
       options:
         max-size: "50m"
         max-file: "5"
-
-volumes:
-  caddy_data:
-  caddy_config:
-  srijan_workspaces:
-  srijan_data:
 
 networks:
   srijan:
