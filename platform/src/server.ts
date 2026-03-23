@@ -12,6 +12,7 @@ import { setupAdmin, verifyToken, checkSecretSecurity } from './security/auth.js
 import { requestIdMiddleware } from './middleware/requestId.js';
 import { createLogger } from './lib/logger.js';
 import { getDockerInfo } from './docker/manager.js';
+import { initCaddyRouteId } from './docker/caddy.js';
 
 const log = createLogger('server');
 import { setupWebSocket, chatWss } from './routes/chat.js';
@@ -174,6 +175,9 @@ server.on('upgrade', (request: IncomingMessage, socket, head) => {
 
 server.listen(PORT, () => {
   log.info(`Srijan platform running on http://localhost:${PORT}`);
+  // Tag Caddy's host-route subroute so dynamic app routes land inside it
+  // (avoids the terminal: true route shadowing dynamically added routes)
+  initCaddyRouteId().catch(err => log.warn({ err: err.message }, 'initCaddyRouteId failed at startup'));
 });
 
 // Graceful shutdown

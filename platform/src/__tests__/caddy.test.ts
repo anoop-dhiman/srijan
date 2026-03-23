@@ -17,7 +17,7 @@ describe('Caddy Client', () => {
 
       expect(mockFetch).toHaveBeenCalledOnce();
       const [url, opts] = mockFetch.mock.calls[0];
-      expect(url).toContain('/config/apps/http/servers/srv0/routes');
+      expect(url).toContain('/config/id/srijan-app-routes/routes');
       expect(opts.method).toBe('POST');
       expect(opts.headers['Content-Type']).toBe('application/json');
 
