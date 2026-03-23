@@ -214,7 +214,9 @@ else
 # Caddy receives plain HTTP on port 80. No cert management.
 {
 	auto_https off
-	admin 0.0.0.0:2019
+	admin 0.0.0.0:2019 {
+		origins localhost caddy
+	}
 	servers {
 		# Trust X-Forwarded-* headers from the upstream LB
 		trusted_proxies static private_ranges
