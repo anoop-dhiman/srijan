@@ -24,11 +24,9 @@ RUN cd web && npx vite build
 # Production image
 FROM node:22-alpine
 
-RUN apk add --no-cache bash curl docker-cli git
+RUN apk add --no-cache bash curl docker-cli docker-cli-compose git
 
-# Create a 'docker' group and add the existing 'node' user to it.
-# The actual host docker GID is injected at runtime via compose group_add;
-# this group is just a named placeholder so adduser succeeds in the image.
+# Create a 'docker' group and add node user; host GID is matched via compose group_add
 RUN addgroup docker \
  && adduser node docker
 
