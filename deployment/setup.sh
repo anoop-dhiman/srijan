@@ -101,10 +101,7 @@ services:
     image: caddy:2-alpine
     container_name: srijan-caddy
     restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-      - "443:443/udp"
+    network_mode: host
     volumes:
       - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - ./caddy/data:/data
@@ -112,8 +109,6 @@ services:
     environment:
       - SRIJAN_DOMAIN=${SRIJAN_DOMAIN:-localhost}
       - ACME_EMAIL=${ACME_EMAIL:-}
-    networks:
-      - srijan
     deploy:
       resources:
         limits:
@@ -129,11 +124,10 @@ services:
     image: ghcr.io/anoop-dhiman/srijan-platform:latest
     container_name: srijan-platform
     restart: unless-stopped
+    network_mode: host
     user: "node"
     group_add:
       - "${DOCKER_GID:-999}"
-    expose:
-      - "8080"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./workspaces:/workspaces
@@ -147,7 +141,7 @@ services:
       - WORKSPACE_ROOT=/workspaces
       - SRIJAN_DOMAIN=${SRIJAN_DOMAIN:-localhost}
       - SRIJAN_ORIGIN=${SRIJAN_ORIGIN:-}
-      - CADDY_ADMIN_URL=http://caddy:2019
+      - CADDY_ADMIN_URL=http://localhost:2019
     depends_on:
       - caddy
     healthcheck:
@@ -155,8 +149,6 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-    networks:
-      - srijan
     deploy:
       resources:
         limits:
@@ -167,10 +159,6 @@ services:
       options:
         max-size: "50m"
         max-file: "5"
-
-networks:
-  srijan:
-    driver: bridge
 COMPOSE
 
 if [[ "$TLS_MODE" == "caddy" ]]; then
@@ -179,7 +167,7 @@ if [[ "$TLS_MODE" == "caddy" ]]; then
 {
 	email {$ACME_EMAIL:}
 	admin 0.0.0.0:2019 {
-		origins localhost caddy
+		origins localhost
 	}
 }
 
@@ -200,11 +188,11 @@ http://{$SRIJAN_DOMAIN:localhost} {
 	}
 
 	handle_path /forge/* {
-		reverse_proxy srijan-platform:8080
+		reverse_proxy localhost:8080
 	}
 
 	handle /forge {
-		reverse_proxy srijan-platform:8080
+		reverse_proxy localhost:8080
 	}
 }
 CADDYFILE
@@ -215,7 +203,7 @@ else
 {
 	auto_https off
 	admin 0.0.0.0:2019 {
-		origins localhost caddy
+		origins localhost
 	}
 	servers {
 		# Trust X-Forwarded-* headers from the upstream LB
@@ -235,11 +223,11 @@ http://{$SRIJAN_DOMAIN:localhost} {
 	}
 
 	handle_path /forge/* {
-		reverse_proxy srijan-platform:8080
+		reverse_proxy localhost:8080
 	}
 
 	handle /forge {
-		reverse_proxy srijan-platform:8080
+		reverse_proxy localhost:8080
 	}
 }
 CADDYFILE
@@ -273,7 +261,7 @@ SRIJAN_JWT_SECRET=${JWT_SECRET}
 SRIJAN_SECRETS_KEY=${SECRETS_KEY}
 SRIJAN_DATA_DIR=/data
 WORKSPACE_ROOT=/workspaces
-CADDY_ADMIN_URL=http://caddy:2019
+CADDY_ADMIN_URL=http://localhost:2019
 ACME_EMAIL=${EMAIL}
 TLS_MODE=${TLS_MODE}
 DOCKER_GID=${DOCKER_GID}

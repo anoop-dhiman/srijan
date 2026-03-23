@@ -4,7 +4,7 @@
 {
 	auto_https off
 	admin 0.0.0.0:2019 {
-		origins localhost caddy
+		origins localhost
 	}
 	servers {
 		# Trust X-Forwarded-* headers from the upstream LB
@@ -24,10 +24,10 @@ http://{$SRIJAN_DOMAIN:localhost} {
 	}
 
 	handle_path /forge/* {
-		reverse_proxy srijan-platform:8080
+		reverse_proxy localhost:8080
 	}
 
 	handle /forge {
-		reverse_proxy srijan-platform:8080
+		reverse_proxy localhost:8080
 	}
 }
