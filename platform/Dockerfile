@@ -21,12 +21,12 @@ RUN cd web && npx vite build
 # Production image
 FROM node:22-alpine
 
-RUN apk add --no-cache curl docker-cli git
+RUN apk add --no-cache curl docker-cli git python3 make g++
 
 WORKDIR /app
 
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev
+RUN npm ci --omit=dev && apk del python3 make g++
 
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/web/dist ./web/dist
