@@ -12,7 +12,7 @@ test.describe('Settings', () => {
   test('AI Provider section is visible for admin', async ({ page }) => {
     await loginAs(page, 'admin', ADMIN_PASSWORD);
     await page.getByRole('button', { name: /settings/i }).click();
-    await expect(page.getByText(/AI Provider|LLM Provider/i)).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText(/AI Provider|LLM Provider/i).first()).toBeVisible({ timeout: 5000 });
   });
 
   test('admin sees Users section', async ({ page }) => {
@@ -32,6 +32,6 @@ test.describe('Settings', () => {
     await page.getByRole('button', { name: /settings/i }).click();
     // Click Spending nav item
     await page.getByRole('button', { name: /spending/i }).click();
-    await expect(page.getByText(/spending limit/i)).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText(/spending limit/i).first()).toBeVisible({ timeout: 5000 });
   });
 });

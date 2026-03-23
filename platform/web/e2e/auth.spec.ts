@@ -8,7 +8,7 @@ test.describe('Authentication', () => {
     await page.getByLabel(/username/i).fill('admin');
     await page.getByLabel(/password/i).fill(ADMIN_PASSWORD);
     await page.getByRole('button', { name: /sign in/i }).click();
-    await expect(page.getByText('Workspaces')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Workspaces' })).toBeVisible({ timeout: 10000 });
   });
 
   test('login with invalid credentials shows error', async ({ page }) => {
@@ -24,10 +24,10 @@ test.describe('Authentication', () => {
     await page.getByLabel(/username/i).fill('admin');
     await page.getByLabel(/password/i).fill(ADMIN_PASSWORD);
     await page.getByRole('button', { name: /sign in/i }).click();
-    await expect(page.getByText('Workspaces')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Workspaces' })).toBeVisible({ timeout: 10000 });
 
     await page.reload();
-    await expect(page.getByText('Workspaces')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Workspaces' })).toBeVisible({ timeout: 10000 });
   });
 
   test('unauthenticated user sees login form', async ({ page }) => {

@@ -34,8 +34,9 @@ export async function apiFetch(path: string, options: RequestInit = {}): Promise
   });
 
   if (res.status === 401) {
+    const hadToken = !!token;
     clearToken();
-    window.location.reload();
+    if (hadToken) window.location.reload();
     throw new Error('Unauthorized');
   }
 

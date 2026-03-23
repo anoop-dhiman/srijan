@@ -76,6 +76,7 @@ export function Login({ onLogin }: LoginProps) {
             <input
               type="text"
               placeholder="Username"
+              aria-label="Username"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               className="w-full rounded-xl border border-border bg-muted px-4 py-3.5 text-base text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
@@ -85,6 +86,7 @@ export function Login({ onLogin }: LoginProps) {
             <input
               type="password"
               placeholder="Password"
+              aria-label="Password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="w-full rounded-xl border border-border bg-muted px-4 py-3.5 text-base text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"

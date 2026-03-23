@@ -1,6 +1,6 @@
 import { APIRequestContext } from '@playwright/test';
 
-const API_BASE = 'http://localhost:8080/api';
+const API_BASE = 'http://127.0.0.1:8080/api';
 
 export async function getAdminToken(request: APIRequestContext): Promise<string> {
   const res = await request.post(`${API_BASE}/auth/login`, {

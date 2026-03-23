@@ -19,7 +19,7 @@ test.describe('Workspace management', () => {
   test('create workspace via UI and see it in dashboard', async ({ page }) => {
     await loginAs(page, 'admin', ADMIN_PASSWORD);
     await page.getByRole('button', { name: /new workspace/i }).click();
-    await page.getByPlaceholder(/workspace name|name/i).first().fill(wsName);
+    await page.getByPlaceholder('my-project').first().fill(wsName);
     await page.getByRole('button', { name: /create workspace/i }).click();
     await expect(page.getByText(wsName)).toBeVisible({ timeout: 15000 });
   });
@@ -39,16 +39,16 @@ test.describe('Workspace management', () => {
     await expect(page.getByText(ws3)).toBeVisible({ timeout: 10000 });
 
     // Find delete button for this workspace and click it
-    const card = page.locator(`text=${ws3}`).locator('../..').first();
+    const card = page.locator('.rounded-xl').filter({ hasText: ws3 });
     await card.getByTitle(/delete workspace/i).click();
     // Confirm deletion in dialog
-    await page.getByRole('button', { name: /delete workspace/i }).last().click();
-    await expect(page.getByText(ws3)).not.toBeVisible({ timeout: 10000 });
+    await page.locator('[role="alertdialog"]').getByRole('button', { name: /delete workspace/i }).click();
+    await expect(page.getByText(ws3).first()).not.toBeVisible({ timeout: 10000 });
   });
 
   test('dashboard shows workspaces section', async ({ page }) => {
     await loginAs(page, 'admin', ADMIN_PASSWORD);
-    await expect(page.getByText('Workspaces')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Workspaces' })).toBeVisible();
     await expect(page.getByRole('button', { name: /new workspace/i })).toBeVisible();
   });
 });

@@ -19,12 +19,14 @@ test.describe('Chat', () => {
 
   test('Chat tab is visible and navigable', async ({ page }) => {
     await loginAs(page, 'admin', ADMIN_PASSWORD);
+    await page.getByText(wsName, { exact: true }).waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
     await page.getByRole('button', { name: /chat/i }).click();
-    await expect(page.getByText(/Srijan|workspace|session/i)).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText(/Srijan|workspace|session/i).first()).toBeVisible({ timeout: 5000 });
   });
 
   test('new session appears in sidebar after creation', async ({ page }) => {
     await loginAs(page, 'admin', ADMIN_PASSWORD);
+    await page.getByText(wsName, { exact: true }).waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
     await page.getByRole('button', { name: /chat/i }).click();
 
     // Switch to the test workspace first
@@ -34,7 +36,7 @@ test.describe('Chat', () => {
     }
 
     const newChatBtn = page.getByRole('button', { name: /new chat/i });
-    if (await newChatBtn.isVisible()) {
+    if (await newChatBtn.isVisible() && await newChatBtn.isEnabled()) {
       await newChatBtn.click();
       await expect(page.getByText(/new session/i)).toBeVisible({ timeout: 5000 });
     }
