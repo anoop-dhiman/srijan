@@ -809,8 +809,8 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
                   });
                   setGitMessage('Git identity saved');
                   setTimeout(() => setGitMessage(''), 2000);
-                } catch (err: any) {
-                  setGitMessage(err.message || 'Failed to save');
+                } catch (err: unknown) {
+                  setGitMessage((err as Error).message || 'Failed to save');
                 } finally {
                   setSavingGit(false);
                 }

@@ -398,7 +398,7 @@ export function useChat() {
     ws.onerror = () => {
       ws.close();
     };
-  }, []);
+  }, [fetchWorkspaces]);
 
   useEffect(() => {
     connectRef.current = connect;

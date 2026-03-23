@@ -98,7 +98,7 @@ function GitAuthFields({
   // Auto-detect provider when URL changes
   useEffect(() => {
     if (urlForDetection) setProvider(detectProvider(urlForDetection));
-  }, [urlForDetection]);
+  }, [urlForDetection, setProvider]);
 
   return (
     <div className="space-y-2">
@@ -459,8 +459,8 @@ function GitSection({ workspaceName }: { workspaceName: string }) {
       });
       await loadGitInfo();
       setShowIdentityPanel(false);
-    } catch (err: any) {
-      setIdentityError(err.message || 'Failed to save identity');
+    } catch (err: unknown) {
+      setIdentityError((err as Error).message || 'Failed to save identity');
     }
     setSavingIdentity(false);
   };

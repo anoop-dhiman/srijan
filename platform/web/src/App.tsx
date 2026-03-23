@@ -55,11 +55,12 @@ function App() {
 
   const toggleTheme = () => setTheme(t => (t === 'dark' ? 'light' : 'dark'));
 
+  const { connect: chatConnect } = chat;
   useEffect(() => {
     if (authed) {
-      chat.connect();
+      chatConnect();
     }
-  }, [authed]);
+  }, [authed, chatConnect]);
 
   // Derive effective view: redirect chat/files to dashboard when no workspaces exist
   const effectiveView: ActiveView =
