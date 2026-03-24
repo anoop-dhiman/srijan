@@ -69,7 +69,7 @@ router.post('/', async (req: Request, res: Response) => {
 
 // DELETE /api/mcp/:name — remove an MCP server
 router.delete('/:name', async (req: Request, res: Response) => {
-  const { name } = req.params;
+  const name = req.params.name as string;
   const result = await runClaudeCli(['mcp', 'remove', name]);
   if (result.code !== 0) {
     res.status(500).json({ error: { code: 'CLI_ERROR', message: result.stderr || 'Failed to remove MCP server' } });
