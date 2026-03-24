@@ -123,6 +123,10 @@ export function useChat() {
     setCurrentWorkspaceState(name);
     if (name) localStorage.setItem('srijan_workspace', name);
     else localStorage.removeItem('srijan_workspace');
+    // Reset session when workspace changes
+    setCurrentSession(null);
+    setMessages([]);
+    localStorage.removeItem('srijan_session_id');
   }, []);
 
   const fetchWorkspaces = useCallback(async () => {
