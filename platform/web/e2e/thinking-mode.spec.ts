@@ -1,13 +1,26 @@
 import { test, expect } from '@playwright/test';
 import { loginAs } from './helpers/auth';
+import { getAdminToken, createWorkspaceViaApi, deleteWorkspaceViaApi } from './helpers/api';
 
 const ADMIN_PASSWORD = process.env.SRIJAN_ADMIN_PASSWORD || 'testpass';
 
 test.describe('Thinking Mode Selector', () => {
+  let token: string;
+  const wsName = `e2e-thinking-${Date.now()}`;
+
+  test.beforeAll(async ({ request }) => {
+    token = await getAdminToken(request);
+    await createWorkspaceViaApi(request, token, wsName);
+  });
+
+  test.afterAll(async ({ request }) => {
+    await deleteWorkspaceViaApi(request, token, wsName).catch(() => {});
+  });
+
   test('thinking mode selector is visible in chat view', async ({ page }) => {
     await loginAs(page, 'admin', ADMIN_PASSWORD);
-    // Navigate to Chat view
-    await page.getByRole('button', { name: /chat/i }).click();
+    // Navigate to Chat view (enabled once a workspace exists)
+    await page.getByRole('button', { name: /chat/i, disabled: false }).click();
     // ThinkingModeSelector renders a group with aria-label="Thinking mode"
     const selector = page.getByRole('group', { name: /thinking mode/i });
     await expect(selector).toBeVisible({ timeout: 10000 });
@@ -15,7 +28,7 @@ test.describe('Thinking Mode Selector', () => {
 
   test('can change thinking mode to extended', async ({ page }) => {
     await loginAs(page, 'admin', ADMIN_PASSWORD);
-    await page.getByRole('button', { name: /chat/i }).click();
+    await page.getByRole('button', { name: /chat/i, disabled: false }).click();
 
     const selector = page.getByRole('group', { name: /thinking mode/i });
     await expect(selector).toBeVisible({ timeout: 10000 });
@@ -31,7 +44,7 @@ test.describe('Thinking Mode Selector', () => {
 
   test('can change thinking mode back to none', async ({ page }) => {
     await loginAs(page, 'admin', ADMIN_PASSWORD);
-    await page.getByRole('button', { name: /chat/i }).click();
+    await page.getByRole('button', { name: /chat/i, disabled: false }).click();
 
     const selector = page.getByRole('group', { name: /thinking mode/i });
     await expect(selector).toBeVisible({ timeout: 10000 });
@@ -51,7 +64,7 @@ test.describe('Thinking Mode Selector', () => {
 
   test('thinking mode persists to new messages', async ({ page }) => {
     await loginAs(page, 'admin', ADMIN_PASSWORD);
-    await page.getByRole('button', { name: /chat/i }).click();
+    await page.getByRole('button', { name: /chat/i, disabled: false }).click();
 
     const selector = page.getByRole('group', { name: /thinking mode/i });
     await expect(selector).toBeVisible({ timeout: 10000 });

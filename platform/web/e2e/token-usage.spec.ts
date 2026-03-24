@@ -1,13 +1,26 @@
 import { test, expect } from '@playwright/test';
 import { loginAs } from './helpers/auth';
+import { getAdminToken, createWorkspaceViaApi, deleteWorkspaceViaApi } from './helpers/api';
 
 const ADMIN_PASSWORD = process.env.SRIJAN_ADMIN_PASSWORD || 'testpass';
 
 test.describe('Token Usage Pie', () => {
+  let token: string;
+  const wsName = `e2e-tokens-${Date.now()}`;
+
+  test.beforeAll(async ({ request }) => {
+    token = await getAdminToken(request);
+    await createWorkspaceViaApi(request, token, wsName);
+  });
+
+  test.afterAll(async ({ request }) => {
+    await deleteWorkspaceViaApi(request, token, wsName).catch(() => {});
+  });
+
   test.beforeEach(async ({ page }) => {
     await loginAs(page, 'admin', ADMIN_PASSWORD);
-    // Navigate to Chat view
-    await page.getByRole('button', { name: /chat/i }).click();
+    // Navigate to Chat view (enabled once a workspace exists)
+    await page.getByRole('button', { name: /chat/i, disabled: false }).click();
   });
 
   test('token usage area exists in chat header', async ({ page }) => {

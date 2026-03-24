@@ -1,10 +1,23 @@
 import { test, expect } from '@playwright/test';
 import { loginAs } from './helpers/auth';
+import { getAdminToken, createWorkspaceViaApi, deleteWorkspaceViaApi } from './helpers/api';
 
 const ADMIN_PASSWORD = process.env.SRIJAN_ADMIN_PASSWORD || 'testpass';
 
 test.describe('Mobile Navigation', () => {
   test.use({ viewport: { width: 375, height: 812 } });
+
+  let token: string;
+  const wsName = `e2e-mobile-${Date.now()}`;
+
+  test.beforeAll(async ({ request }) => {
+    token = await getAdminToken(request);
+    await createWorkspaceViaApi(request, token, wsName);
+  });
+
+  test.afterAll(async ({ request }) => {
+    await deleteWorkspaceViaApi(request, token, wsName).catch(() => {});
+  });
 
   test('mobile nav renders with 5 items on small viewport', async ({ page }) => {
     await loginAs(page, 'admin', ADMIN_PASSWORD);
