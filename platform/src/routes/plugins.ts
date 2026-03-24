@@ -65,20 +65,34 @@ function runPluginCmd(args: string[]): Promise<string> {
 }
 
 /**
- * Ensure the official Anthropic plugin marketplace is registered.
- * Called once at server startup — runs async and never throws.
+ * Ensure the official Anthropic plugin marketplace is registered and its
+ * catalog is up to date. Called at server startup — runs async, never throws.
  */
 export async function ensureOfficialMarketplace(): Promise<void> {
   try {
     const stdout = await runPluginCmd(['marketplace', 'list', '--json']);
     const list: { name: string }[] = JSON.parse(stdout.trim() || '[]');
-    if (list.some((m) => m.name === 'claude-plugins-official')) return;
-    // Not registered — add it (GitHub shorthand)
-    await runPluginCmd(['marketplace', 'add', 'anthropics/claude-plugins-official']);
+    if (!list.some((m) => m.name === 'claude-plugins-official')) {
+      // Not registered — add it (GitHub shorthand) before updating
+      await runPluginCmd(['marketplace', 'add', 'anthropics/claude-plugins-official']);
+    }
+    // Always update to fetch/refresh the plugin catalog from GitHub
+    await runPluginCmd(['marketplace', 'update', 'claude-plugins-official']);
   } catch {
-    // Non-fatal: marketplace init may fail in air-gapped environments
+    // Non-fatal: may fail in air-gapped environments
   }
 }
+
+// POST /api/plugins/marketplace/refresh — update all marketplace catalogs
+router.post('/marketplace/refresh', async (_req: Request, res: Response) => {
+  try {
+    await runPluginCmd(['marketplace', 'update']);
+    res.json({ ok: true });
+  } catch (err: any) {
+    const detail = (err.stderr || err.stdout || err.message || '').toString().trim();
+    res.status(500).json({ error: { code: 'PLUGIN_ERROR', message: detail || err.message } });
+  }
+});
 
 // GET /api/plugins — list installed plugins
 router.get('/', async (_req: Request, res: Response) => {
@@ -104,11 +118,29 @@ router.post('/', async (req: Request, res: Response) => {
   }
   try {
     await runPluginCmd(['install', id]);
+  } catch (firstErr: any) {
+    const msg: string = (firstErr.stderr || firstErr.stdout || firstErr.message || '').toString();
+    // If the catalog doesn't have the plugin yet, refresh the marketplace and retry once
+    if (msg.toLowerCase().includes('not found in marketplace')) {
+      try {
+        await runPluginCmd(['marketplace', 'update']);
+        await runPluginCmd(['install', id]);
+      } catch (retryErr: any) {
+        const detail = (retryErr.stderr || retryErr.stdout || retryErr.message || '').toString().trim();
+        res.status(500).json({ error: { code: 'PLUGIN_ERROR', message: detail || retryErr.message } });
+        return;
+      }
+    } else {
+      const detail = msg.trim();
+      res.status(500).json({ error: { code: 'PLUGIN_ERROR', message: detail || firstErr.message } });
+      return;
+    }
+  }
+  try {
     const stdout = await runPluginCmd(['list', '--json']);
     res.json(JSON.parse(stdout.trim() || '[]'));
-  } catch (err: any) {
-    const detail = (err.stderr || err.stdout || err.message || '').toString().trim();
-    res.status(500).json({ error: { code: 'PLUGIN_ERROR', message: detail || err.message } });
+  } catch {
+    res.json([]);
   }
 });
 

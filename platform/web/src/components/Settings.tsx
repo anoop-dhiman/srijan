@@ -104,6 +104,7 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
   const [pluginsLoading, setPluginsLoading] = useState(false);
   const [newPluginId, setNewPluginId] = useState('');
   const [pluginInstalling, setPluginInstalling] = useState(false);
+  const [pluginRefreshing, setPluginRefreshing] = useState(false);
   const [pluginMessage, setPluginMessage] = useState('');
 
   useEffect(() => {
@@ -1117,10 +1118,33 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
         {/* Plugins section — admin only */}
         {activeSection === 'plugins' && isAdmin && <>
           <section className="space-y-4">
-            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
-              <Package size={13} />
-              Claude Code Plugins
-            </h3>
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
+                <Package size={13} />
+                Claude Code Plugins
+              </h3>
+              <button
+                onClick={async () => {
+                  setPluginRefreshing(true);
+                  setPluginMessage('');
+                  try {
+                    await apiFetch('/plugins/marketplace/refresh', { method: 'POST' });
+                    setPluginMessage('Marketplace catalog refreshed');
+                    setTimeout(() => setPluginMessage(''), 3000);
+                  } catch (err: unknown) {
+                    setPluginMessage((err as Error).message || 'Refresh failed');
+                  } finally {
+                    setPluginRefreshing(false);
+                  }
+                }}
+                disabled={pluginRefreshing}
+                className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50 transition-colors"
+                title="Refresh marketplace catalog from GitHub"
+              >
+                <RotateCcw size={12} className={pluginRefreshing ? 'animate-spin' : ''} />
+                {pluginRefreshing ? 'Refreshing…' : 'Refresh catalog'}
+              </button>
+            </div>
             <p className="text-sm text-muted-foreground">
               Plugins are installed into the container's Claude home directory and active for every agent session.
             </p>
