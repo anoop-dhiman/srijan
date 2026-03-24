@@ -65,3 +65,43 @@ export function createChatSocket(): WebSocket {
   const host = window.location.host;
   return new WebSocket(`${protocol}//${host}/forge/api/chat?token=${token}`);
 }
+
+export async function getClaudeOAuthStatus(): Promise<{ connected: boolean; email?: string; subscriptionType?: string; expiresAt?: number }> {
+  return apiFetch('/auth/claude-oauth/status');
+}
+
+export async function connectClaudeOAuth(accessToken: string): Promise<void> {
+  await apiFetch('/auth/claude-oauth/token', { method: 'POST', body: JSON.stringify({ accessToken }) });
+}
+
+export async function disconnectClaudeOAuth(): Promise<void> {
+  await apiFetch('/auth/claude-oauth', { method: 'DELETE' });
+}
+
+export interface AgentRole {
+  id: string;
+  name: string;
+  display_name: string;
+  description: string;
+  system_prompt_addition: string;
+  allowed_tools: string | null;
+  blocked_tools: string;
+  subdir: string;
+  is_default: number;
+}
+
+export async function getRoles(): Promise<AgentRole[]> {
+  return apiFetch('/roles');
+}
+
+export async function createRole(data: Partial<AgentRole>): Promise<AgentRole> {
+  return apiFetch('/roles', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export async function updateRole(id: string, data: Partial<AgentRole>): Promise<AgentRole> {
+  return apiFetch(`/roles/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+}
+
+export async function deleteRole(id: string): Promise<void> {
+  await apiFetch(`/roles/${id}`, { method: 'DELETE' });
+}

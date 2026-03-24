@@ -3,13 +3,15 @@ import type { FormEvent } from 'react';
 import {
   Send, Plus, Menu, Loader2, Trash2, PlayCircle, Square,
   PanelLeftClose, PanelLeftOpen, CheckCircle2, XCircle, Terminal,
-  FileText, Search, FolderSearch, Bot, ChevronDown, ChevronRight, AlertTriangle,
+  FileText, Search, FolderSearch, Bot, ChevronDown, ChevronRight, AlertTriangle, Circle,
 } from 'lucide-react';
 import type { ChatMessage, Session, WorkspaceInfo, SessionActivity } from '../hooks/useChat';
 import ReactMarkdown from 'react-markdown';
 import rehypeSanitize from 'rehype-sanitize';
-import { apiFetch } from '../lib/api';
+import { apiFetch, getRoles, type AgentRole } from '../lib/api';
 import { BashOutput } from './BashOutput';
+import { PlanCard } from './PlanCard';
+import { AgentSidebar, type SessionAgent, getAgentColor } from './AgentSidebar';
 
 interface ChatProps {
   messages: ChatMessage[];
@@ -29,6 +31,9 @@ interface ChatProps {
   onReplaySession: (sessionId: string) => void;
   onGoToDashboard: () => void;
   onAbortSession: () => void;
+  activeRole?: { name: string; displayName: string } | null;
+  agents?: SessionAgent[];
+  onCreateAgent?: (name: string, displayName: string, roleId?: string, subdir?: string) => void;
 }
 
 const MIN_WIDTH = 180;
@@ -223,9 +228,15 @@ export function Chat({
   onReplaySession,
   onGoToDashboard,
   onAbortSession,
+  activeRole,
+  agents,
+  onCreateAgent,
 }: ChatProps) {
   const [input, setInput] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [roles, setRoles] = useState<AgentRole[]>([]);
+  const [mentionDropdown, setMentionDropdown] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState('');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_WIDTH);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -243,6 +254,10 @@ export function Chat({
         setSpendingWarning(null);
       }
     }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    getRoles().then(setRoles).catch(() => {});
   }, []);
 
   const isPendingApproval = currentSession
@@ -321,10 +336,39 @@ export function Chat({
   };
 
   const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setInput(e.target.value);
+    const val = e.target.value;
+    setInput(val);
     const el = e.target;
     el.style.height = 'auto';
     el.style.height = Math.min(el.scrollHeight, 200) + 'px';
+
+    // Detect @mention at end of current word
+    const lastWord = val.split(/\s/).pop() || '';
+    if (lastWord.startsWith('@') && lastWord.length > 1) {
+      setMentionQuery(lastWord.slice(1).toLowerCase());
+      setMentionDropdown(true);
+    } else if (lastWord === '@') {
+      setMentionQuery('');
+      setMentionDropdown(true);
+    } else {
+      setMentionDropdown(false);
+    }
+  };
+
+  const handleRoleSelect = (role: AgentRole) => {
+    // Replace the partial @mention with the full @rolename followed by a space
+    const words = input.split(/(\s+)/);
+    const lastWordIdx = words.length - 1;
+    words[lastWordIdx] = `@${role.name} `;
+    const newInput = words.join('');
+    setInput(newInput);
+    setMentionDropdown(false);
+    // Restore textarea height after value change
+    if (inputRef.current) {
+      inputRef.current.style.height = 'auto';
+      inputRef.current.style.height = Math.min(inputRef.current.scrollHeight, 200) + 'px';
+      inputRef.current.focus();
+    }
   };
 
   // Sessions filtered to the current workspace
@@ -368,7 +412,8 @@ export function Chat({
         </div>
 
         {/* Sessions list */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto flex flex-col">
+          <div className="flex-1">
           {workspaceSessions.map((s) => {
             const activity = sessionActivity[s.id];
             const isActive = currentSession?.id === s.id;
@@ -426,6 +471,14 @@ export function Chat({
               </div>
             );
           })}
+          </div>
+          {currentSession && (
+            <AgentSidebar
+              agents={agents || []}
+              activeAgentId={activeRole?.name}
+              onCreateAgent={onCreateAgent || (() => {})}
+            />
+          )}
         </div>
 
       </div>
@@ -503,6 +556,23 @@ export function Chat({
                 return <ToolMessage key={msg.id} msg={msg} />;
               }
 
+              if (msg.role === 'plan' && msg.planSteps) {
+                return (
+                  <PlanCard
+                    key={msg.id}
+                    title={msg.planTitle || msg.content}
+                    steps={msg.planSteps}
+                    onExecuteAll={() => {
+                      // Send "proceed with executing the plan" message
+                      onSendMessage('Please proceed with executing the plan.');
+                    }}
+                    onCancel={() => {
+                      onSendMessage('Skip the plan and proceed directly.');
+                    }}
+                  />
+                );
+              }
+
               return (
                 <div
                   key={msg.id}
@@ -517,6 +587,12 @@ export function Chat({
                         : 'bg-muted border border-border'
                     }`}
                   >
+                    {msg.role === 'assistant' && msg.agentId && msg.agentId !== 'default' && (
+                      <div className={`flex items-center gap-1 text-xs font-medium mb-1 ${getAgentColor(msg.agentId)}`}>
+                        <Circle size={8} fill="currentColor" />
+                        <span>@{msg.agentId}</span>
+                      </div>
+                    )}
                     {msg.role === 'assistant' ? (
                       <div className="prose prose-invert prose-base max-w-none break-words [&_pre]:bg-background [&_pre]:rounded-lg [&_pre]:p-3 [&_pre]:overflow-x-auto [&_code]:text-secondary-foreground">
                         <ReactMarkdown rehypePlugins={[rehypeSanitize]}>{msg.content}</ReactMarkdown>
@@ -561,35 +637,67 @@ export function Chat({
             </div>
           )}
           <form onSubmit={handleSubmit} className="max-w-5xl mx-auto">
-            <div className="relative rounded-2xl border border-border bg-muted focus-within:ring-2 focus-within:ring-primary">
-              <textarea
-                ref={inputRef}
-                value={input}
-                onChange={handleInput}
-                onKeyDown={handleKeyDown}
-                disabled={noWorkspace || isPendingApproval}
-                placeholder={noWorkspace ? 'Select a workspace to start chatting…' : isPendingApproval ? 'Approve or deny above before continuing…' : 'Type a message...'}
-                rows={2}
-                className="w-full bg-transparent resize-none px-4 pt-4 pb-14 max-h-[200px] outline-none text-base placeholder:text-muted-foreground disabled:opacity-50 disabled:cursor-not-allowed"
-              />
-              {isLoading ? (
-                <button
-                  type="button"
-                  onClick={onAbortSession}
-                  className="absolute bottom-3 right-3 rounded-xl bg-destructive p-2.5 text-destructive-foreground hover:bg-destructive/90 transition-colors"
-                  title="Stop agent"
-                >
-                  <Square size={18} />
-                </button>
-              ) : (
-                <button
-                  type="submit"
-                  disabled={!input.trim() || noWorkspace || isPendingApproval}
-                  className="absolute bottom-3 right-3 rounded-xl bg-primary p-2.5 text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
-                >
-                  <Send size={18} />
-                </button>
-              )}
+            {activeRole && (
+              <div className="flex items-center gap-2 mb-2">
+                <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 text-primary text-xs font-medium">
+                  <Bot size={11} />
+                  <span>@{activeRole.name}</span>
+                </div>
+                <span className="text-xs text-muted-foreground">{activeRole.displayName} mode active</span>
+              </div>
+            )}
+            <div className="relative">
+              {mentionDropdown && roles.length > 0 && (() => {
+                const filtered = roles.filter(
+                  r =>
+                    r.name.startsWith(mentionQuery) ||
+                    r.display_name.toLowerCase().includes(mentionQuery)
+                );
+                return filtered.length > 0 ? (
+                  <div className="absolute bottom-full left-0 mb-1 z-50 w-64 rounded-lg border border-border bg-popover shadow-lg overflow-hidden">
+                    {filtered.map(role => (
+                      <button
+                        key={role.id}
+                        onMouseDown={e => { e.preventDefault(); handleRoleSelect(role); }}
+                        className="w-full flex flex-col px-3 py-2 text-left hover:bg-muted transition-colors"
+                      >
+                        <span className="text-sm font-medium">@{role.name}</span>
+                        <span className="text-xs text-muted-foreground">{role.description}</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : null;
+              })()}
+              <div className="rounded-2xl border border-border bg-muted focus-within:ring-2 focus-within:ring-primary">
+                <textarea
+                  ref={inputRef}
+                  value={input}
+                  onChange={handleInput}
+                  onKeyDown={handleKeyDown}
+                  disabled={noWorkspace || isPendingApproval}
+                  placeholder={noWorkspace ? 'Select a workspace to start chatting…' : isPendingApproval ? 'Approve or deny above before continuing…' : 'Type a message...'}
+                  rows={2}
+                  className="w-full bg-transparent resize-none px-4 pt-4 pb-14 max-h-[200px] outline-none text-base placeholder:text-muted-foreground disabled:opacity-50 disabled:cursor-not-allowed"
+                />
+                {isLoading ? (
+                  <button
+                    type="button"
+                    onClick={onAbortSession}
+                    className="absolute bottom-3 right-3 rounded-xl bg-destructive p-2.5 text-destructive-foreground hover:bg-destructive/90 transition-colors"
+                    title="Stop agent"
+                  >
+                    <Square size={18} />
+                  </button>
+                ) : (
+                  <button
+                    type="submit"
+                    disabled={!input.trim() || noWorkspace || isPendingApproval}
+                    className="absolute bottom-3 right-3 rounded-xl bg-primary p-2.5 text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                  >
+                    <Send size={18} />
+                  </button>
+                )}
+              </div>
             </div>
           </form>
         </div>

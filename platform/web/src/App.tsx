@@ -154,6 +154,9 @@ function App() {
             onReplaySession={handleReplaySession}
             onGoToDashboard={() => setActiveView('dashboard')}
             onAbortSession={chat.abortSession}
+            activeRole={chat.activeRole}
+            agents={chat.agents}
+            onCreateAgent={chat.createAgent}
           />
         );
       case 'settings':

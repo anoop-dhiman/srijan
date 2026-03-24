@@ -13,7 +13,11 @@ Srijan is a self-hosted platform that runs on a single VM and provides:
 - **Full Docker access** — agent can build images, run containers, deploy apps
 - **Automatic routing** — deployed apps get live URLs under your domain
 - **Secret protection** — API keys decrypted at agent spawn, injected as `SRIJAN_SECRET_*` env vars, never visible to the agent
-- **Multi-LLM provider support** — Anthropic API, Google Cloud Vertex AI, or LiteLLM proxy
+- **Claude OAuth** — connect using a Claude Pro/Team subscription instead of an API key; token stored AES-256 encrypted per user
+- **Multi-LLM provider support** — Anthropic API, Google Cloud Vertex AI, LiteLLM proxy, or Claude OAuth token
+- **@mention agent roles** — type `@reviewer`, `@devops`, `@planner` to switch the agent's tool set and system prompt without restarting
+- **Multi-agent sessions** — route messages to named sub-agents (`@frontend`, `@backend`) each running in their own subprocess with independent conversation history
+- **Orchestration plan UI** — agent calls `propose_plan` to show a collapsible step-by-step plan card before starting complex tasks
 - **Real-time activity feedback** — per-session spinner and unread indicators; background sessions continue streaming
 - **Agent Boundaries** — blocklist of dangerous Bash commands enforced at the platform level
 - **Confirm mode** — optional human-in-the-loop approval before agent executes actions
@@ -77,7 +81,7 @@ npm test                     # 286 backend tests
 
 cd web
 npx vitest run               # 197 frontend unit tests
-npx playwright test          # 22 E2E tests (requires running server)
+npx playwright test          # E2E tests (requires running server)
 ```
 
 ## Architecture
@@ -119,7 +123,10 @@ npx playwright test          # 22 E2E tests (requires running server)
 - **Terminal** — xterm.js PTY terminal in the browser connected to the current session's workspace
 - **File browser + Monaco editor** — two-panel tree + in-browser code editor with save; Files tab
 - **Session recording** — read-only replay of any past session; replay button in Chat sidebar
-- **Settings** — two-column sidebar nav: AI Provider (Anthropic / Vertex AI / LiteLLM), Agent (system prompt, mode, blocklist, SDK), Security (TOTP 2FA with QR code), Secrets, Users (admin only)
+- **Settings** — two-column sidebar nav: AI Provider (Anthropic / Vertex AI / LiteLLM / Claude OAuth), Agent (system prompt, mode, blocklist, SDK), Security (TOTP 2FA with QR code), Secrets, Users, Agent Roles (admin only)
+- **Agent roles** — built-in roles (coder, reviewer, devops, planner) seeded on first launch; admins can create/edit/delete custom roles with tool restrictions and system prompt overrides
+- **Agent sidebar** — shows all active agents in a session with status indicators; create new agents with optional role and subdirectory scope
+- **Message attribution** — assistant messages show which agent sent them when multiple agents are active
 - **Multi-user RBAC** — admin/user roles; user management in Settings; real username in header
 - **TOTP 2FA** — enable/disable via Settings Security section; QR code + manual key; challenge step at login
 - **Real-time tool activity** — expandable pills showing file reads, edits, bash commands with input/output details
@@ -152,7 +159,8 @@ npx playwright test          # 22 E2E tests (requires running server)
 | Phase 13 | Production Dockerfile + CI/CD (GitHub Actions → ghcr.io), monthly spending caps, Playwright E2E tests — 497 tests | **Done** |
 | Phase 13.1 | CI/CD improvements: merged build+push job, path filters, E2E race condition fixes, self-contained setup.sh (pull prebuilt image, no git clone) | **Done** |
 | Phase 13.2 | Security: MCP-based app registration (agent never sees platform URL or user JWT); platform served exclusively at `/forge`; scoped per-session registration tokens | **Done** |
-| Phase 14 | Local models (Ollama), GitHub bot, webhook notifications | Planned |
+| Phase 14 | Claude OAuth, orchestration plan UI, @mention agent roles, multi-agent per-workspace sessions | **Done** |
+| Phase 15 | Local models (Ollama), GitHub bot, webhook notifications | Planned |
 
 ## Tech Stack
 

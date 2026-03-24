@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { Eye, EyeOff, Plus, Trash2, Save, RotateCcw, Shield, Lock, Users as UsersIcon, Copy, Check, Bot, Terminal, DollarSign, GitBranch, Package, ToggleLeft, ToggleRight } from 'lucide-react';
-import { apiFetch } from '../lib/api';
+import { apiFetch, getClaudeOAuthStatus, connectClaudeOAuth, disconnectClaudeOAuth, getRoles, createRole, deleteRole, type AgentRole } from '../lib/api';
 
 interface PluginEntry {
   id: string;
@@ -31,10 +31,10 @@ interface User {
   createdAt: string;
 }
 
-type SettingsSection = 'ai-provider' | 'agent' | 'git' | 'security' | 'secrets' | 'users' | 'spending' | 'plugins';
+type SettingsSection = 'ai-provider' | 'agent' | 'git' | 'security' | 'secrets' | 'users' | 'spending' | 'plugins' | 'roles';
 
 export function Settings({ open, isAdmin = false }: SettingsProps) {
-  const [provider, setProvider] = useState<'anthropic' | 'vertex' | 'litellm'>('anthropic');
+  const [provider, setProvider] = useState<'anthropic' | 'vertex' | 'litellm' | 'claude-oauth'>('anthropic');
   const [apiKey, setApiKey] = useState('');
   const [model, setModel] = useState('claude-sonnet-4-6');
   const [litellmBaseUrl, setLitellmBaseUrl] = useState('');
@@ -99,6 +99,12 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
   const [spendingWsLimits, setSpendingWsLimits] = useState<Record<string, string>>({});
   const [spendingMessage, setSpendingMessage] = useState('');
 
+  // Claude OAuth state
+  const [oauthStatus, setOauthStatus] = useState<{ connected: boolean; email?: string; subscriptionType?: string; expiresAt?: number } | null>(null);
+  const [oauthToken, setOauthToken] = useState('');
+  const [oauthConnecting, setOauthConnecting] = useState(false);
+  const [oauthMessage, setOauthMessage] = useState('');
+
   // Plugins state (admin only)
   const [plugins, setPlugins] = useState<PluginEntry[]>([]);
   const [pluginsLoading, setPluginsLoading] = useState(false);
@@ -106,6 +112,16 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
   const [pluginInstalling, setPluginInstalling] = useState(false);
   const [pluginRefreshing, setPluginRefreshing] = useState(false);
   const [pluginMessage, setPluginMessage] = useState('');
+
+  // Roles state
+  const [roles, setRoles] = useState<AgentRole[]>([]);
+  const [rolesLoaded, setRolesLoaded] = useState(false);
+  const [newRoleName, setNewRoleName] = useState('');
+  const [newRoleDisplayName, setNewRoleDisplayName] = useState('');
+  const [newRoleDescription, setNewRoleDescription] = useState('');
+  const [newRolePrompt, setNewRolePrompt] = useState('');
+  const [newRoleTools, setNewRoleTools] = useState('');
+  const [roleMessage, setRoleMessage] = useState('');
 
   useEffect(() => {
     if (!open) return;
@@ -119,6 +135,16 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
     if (open && isAdmin && activeSection === 'spending') loadSpending();
     if (open && isAdmin && activeSection === 'plugins') loadPlugins();
   }, [open, isAdmin, activeSection]);
+
+  useEffect(() => {
+    if (activeSection === 'roles' && !rolesLoaded) {
+      getRoles().then(r => { setRoles(r); setRolesLoaded(true); }).catch(() => {});
+    }
+  }, [activeSection, rolesLoaded]);
+
+  useEffect(() => {
+    getClaudeOAuthStatus().then(setOauthStatus).catch(() => {});
+  }, []);
 
   const loadConfig = async () => {
     try {
@@ -449,6 +475,33 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
     }
   };
 
+  const handleOAuthConnect = async () => {
+    if (!oauthToken.trim()) return;
+    setOauthConnecting(true);
+    setOauthMessage('');
+    try {
+      await connectClaudeOAuth(oauthToken.trim());
+      setOauthToken('');
+      const status = await getClaudeOAuthStatus();
+      setOauthStatus(status);
+      setOauthMessage('Claude account connected successfully.');
+    } catch (e) {
+      setOauthMessage(e instanceof Error ? e.message : 'Failed to connect.');
+    } finally {
+      setOauthConnecting(false);
+    }
+  };
+
+  const handleOAuthDisconnect = async () => {
+    try {
+      await disconnectClaudeOAuth();
+      setOauthStatus({ connected: false });
+      setOauthMessage('Disconnected.');
+    } catch (e) {
+      setOauthMessage(e instanceof Error ? e.message : 'Failed to disconnect.');
+    }
+  };
+
   if (!open) return null;
 
   const navItems: { key: SettingsSection; label: string; icon: React.ReactNode }[] = [
@@ -457,6 +510,7 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
     { key: 'git',         label: 'Git',         icon: <GitBranch size={15} /> },
     { key: 'security',    label: 'Security',    icon: <Lock size={15} /> },
     { key: 'secrets',     label: 'Secrets',     icon: <Shield size={15} /> },
+    { key: 'roles',       label: 'Agent Roles', icon: <Bot size={15} /> },
     ...(isAdmin ? [{ key: 'users' as const, label: 'Users', icon: <UsersIcon size={15} /> }] : []),
     ...(isAdmin ? [{ key: 'spending' as const, label: 'Spending', icon: <DollarSign size={15} /> }] : []),
     ...(isAdmin ? [{ key: 'plugins' as const, label: 'Plugins', icon: <Package size={15} /> }] : []),
@@ -530,6 +584,17 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
                 }`}
               >
                 LiteLLM Proxy
+              </button>
+              <button
+                type="button"
+                onClick={() => setProvider('claude-oauth')}
+                className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                  provider === 'claude-oauth'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:bg-background hover:text-foreground'
+                }`}
+              >
+                Claude Account (OAuth)
               </button>
             </div>
 
@@ -643,7 +708,56 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
               </div>
             )}
 
-            {provider !== 'litellm' && (
+            {provider === 'claude-oauth' && (
+              <div className="space-y-3 rounded-lg border border-border p-4">
+                <div className="text-sm font-medium">Claude Account</div>
+                {oauthStatus?.connected ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
+                      <span>Connected: {oauthStatus.email}</span>
+                      {oauthStatus.subscriptionType && <span className="text-xs text-muted-foreground">({oauthStatus.subscriptionType})</span>}
+                    </div>
+                    {oauthStatus.expiresAt && (
+                      <div className="text-xs text-muted-foreground">
+                        Expires: {new Date(oauthStatus.expiresAt).toLocaleString()}
+                      </div>
+                    )}
+                    <button onClick={handleOAuthDisconnect} className="text-sm text-destructive hover:underline">
+                      Disconnect
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="text-xs text-muted-foreground space-y-1">
+                      <p>Connect using your Claude Pro/Team subscription.</p>
+                      <p>1. Open the Terminal tab and run: <code className="font-mono bg-muted px-1 rounded">claude auth login</code></p>
+                      <p>2. Complete the browser login flow.</p>
+                      <p>3. Run: <code className="font-mono bg-muted px-1 rounded">cat ~/.claude/.credentials.json</code></p>
+                      <p>4. Copy the <code className="font-mono bg-muted px-1 rounded">accessToken</code> value and paste it below:</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <input
+                        type="password"
+                        placeholder="Paste access token..."
+                        value={oauthToken}
+                        onChange={e => setOauthToken(e.target.value)}
+                        className="flex-1 rounded border border-input bg-background px-3 py-1.5 text-sm"
+                      />
+                      <button
+                        onClick={handleOAuthConnect}
+                        disabled={oauthConnecting || !oauthToken.trim()}
+                        className="rounded bg-primary px-3 py-1.5 text-sm text-primary-foreground disabled:opacity-50"
+                      >
+                        {oauthConnecting ? 'Connecting...' : 'Connect'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {oauthMessage && <p className="text-sm text-muted-foreground">{oauthMessage}</p>}
+              </div>
+            )}
+
+            {provider !== 'litellm' && provider !== 'claude-oauth' && (
             <div className="space-y-1.5">
               <label className="text-sm font-medium">Model</label>
               <select
@@ -1249,6 +1363,130 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
             {pluginMessage && <p className="text-sm text-secondary-foreground">{pluginMessage}</p>}
           </section>
         </>}
+
+        {/* Agent Roles section */}
+        {activeSection === 'roles' && (
+          <div className="space-y-4">
+            <div>
+              <h3 className="text-sm font-semibold mb-1">Agent Roles</h3>
+              <p className="text-xs text-muted-foreground">
+                Define specialized agent modes. Use @rolename in chat to activate a role.
+              </p>
+            </div>
+
+            {/* Role list */}
+            <div className="space-y-2">
+              {roles.map(role => (
+                <div key={role.id} className="flex items-start justify-between rounded-lg border border-border p-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium font-mono">@{role.name}</span>
+                      <span className="text-xs text-muted-foreground">{role.display_name}</span>
+                      {role.is_default === 1 && (
+                        <span className="text-xs bg-muted px-1.5 py-0.5 rounded">default</span>
+                      )}
+                    </div>
+                    {role.description && (
+                      <p className="text-xs text-muted-foreground mt-0.5">{role.description}</p>
+                    )}
+                    {role.allowed_tools && (() => {
+                      try {
+                        const tools = JSON.parse(role.allowed_tools);
+                        return (
+                          <p className="text-xs text-muted-foreground/70 mt-0.5">
+                            Tools: {tools.join(', ')}
+                          </p>
+                        );
+                      } catch { return null; }
+                    })()}
+                  </div>
+                  {isAdmin && role.is_default === 0 && (
+                    <button
+                      onClick={async () => {
+                        await deleteRole(role.id);
+                        setRoles(prev => prev.filter(r => r.id !== role.id));
+                      }}
+                      className="ml-2 text-destructive hover:underline text-xs shrink-0"
+                    >
+                      Delete
+                    </button>
+                  )}
+                </div>
+              ))}
+              {roles.length === 0 && (
+                <p className="text-sm text-muted-foreground">No roles defined yet.</p>
+              )}
+            </div>
+
+            {/* Create new role (admin only) */}
+            {isAdmin && (
+              <div className="rounded-lg border border-border p-3 space-y-2">
+                <div className="text-xs font-semibold">Create New Role</div>
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    placeholder="name (e.g. tester)"
+                    value={newRoleName}
+                    onChange={e => setNewRoleName(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ''))}
+                    className="rounded border border-input bg-background px-2 py-1.5 text-xs"
+                  />
+                  <input
+                    placeholder="Display Name"
+                    value={newRoleDisplayName}
+                    onChange={e => setNewRoleDisplayName(e.target.value)}
+                    className="rounded border border-input bg-background px-2 py-1.5 text-xs"
+                  />
+                </div>
+                <input
+                  placeholder="Description"
+                  value={newRoleDescription}
+                  onChange={e => setNewRoleDescription(e.target.value)}
+                  className="w-full rounded border border-input bg-background px-2 py-1.5 text-xs"
+                />
+                <textarea
+                  placeholder="System prompt addition (optional)"
+                  value={newRolePrompt}
+                  onChange={e => setNewRolePrompt(e.target.value)}
+                  rows={2}
+                  className="w-full rounded border border-input bg-background px-2 py-1.5 text-xs font-mono resize-none"
+                />
+                <input
+                  placeholder='Allowed tools JSON, e.g. ["Read","Glob"] or leave blank for all'
+                  value={newRoleTools}
+                  onChange={e => setNewRoleTools(e.target.value)}
+                  className="w-full rounded border border-input bg-background px-2 py-1.5 text-xs font-mono"
+                />
+                <button
+                  onClick={async () => {
+                    if (!newRoleName || !newRoleDisplayName) return;
+                    try {
+                      const created = await createRole({
+                        name: newRoleName,
+                        display_name: newRoleDisplayName,
+                        description: newRoleDescription,
+                        system_prompt_addition: newRolePrompt,
+                        allowed_tools: newRoleTools.trim() || null,
+                      });
+                      setRoles(prev => [...prev, created]);
+                      setNewRoleName('');
+                      setNewRoleDisplayName('');
+                      setNewRoleDescription('');
+                      setNewRolePrompt('');
+                      setNewRoleTools('');
+                      setRoleMessage('Role created.');
+                    } catch (e: unknown) {
+                      setRoleMessage((e as Error).message || 'Failed to create role.');
+                    }
+                  }}
+                  disabled={!newRoleName || !newRoleDisplayName}
+                  className="rounded bg-primary px-3 py-1.5 text-xs text-primary-foreground disabled:opacity-50"
+                >
+                  Create Role
+                </button>
+                {roleMessage && <p className="text-xs text-muted-foreground">{roleMessage}</p>}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Spending section — admin only */}
         {activeSection === 'spending' && isAdmin && <>

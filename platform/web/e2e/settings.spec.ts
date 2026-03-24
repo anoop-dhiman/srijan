@@ -34,4 +34,27 @@ test.describe('Settings', () => {
     await page.getByRole('button', { name: /spending/i }).click();
     await expect(page.getByText(/spending limit/i).first()).toBeVisible({ timeout: 5000 });
   });
+
+  test('Claude Account OAuth section is visible under AI Provider', async ({ page }) => {
+    await loginAs(page, 'admin', ADMIN_PASSWORD);
+    await page.getByRole('button', { name: /settings/i }).click();
+    await page.getByRole('button', { name: /ai provider/i }).click();
+    await expect(page.getByText(/claude account/i).first()).toBeVisible({ timeout: 5000 });
+  });
+
+  test('Agent Roles section is visible for admin', async ({ page }) => {
+    await loginAs(page, 'admin', ADMIN_PASSWORD);
+    await page.getByRole('button', { name: /settings/i }).click();
+    await page.getByRole('button', { name: /agent roles/i }).click();
+    await expect(page.getByText(/coder|reviewer|devops|planner/i).first()).toBeVisible({ timeout: 5000 });
+  });
+
+  test('default agent roles are seeded', async ({ page }) => {
+    await loginAs(page, 'admin', ADMIN_PASSWORD);
+    await page.getByRole('button', { name: /settings/i }).click();
+    await page.getByRole('button', { name: /agent roles/i }).click();
+    // All four default roles should be visible
+    await expect(page.getByText(/full.stack coder/i)).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText(/code reviewer/i)).toBeVisible({ timeout: 5000 });
+  });
 });

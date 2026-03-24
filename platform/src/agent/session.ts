@@ -47,9 +47,16 @@ export function deleteSession(id: string): void {
 
 export function saveEvent(event: AgentEvent): void {
   const db = getDb();
-  db.prepare(
-    `INSERT INTO events (session_id, type, data) VALUES (?, ?, ?)`
-  ).run(event.sessionId, event.type, JSON.stringify(event.data));
+  const agentId = (event as any).agentId || null;
+  if (agentId) {
+    db.prepare(
+      `INSERT INTO events (session_id, type, data, agent_id) VALUES (?, ?, ?, ?)`
+    ).run(event.sessionId, event.type, JSON.stringify(event.data), agentId);
+  } else {
+    db.prepare(
+      `INSERT INTO events (session_id, type, data) VALUES (?, ?, ?)`
+    ).run(event.sessionId, event.type, JSON.stringify(event.data));
+  }
 }
 
 export function getSessionEvents(sessionId: string): AgentEvent[] {
@@ -81,4 +88,32 @@ export function updateSessionTitle(id: string, title: string): void {
   db.prepare(
     `UPDATE sessions SET title = ?, updated_at = datetime('now') WHERE id = ?`
   ).run(title, id);
+}
+
+export function createSessionAgent(params: {
+  sessionId: string;
+  name: string;
+  displayName: string;
+  roleId?: string | null;
+  subdir?: string;
+}): { id: string; session_id: string; name: string; display_name: string; role_id: string | null; subdir: string; claude_session_id: string | null; status: string; created_at: string } {
+  const db = getDb();
+  const id = uuidv4();
+  db.prepare(
+    `INSERT OR IGNORE INTO session_agents (id, session_id, name, display_name, role_id, subdir) VALUES (?, ?, ?, ?, ?, ?)`
+  ).run(id, params.sessionId, params.name, params.displayName, params.roleId || null, params.subdir || '');
+  return db.prepare('SELECT * FROM session_agents WHERE session_id = ? AND name = ?').get(params.sessionId, params.name) as any;
+}
+
+export function getSessionAgents(sessionId: string): any[] {
+  const db = getDb();
+  return db.prepare('SELECT * FROM session_agents WHERE session_id = ? ORDER BY created_at ASC').all(sessionId) as any[];
+}
+
+export function updateSessionAgentClaudeId(id: string, claudeSessionId: string): void {
+  getDb().prepare('UPDATE session_agents SET claude_session_id = ? WHERE id = ?').run(claudeSessionId, id);
+}
+
+export function updateSessionAgentStatus(id: string, status: string): void {
+  getDb().prepare(`UPDATE session_agents SET status = ? WHERE id = ?`).run(status, id);
 }

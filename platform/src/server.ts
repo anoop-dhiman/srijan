@@ -30,6 +30,7 @@ import sessionsRouter from './routes/sessions.js';
 import usersRouter from './routes/users.js';
 import spendingRouter from './routes/spending.js';
 import pluginsRouter, { ensureOfficialMarketplace } from './routes/plugins.js';
+import rolesRouter from './routes/roles.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -79,6 +80,7 @@ app.use('/api/sessions', sessionsRouter);
 app.use('/api/users', usersRouter);
 app.use('/api/spending', spendingRouter);
 app.use('/api/plugins', pluginsRouter);
+app.use('/api/roles', rolesRouter);
 
 // Health check
 app.get('/health', async (_req, res) => {

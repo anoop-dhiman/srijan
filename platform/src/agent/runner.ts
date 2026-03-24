@@ -6,7 +6,7 @@ import { dirname, resolve, join } from 'path';
 import { existsSync, mkdirSync, writeFileSync, unlinkSync } from 'fs';
 import { tmpdir } from 'os';
 import { createEvent } from './events.js';
-import { saveEvent } from './session.js';
+import { saveEvent, updateSessionAgentClaudeId } from './session.js';
 import { getDb } from '../db/store.js';
 import { decrypt } from '../lib/crypto.js';
 import { startSecretProxy, type SecretMap } from './secretProxy.js';
@@ -78,6 +78,14 @@ interface LiteLLMConfig {
   model: string;
 }
 
+export interface RoleConfig {
+  name: string;
+  displayName: string;
+  systemPromptAddition: string;
+  allowedTools: string[] | null;  // null means all tools allowed
+  subdirOverride: string;          // relative path within workspace, empty = root
+}
+
 interface RunnerOptions {
   sessionId: string;
   workspacePath: string;
@@ -87,10 +95,15 @@ interface RunnerOptions {
   vertexConfig?: VertexConfig;
   litellmConfig?: LiteLLMConfig;
   userId?: string;
+  roleConfig?: RoleConfig;
+  agentId?: string;        // for multi-agent sessions (e.g. 'frontend', 'backend')
+  agentDbId?: string;      // DB row id in session_agents table
+  claudeSessionId?: string | null;  // restore prior session for --resume
 }
 
 export class AgentRunner extends EventEmitter implements IAgentRunner {
   readonly sessionId: string;
+  readonly agentId: string;
   private workspacePath: string;
   private workspaceName: string;
   private apiKey: string;
@@ -102,10 +115,13 @@ export class AgentRunner extends EventEmitter implements IAgentRunner {
   private subprocess: ReturnType<typeof spawn> | null = null;
   private readonly userId: string;
   private aborted = false;
+  private roleConfig: RoleConfig | undefined;
+  private agentDbId: string | undefined;
 
   constructor(options: RunnerOptions) {
     super();
     this.sessionId = options.sessionId;
+    this.agentId = options.agentId || 'default';
     this.workspacePath = options.workspacePath;
     this.workspaceName = options.workspaceName || '';
     this.apiKey = options.apiKey;
@@ -113,6 +129,12 @@ export class AgentRunner extends EventEmitter implements IAgentRunner {
     this.vertexConfig = options.vertexConfig;
     this.litellmConfig = options.litellmConfig;
     this.userId = options.userId || '';
+    this.roleConfig = options.roleConfig;
+    this.agentDbId = options.agentDbId;
+
+    if (options.claudeSessionId) {
+      this.claudeSessionId = options.claudeSessionId;
+    }
 
     // Generate a scoped per-session token used only for app registration via MCP
     this.registrationToken = randomBytes(32).toString('hex');
@@ -132,15 +154,17 @@ export class AgentRunner extends EventEmitter implements IAgentRunner {
       const check = checkSpendingLimits(this.userId, this.workspaceName);
       if (!check.allowed) {
         const errEvent = createEvent(this.sessionId, 'error', { message: check.reason });
+        (errEvent as any).agentId = this.agentId;
         saveEvent(errEvent);
-        this.emit('event', errEvent);
+        this.emit('event', { ...errEvent, agentId: this.agentId });
         return;
       }
     }
 
     const userEvent = createEvent(this.sessionId, 'user_message', { content: message });
+    (userEvent as any).agentId = this.agentId;
     saveEvent(userEvent);
-    this.emit('event', userEvent);
+    this.emit('event', { ...userEvent, agentId: this.agentId });
 
     // Prepare secrets and start proxy before spawning subprocess
     const { envVars, secretMap } = prepareSecrets();
@@ -162,6 +186,7 @@ export class AgentRunner extends EventEmitter implements IAgentRunner {
             SRIJAN_REG_TOKEN: this.registrationToken,
             SRIJAN_PLATFORM_URL: process.env.PLATFORM_URL || 'http://localhost:8080',
             SRIJAN_WORKSPACE: this.workspaceName || '',
+            SRIJAN_SESSION_ID: this.sessionId,
           },
         },
       },
@@ -169,6 +194,12 @@ export class AgentRunner extends EventEmitter implements IAgentRunner {
 
     return new Promise((resolve, reject) => {
       const mode = getAgentMode();
+      const effectiveWorkspacePath = this.roleConfig?.subdirOverride
+        ? join(this.workspacePath, this.roleConfig.subdirOverride)
+        : this.workspacePath;
+      if (!existsSync(effectiveWorkspacePath)) {
+        mkdirSync(effectiveWorkspacePath, { recursive: true });
+      }
       const args = [
         CLAUDE_BIN,
         '-p',
@@ -180,6 +211,10 @@ export class AgentRunner extends EventEmitter implements IAgentRunner {
         '--strict-mcp-config',
         '--append-system-prompt', this.getSystemPromptAddition(mode),
       ];
+
+      if (this.roleConfig?.allowedTools && this.roleConfig.allowedTools.length > 0) {
+        args.push('--allowedTools', this.roleConfig.allowedTools.join(','));
+      }
 
       if (this.claudeSessionId) {
         args.push('--resume', this.claudeSessionId);
@@ -225,11 +260,17 @@ export class AgentRunner extends EventEmitter implements IAgentRunner {
           env['GOOGLE_APPLICATION_CREDENTIALS'] = vertexCredPath;
         }
       } else {
-        env['ANTHROPIC_API_KEY'] = this.apiKey;
+        const oauthToken = getOAuthToken(this.userId);
+        if (oauthToken) {
+          env['CLAUDE_CODE_OAUTH_TOKEN'] = oauthToken;
+          delete env['ANTHROPIC_API_KEY'];
+        } else {
+          env['ANTHROPIC_API_KEY'] = this.apiKey;
+        }
       }
 
       const proc = spawn(process.execPath, args, {
-        cwd: this.workspacePath,
+        cwd: effectiveWorkspacePath,
         env,
         stdio: ['pipe', 'pipe', 'pipe'],
       });
@@ -271,16 +312,18 @@ export class AgentRunner extends EventEmitter implements IAgentRunner {
         if (this.aborted) {
           // User-initiated stop
           const stoppedEvent = createEvent(this.sessionId, 'agent_stopped', { message: 'Agent stopped.' });
+          (stoppedEvent as any).agentId = this.agentId;
           saveEvent(stoppedEvent);
-          this.emit('event', stoppedEvent);
+          this.emit('event', { ...stoppedEvent, agentId: this.agentId });
           this.aborted = false;
         } else if (code === 0 || code === null) {
           // Normal completion — always signal done so the frontend resets loading state
           // (a tool_use emitted after the final agent_response would otherwise leave
           // isLoading=true with no subsequent reset event)
           const doneEvent = createEvent(this.sessionId, 'agent_stopped', { message: '' });
+          (doneEvent as any).agentId = this.agentId;
           saveEvent(doneEvent);
-          this.emit('event', doneEvent);
+          this.emit('event', { ...doneEvent, agentId: this.agentId });
         } else if (code !== 0 && code !== null) {
           const raw = stderrBuffer.trim();
           // S8: redact real secret values from stderr before surfacing to users
@@ -294,8 +337,9 @@ export class AgentRunner extends EventEmitter implements IAgentRunner {
               ? `Agent process exited with code ${code}: ${detail}`
               : `Agent process exited with code ${code}`,
           });
+          (errEvent as any).agentId = this.agentId;
           saveEvent(errEvent);
-          this.emit('event', errEvent);
+          this.emit('event', { ...errEvent, agentId: this.agentId });
         }
         resolve();
       });
@@ -306,8 +350,9 @@ export class AgentRunner extends EventEmitter implements IAgentRunner {
         await secretProxy.close().catch(() => {});
         cleanupVertexCred();
         const errEvent = createEvent(this.sessionId, 'error', { message: err.message });
+        (errEvent as any).agentId = this.agentId;
         saveEvent(errEvent);
-        this.emit('event', errEvent);
+        this.emit('event', { ...errEvent, agentId: this.agentId });
         resolve();
       });
     });
@@ -318,12 +363,16 @@ export class AgentRunner extends EventEmitter implements IAgentRunner {
       case 'system': {
         if (msg.subtype === 'init' && msg.session_id) {
           this.claudeSessionId = msg.session_id;
+          if (this.agentDbId) {
+            updateSessionAgentClaudeId(this.agentDbId, msg.session_id);
+          }
           const event = createEvent(this.sessionId, 'session_start', {
             claudeSessionId: msg.session_id,
             tools: msg.tools || [],
           });
+          (event as any).agentId = this.agentId;
           saveEvent(event);
-          this.emit('event', event);
+          this.emit('event', { ...event, agentId: this.agentId });
         }
         break;
       }
@@ -337,8 +386,9 @@ export class AgentRunner extends EventEmitter implements IAgentRunner {
               streaming: false,
               done: true,
             });
+            (event as any).agentId = this.agentId;
             saveEvent(event);
-            this.emit('event', event);
+            this.emit('event', { ...event, agentId: this.agentId });
           } else if (block.type === 'tool_use') {
             // Agent boundary check for Bash commands
             if (block.name === 'Bash') {
@@ -355,8 +405,9 @@ export class AgentRunner extends EventEmitter implements IAgentRunner {
                   message: `Blocked dangerous command: "${blocked}"`,
                   blockedCommand: cmd,
                 });
+                (errEvt as any).agentId = this.agentId;
                 saveEvent(errEvt);
-                this.emit('event', errEvt);
+                this.emit('event', { ...errEvt, agentId: this.agentId });
                 return;
               }
             }
@@ -365,8 +416,9 @@ export class AgentRunner extends EventEmitter implements IAgentRunner {
               name: block.name,
               input: block.input,
             });
+            (event as any).agentId = this.agentId;
             saveEvent(event);
-            this.emit('event', event);
+            this.emit('event', { ...event, agentId: this.agentId });
           }
         }
         break;
@@ -383,8 +435,9 @@ export class AgentRunner extends EventEmitter implements IAgentRunner {
                 : String(block.content || ''),
               isError: block.is_error || false,
             });
+            (event as any).agentId = this.agentId;
             saveEvent(event);
-            this.emit('event', event);
+            this.emit('event', { ...event, agentId: this.agentId });
           }
         }
         break;
@@ -396,8 +449,8 @@ export class AgentRunner extends EventEmitter implements IAgentRunner {
         if (usage || typeof msg.cost_usd === 'number') {
           try {
             getDb().prepare(
-              `INSERT INTO token_usage (session_id, input_tokens, output_tokens, cost_usd, model, user_id, workspace_name)
-               VALUES (?, ?, ?, ?, ?, ?, ?)`
+              `INSERT INTO token_usage (session_id, input_tokens, output_tokens, cost_usd, model, user_id, workspace_name, agent_id)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
             ).run(
               this.sessionId,
               usage?.input_tokens ?? 0,
@@ -406,6 +459,7 @@ export class AgentRunner extends EventEmitter implements IAgentRunner {
               this.model,
               this.userId || null,
               this.workspaceName || null,
+              this.agentId,
             );
           } catch { /* non-fatal */ }
         }
@@ -415,8 +469,9 @@ export class AgentRunner extends EventEmitter implements IAgentRunner {
             message: msg.result || 'Agent execution failed',
             subtype: msg.subtype,
           });
+          (event as any).agentId = this.agentId;
           saveEvent(event);
-          this.emit('event', event);
+          this.emit('event', { ...event, agentId: this.agentId });
         }
         break;
       }
@@ -449,6 +504,9 @@ export class AgentRunner extends EventEmitter implements IAgentRunner {
         '"Approved" means proceed. "Denied" means stop and ask for an alternative.',
         'Do NOT add [AWAITING_APPROVAL] for read-only operations.',
       );
+    }
+    if (this.roleConfig?.systemPromptAddition) {
+      lines.push('', this.roleConfig.systemPromptAddition);
     }
     return lines.join('\n');
   }
@@ -623,6 +681,21 @@ function getAgentSdk(): 'claude-code' | 'opencode' {
     } catch {}
   }
   return 'claude-code';
+}
+
+export function getOAuthToken(userId: string): string | null {
+  if (!userId) return null;
+  try {
+    const row = getDb().prepare(
+      'SELECT encrypted_access_token, expires_at FROM user_oauth_tokens WHERE user_id = ?'
+    ).get(userId) as { encrypted_access_token: string; expires_at: number | null } | undefined;
+    if (!row) return null;
+    // Check expiry (5 min buffer)
+    if (row.expires_at && row.expires_at < Date.now() + 5 * 60 * 1000) return null;
+    return decrypt(row.encrypted_access_token);
+  } catch {
+    return null;
+  }
 }
 
 export { getApiKey, getModel, getVertexConfig, getLiteLLMConfig, getSystemPrompt, DEFAULT_SYSTEM_PROMPT, DEFAULT_BLOCKLIST, getAgentMode, getAgentSdk };
