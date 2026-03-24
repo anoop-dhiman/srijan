@@ -1,4 +1,23 @@
-import { APIRequestContext } from '@playwright/test';
+import { APIRequestContext, Page } from '@playwright/test';
+
+/**
+ * Opens the workspace picker in the Chat view and selects the given workspace,
+ * enabling the textarea for typing.
+ */
+export async function selectWorkspaceInChat(page: Page, wsName: string): Promise<void> {
+  // Open workspace picker (button shows "Select…" when nothing is selected, or current ws name)
+  const pickerBtn = page.locator('button').filter({ hasText: /Select…|Select/i }).first();
+  if (await pickerBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+    await pickerBtn.click();
+  }
+  // Click the workspace option by name
+  const wsBtn = page.locator('button').filter({ hasText: wsName }).first();
+  if (await wsBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+    await wsBtn.click();
+  }
+  // Wait until textarea becomes enabled
+  await page.locator('textarea').first().waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+}
 
 const API_BASE = 'http://127.0.0.1:8080/forge/api';
 

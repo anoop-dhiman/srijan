@@ -63,14 +63,16 @@ test.describe('MCP Server Management', () => {
     const addBtnVisible = await addBtn.isVisible({ timeout: 5000 }).catch(() => false);
 
     if (addBtnVisible) {
-      // Click Add Server without filling in any fields
-      await addBtn.click();
-      // Expect either: button stays disabled, an error appears, or the form does not submit
-      const errorMsg = page.getByText(/required|name.*required|command.*required/i).first();
-      const hasError = await errorMsg.isVisible({ timeout: 3000 }).catch(() => false);
-      // Either error shown or button was already disabled (disabled check)
       const isDisabled = await addBtn.isDisabled().catch(() => false);
-      expect(hasError || isDisabled).toBeTruthy();
+      if (isDisabled) {
+        // Button correctly prevents submission when fields are empty
+        expect(isDisabled).toBeTruthy();
+      } else {
+        await addBtn.click();
+        const errorMsg = page.getByText(/required|name.*required|command.*required/i).first();
+        const hasError = await errorMsg.isVisible({ timeout: 3000 }).catch(() => false);
+        expect(hasError).toBeTruthy();
+      }
     }
     // If button not found, the MCP section may not have rendered (server offline) — passes gracefully
   });

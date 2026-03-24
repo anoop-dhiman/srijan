@@ -37,10 +37,8 @@ test.describe('Mobile Navigation', () => {
 
     await nav.getByRole('button', { name: /chat/i }).click();
 
-    // Chat view should now be active — look for chat-related content
-    await expect(
-      page.getByText(/sessions|new session|send|message/i).first()
-    ).toBeVisible({ timeout: 5000 });
+    // Chat view should now be active — the composer textarea is always rendered in chat view
+    await expect(page.locator('textarea').first()).toBeVisible({ timeout: 5000 });
   });
 
   test('mobile nav active item reflects current view', async ({ page }) => {

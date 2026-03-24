@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { loginAs } from './helpers/auth';
-import { getAdminToken, createWorkspaceViaApi, deleteWorkspaceViaApi } from './helpers/api';
+import { getAdminToken, createWorkspaceViaApi, deleteWorkspaceViaApi, selectWorkspaceInChat } from './helpers/api';
 
 const ADMIN_PASSWORD = process.env.SRIJAN_ADMIN_PASSWORD || 'testpass';
 
@@ -20,6 +20,7 @@ test.describe('File Mentions (@)', () => {
   test.beforeEach(async ({ page }) => {
     await loginAs(page, 'admin', ADMIN_PASSWORD);
     await page.getByRole('button', { name: /chat/i }).click();
+    await selectWorkspaceInChat(page, wsName);
   });
 
   test('@ mention menu opens when @ is typed', async ({ page }) => {

@@ -1,13 +1,26 @@
 import { test, expect } from '@playwright/test';
 import { loginAs } from './helpers/auth';
+import { getAdminToken, createWorkspaceViaApi, deleteWorkspaceViaApi, selectWorkspaceInChat } from './helpers/api';
 
 const ADMIN_PASSWORD = process.env.SRIJAN_ADMIN_PASSWORD || 'testpass';
 
 test.describe('Slash Commands', () => {
+  let token: string;
+  const wsName = `e2e-slash-${Date.now()}`;
+
+  test.beforeAll(async ({ request }) => {
+    token = await getAdminToken(request);
+    await createWorkspaceViaApi(request, token, wsName);
+  });
+
+  test.afterAll(async ({ request }) => {
+    await deleteWorkspaceViaApi(request, token, wsName).catch(() => {});
+  });
+
   test.beforeEach(async ({ page }) => {
     await loginAs(page, 'admin', ADMIN_PASSWORD);
-    // Navigate to Chat view
     await page.getByRole('button', { name: /chat/i }).click();
+    await selectWorkspaceInChat(page, wsName);
   });
 
   test('slash menu opens when / is typed in chat input', async ({ page }) => {
