@@ -252,7 +252,7 @@ export function setupWebSocket(): void {
               ws.send(JSON.stringify({ type: 'session_updated', data: updated }));
             }
 
-            await runner.sendMessage(messageContent);
+            await runner.sendMessage(messageContent, typeof msg.thinkingBudget === 'number' ? msg.thinkingBudget : undefined);
 
             // After first turn completes, generate a better LLM title (fire-and-forget)
             if (isFirstMessage) {

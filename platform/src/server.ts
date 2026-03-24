@@ -30,7 +30,10 @@ import sessionsRouter from './routes/sessions.js';
 import usersRouter from './routes/users.js';
 import spendingRouter from './routes/spending.js';
 import pluginsRouter, { ensureOfficialMarketplace } from './routes/plugins.js';
+import { initWebPush } from './lib/webPush.js';
 import rolesRouter from './routes/roles.js';
+import mcpRouter from './routes/mcp.js';
+import pushRouter from './routes/push.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -81,6 +84,8 @@ app.use('/forge/api/users', usersRouter);
 app.use('/forge/api/spending', spendingRouter);
 app.use('/forge/api/plugins', pluginsRouter);
 app.use('/forge/api/roles', rolesRouter);
+app.use('/forge/api/mcp', mcpRouter);
+app.use('/forge/api/push', pushRouter);
 
 // Health check
 app.get('/health', async (_req, res) => {
@@ -130,6 +135,7 @@ if (existsSync(webDist)) {
 // Initialize
 checkSecretSecurity();
 const db = getDb();
+initWebPush();
 const adminCreated = setupAdmin(ADMIN_PASSWORD);
 if (adminCreated) {
   if (!process.env.SRIJAN_ADMIN_PASSWORD) {

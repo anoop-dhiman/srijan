@@ -12,6 +12,14 @@ import { apiFetch, getRoles, type AgentRole } from '../lib/api';
 import { BashOutput } from './BashOutput';
 import { PlanCard } from './PlanCard';
 import { AgentSidebar, type SessionAgent, getAgentColor } from './AgentSidebar';
+import { TokenPie } from './TokenPie';
+import { PermissionBanner } from './PermissionBanner';
+import { ThinkingModeSelector, THINKING_BUDGETS } from './ThinkingModeSelector';
+import type { ThinkingMode } from './ThinkingModeSelector';
+import { CommandMenu } from './CommandMenu';
+import { useSlashCommands } from '../hooks/useSlashCommands';
+import { useFileMentions } from '../hooks/useFileMentions';
+import { FileMentionDropdown } from './FileMentionDropdown';
 
 interface ChatProps {
   messages: ChatMessage[];
@@ -21,9 +29,10 @@ interface ChatProps {
   agentStatus: string;
   sessionActivity: Record<string, SessionActivity>;
   sessionCosts: Record<string, number>;
+  sessionTokens?: Record<string, { inputTokens: number; outputTokens: number }>;
   currentWorkspace: string | null;
   workspaces: WorkspaceInfo[];
-  onSendMessage: (content: string) => void;
+  onSendMessage: (content: string, thinkingBudget?: number) => void;
   onNewSession: (workspaceName: string) => void;
   onJoinSession: (sessionId: string) => void;
   onDeleteSession: (sessionId: string) => void;
@@ -218,6 +227,7 @@ export function Chat({
   agentStatus,
   sessionActivity,
   sessionCosts,
+  sessionTokens,
   currentWorkspace,
   workspaces,
   onSendMessage,
@@ -233,6 +243,8 @@ export function Chat({
   onCreateAgent,
 }: ChatProps) {
   const [input, setInput] = useState('');
+  const [thinkingMode, setThinkingMode] = useState<ThinkingMode>('none');
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [roles, setRoles] = useState<AgentRole[]>([]);
   const [mentionDropdown, setMentionDropdown] = useState(false);
@@ -263,6 +275,42 @@ export function Chat({
   const isPendingApproval = currentSession
     ? !!(sessionActivity[currentSession.id]?.pendingApproval)
     : false;
+
+  const currentSessionTokens = currentSession && sessionTokens
+    ? (sessionTokens[currentSession.id] ?? { inputTokens: 0, outputTokens: 0 })
+    : { inputTokens: 0, outputTokens: 0 };
+
+  // Slash command menu
+  const slashCtx = {
+    clearMessages: () => { /* messages are managed by parent */ },
+    sendMessage: (content: string) => onSendMessage(content, THINKING_BUDGETS[thinkingMode]),
+    newSession: () => onNewSession(currentWorkspace || ''),
+    setInput,
+  };
+  const {
+    menuOpen: slashMenuOpen,
+    filteredCommands,
+    selectedIndex: slashIndex,
+    handleKeyDown: slashKeyDownRaw,
+    handleInputChange: slashHandleInputChange,
+    selectCommand,
+    closeMenu: closeSlashMenu,
+  } = useSlashCommands(slashCtx);
+
+  // File mention dropdown — reuse inputRef as textareaRef
+  const {
+    mentionOpen: fileMentionOpen,
+    suggestions: fileSuggestions,
+    selectedIndex: fileMentionIndex,
+    handleKeyDown: fileMentionKeyDownRaw,
+    selectSuggestion: selectFileSuggestion,
+    closeMention: closeFileMention,
+  } = useFileMentions({
+    workspaceName: currentWorkspace,
+    input,
+    setInput,
+    textareaRef: inputRef,
+  });
 
   // Track whether the user is near the bottom of the message list
   useEffect(() => {
@@ -321,14 +369,22 @@ export function Chat({
     e.preventDefault();
     if (!input.trim() || isLoading || noWorkspace || isPendingApproval) return;
     isAtBottom.current = true;
-    onSendMessage(input.trim());
+    onSendMessage(input.trim(), THINKING_BUDGETS[thinkingMode]);
     setInput('');
     if (inputRef.current) {
       inputRef.current.style.height = 'auto';
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (slashMenuOpen) {
+      const handled = slashKeyDownRaw(e);
+      if (handled) { e.preventDefault(); return; }
+    }
+    if (fileMentionOpen) {
+      const handled = fileMentionKeyDownRaw(e);
+      if (handled) { e.preventDefault(); return; }
+    }
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSubmit(e);
@@ -342,7 +398,10 @@ export function Chat({
     el.style.height = 'auto';
     el.style.height = Math.min(el.scrollHeight, 200) + 'px';
 
-    // Detect @mention at end of current word
+    // Sync slash command menu
+    slashHandleInputChange(val);
+
+    // Detect @mention at end of current word (role mentions for AgentSidebar)
     const lastWord = val.split(/\s/).pop() || '';
     if (lastWord.startsWith('@') && lastWord.length > 1) {
       setMentionQuery(lastWord.slice(1).toLowerCase());
@@ -384,7 +443,7 @@ export function Chat({
       {/* Sidebar */}
       <div
         className={`fixed inset-y-0 left-0 z-40 bg-muted border-r border-border flex flex-col transform transition-all duration-200 md:relative md:translate-x-0 md:top-auto md:inset-y-auto ${
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+          (sidebarOpen || mobileSidebarOpen) ? 'translate-x-0' : '-translate-x-full'
         } ${sidebarCollapsed ? 'md:w-0 md:overflow-hidden md:border-r-0' : ''}`}
         style={sidebarCollapsed ? undefined : { width: `${sidebarWidth}px` }}
       >
@@ -501,17 +560,17 @@ export function Chat({
       )}
 
       {/* Sidebar overlay on mobile */}
-      {sidebarOpen && (
+      {(sidebarOpen || mobileSidebarOpen) && (
         <div
           className="fixed inset-0 z-30 bg-black/50 md:hidden"
-          onClick={() => setSidebarOpen(false)}
+          onClick={() => { setSidebarOpen(false); setMobileSidebarOpen(false); }}
         />
       )}
 
       {/* Main content area */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top bar: collapse toggle (desktop) + mobile menu */}
-        <div className="flex items-center px-2 py-1.5 border-b border-border md:border-b-0 shrink-0">
+        <div className="flex items-center gap-2 px-2 py-1.5 border-b border-border md:border-b-0 shrink-0">
           <button
             onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
             className="hidden md:flex items-center justify-center w-9 h-9 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
@@ -520,11 +579,20 @@ export function Chat({
             {sidebarCollapsed ? <PanelLeftOpen size={22} /> : <PanelLeftClose size={22} />}
           </button>
           <button
-            onClick={() => setSidebarOpen(true)}
+            onClick={() => setMobileSidebarOpen(true)}
             className="p-1.5 rounded-md hover:bg-muted transition-colors md:hidden"
           >
             <Menu size={20} />
           </button>
+          <div className="flex-1" />
+          <ThinkingModeSelector value={thinkingMode} onChange={setThinkingMode} />
+          {currentSessionTokens.inputTokens + currentSessionTokens.outputTokens > 0 && (
+            <TokenPie
+              inputTokens={currentSessionTokens.inputTokens}
+              outputTokens={currentSessionTokens.outputTokens}
+              model="claude-sonnet-4-6"
+            />
+          )}
         </div>
 
         {/* Spending warning banner */}
@@ -618,22 +686,11 @@ export function Chat({
         <div className="px-6 pb-5">
           {/* Approval bar */}
           {isPendingApproval && (
-            <div className="max-w-5xl mx-auto mb-3 flex items-center justify-between gap-3 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-700 px-4 py-2.5">
-              <span className="text-sm text-amber-800 dark:text-amber-300 font-medium">Agent is requesting permission to proceed</span>
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  onClick={() => onSendMessage('Approved')}
-                  className="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-green-700 transition-colors"
-                >
-                  Approve
-                </button>
-                <button
-                  onClick={() => onSendMessage('Denied, please stop and propose an alternative.')}
-                  className="rounded-lg bg-destructive px-3 py-1.5 text-xs font-semibold text-destructive-foreground hover:bg-destructive/90 transition-colors"
-                >
-                  Deny
-                </button>
-              </div>
+            <div className="max-w-5xl mx-auto mb-3">
+              <PermissionBanner
+                sessionId={currentSession?.id ?? null}
+                onSendApproval={(response) => onSendMessage(response)}
+              />
             </div>
           )}
           <form onSubmit={handleSubmit} className="max-w-5xl mx-auto">
@@ -647,6 +704,22 @@ export function Chat({
               </div>
             )}
             <div className="relative">
+              {slashMenuOpen && (
+                <CommandMenu
+                  commands={filteredCommands}
+                  selectedIndex={slashIndex}
+                  onSelect={selectCommand}
+                  onClose={closeSlashMenu}
+                />
+              )}
+              {fileMentionOpen && (
+                <FileMentionDropdown
+                  suggestions={fileSuggestions}
+                  selectedIndex={fileMentionIndex}
+                  onSelect={selectFileSuggestion}
+                  onClose={closeFileMention}
+                />
+              )}
               {mentionDropdown && roles.length > 0 && (() => {
                 const filtered = roles.filter(
                   r =>

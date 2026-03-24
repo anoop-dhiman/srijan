@@ -99,6 +99,7 @@ export function useChat() {
   const [isConnected, setIsConnected] = useState(false);
   const [sessionActivity, setSessionActivity] = useState<Record<string, SessionActivity>>({});
   const [sessionCosts, setSessionCosts] = useState<Record<string, number>>({});
+  const [sessionTokens, setSessionTokens] = useState<Record<string, { inputTokens: number; outputTokens: number }>>({});
   const [workspaces, setWorkspaces] = useState<WorkspaceInfo[]>([]);
   const [currentWorkspace, setCurrentWorkspaceState] = useState<string | null>(
     () => localStorage.getItem('srijan_workspace')
@@ -183,6 +184,8 @@ export function useChat() {
           localStorage.setItem('srijan_session_id', msg.data.session.id);
           // R8: clear any in-progress stream buffer from the previous session
           streamBufferRef.current = '';
+          // Clear tokens for the joined session to avoid double-counting on replay
+          setSessionTokens(prev => ({ ...prev, [msg.data.session.id]: { inputTokens: 0, outputTokens: 0 } }));
           // Clear unread for joined session
           setSessionActivity(prev => {
             const cur = prev[msg.data.session.id] || DEFAULT_ACTIVITY;
@@ -314,6 +317,20 @@ export function useChat() {
 
             return { ...prev, [sid]: updated };
           });
+
+          // Accumulate token usage from usage_update events
+          if (evt.type === 'usage_update') {
+            setSessionTokens(prev => {
+              const cur = prev[sid] || { inputTokens: 0, outputTokens: 0 };
+              return {
+                ...prev,
+                [sid]: {
+                  inputTokens: cur.inputTokens + (evt.data.inputTokens || 0),
+                  outputTokens: cur.outputTokens + (evt.data.outputTokens || 0),
+                },
+              };
+            });
+          }
 
           // Only update messages / streaming for the active session
           if (sid !== currentSessionRef.current?.id) break;
@@ -498,7 +515,7 @@ export function useChat() {
     wsRef.current = null;
   }, []);
 
-  const sendMessage = useCallback((content: string) => {
+  const sendMessage = useCallback((content: string, thinkingBudget?: number) => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
     // Require a workspace when no session exists yet — prevents orphaned sessions
     if (!currentSessionRef.current && !currentWorkspaceRef.current) return;
@@ -524,6 +541,7 @@ export function useChat() {
       type: 'message',
       content,
       workspaceName: currentWorkspaceRef.current ?? undefined,
+      thinkingBudget: thinkingBudget ?? undefined,
     }));
   }, []);
 
@@ -572,6 +590,10 @@ export function useChat() {
     ? (sessionActivity[currentSession.id] ?? DEFAULT_ACTIVITY)
     : DEFAULT_ACTIVITY;
 
+  const currentSessionTokens = currentSession
+    ? (sessionTokens[currentSession.id] ?? { inputTokens: 0, outputTokens: 0 })
+    : { inputTokens: 0, outputTokens: 0 };
+
   return {
     messages,
     sessions,
@@ -581,6 +603,8 @@ export function useChat() {
     agentStatus: currentActivity.agentStatus,
     sessionActivity,
     sessionCosts,
+    sessionTokens,
+    currentSessionTokens,
     workspaces,
     currentWorkspace,
     setCurrentWorkspace,

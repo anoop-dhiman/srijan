@@ -14,12 +14,22 @@ mkdirSync(join(TEST_WS_ROOT, 'myapp', 'subdir'), { recursive: true });
 writeFileSync(join(TEST_WS_ROOT, 'myapp', 'subdir', 'nested.txt'), 'Nested file');
 // Create a binary-ish file (with null byte)
 writeFileSync(join(TEST_WS_ROOT, 'myapp', 'binary.bin'), Buffer.from([72, 101, 108, 0, 111]));
+// Create a tracked file for diff tests
+writeFileSync(join(TEST_WS_ROOT, 'myapp', 'tracked.txt'), 'Current content');
 
 vi.mock('../git/manager.js', () => ({
   getWorkspaceRoot: vi.fn(() => TEST_WS_ROOT),
   cloneRepo: vi.fn(),
   initRepo: vi.fn(),
   getGit: vi.fn(),
+}));
+
+// Mock execSync for diff endpoint
+vi.mock('child_process', () => ({
+  execSync: vi.fn((cmd: string) => {
+    if (cmd.includes('HEAD:tracked.txt')) return 'Original content';
+    throw new Error('not a git repository');
+  }),
 }));
 
 const { default: filesRouter } = await import('../routes/files.js');
@@ -222,6 +232,53 @@ describe('Files API', () => {
       const res = await request(app)
         .put('/api/workspaces/myapp/file?path=hello.txt')
         .send({ content: 'test' });
+      expect(res.status).toBe(401);
+    });
+  });
+
+  describe('GET /api/workspaces/:name/diff', () => {
+    it('returns original and current content for tracked file', async () => {
+      const res = await request(app)
+        .get('/api/workspaces/myapp/diff?path=tracked.txt')
+        .set('Authorization', `Bearer ${token}`);
+      expect(res.status).toBe(200);
+      expect(res.body.original).toBe('Original content');
+      expect(res.body.current).toBe('Current content');
+    });
+
+    it('returns empty original when file is not tracked in git', async () => {
+      const res = await request(app)
+        .get('/api/workspaces/myapp/diff?path=hello.txt')
+        .set('Authorization', `Bearer ${token}`);
+      expect(res.status).toBe(200);
+      expect(res.body.original).toBe('');
+      expect(typeof res.body.current).toBe('string');
+    });
+
+    it('rejects path traversal', async () => {
+      const res = await request(app)
+        .get('/api/workspaces/myapp/diff?path=../../etc/passwd')
+        .set('Authorization', `Bearer ${token}`);
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe('PATH_TRAVERSAL');
+    });
+
+    it('returns 404 for non-existent file', async () => {
+      const res = await request(app)
+        .get('/api/workspaces/myapp/diff?path=doesnotexist.txt')
+        .set('Authorization', `Bearer ${token}`);
+      expect(res.status).toBe(404);
+    });
+
+    it('returns 400 when path is missing', async () => {
+      const res = await request(app)
+        .get('/api/workspaces/myapp/diff')
+        .set('Authorization', `Bearer ${token}`);
+      expect(res.status).toBe(400);
+    });
+
+    it('requires authentication', async () => {
+      const res = await request(app).get('/api/workspaces/myapp/diff?path=hello.txt');
       expect(res.status).toBe(401);
     });
   });

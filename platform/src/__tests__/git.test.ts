@@ -24,11 +24,18 @@ vi.mock('../git/manager.js', () => ({
   getWorkspaceRoot: vi.fn().mockReturnValue('/workspaces'),
   setGitIdentity: vi.fn().mockResolvedValue(undefined),
   getGitIdentity: vi.fn().mockResolvedValue({ name: 'Test User', email: 'test@example.com' }),
+  getDetailedStatus: vi.fn().mockResolvedValue([
+    { path: 'src/index.ts', staged: true, type: 'M' },
+    { path: 'README.md', staged: false, type: '?' },
+  ]),
+  stageFiles: vi.fn().mockResolvedValue(undefined),
+  unstageFiles: vi.fn().mockResolvedValue(undefined),
+  commitChanges: vi.fn().mockResolvedValue(undefined),
 }));
 
 // gitAuth uses real DB — credential routes are tested with actual DB interactions
 const { default: gitRouter } = await import('../routes/git.js');
-const { pushRepo, setRemote, setGitIdentity, getGitIdentity } = await import('../git/manager.js');
+const { pushRepo, setRemote, setGitIdentity, getGitIdentity, stageFiles, unstageFiles, commitChanges } = await import('../git/manager.js');
 
 function createApp() {
   const app = express();
@@ -309,6 +316,111 @@ describe('Git Routes', () => {
         const res = await request(app).delete(`/api/git/${credWs}/credentials`);
         expect(res.status).toBe(401);
       });
+    });
+  });
+
+  describe('GET /api/git/:name/status (with files)', () => {
+    it('should include files in status response', async () => {
+      const res = await request(app)
+        .get('/api/git/my-repo/status')
+        .set('Authorization', `Bearer ${token}`);
+      expect(res.status).toBe(200);
+      expect(res.body.files).toBeDefined();
+      expect(Array.isArray(res.body.files)).toBe(true);
+      expect(res.body.files).toHaveLength(2);
+      expect(res.body.files[0]).toMatchObject({ path: 'src/index.ts', staged: true, type: 'M' });
+    });
+  });
+
+  describe('POST /api/git/:name/stage', () => {
+    it('should stage files and return ok', async () => {
+      const res = await request(app)
+        .post('/api/git/my-repo/stage')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ paths: ['src/index.ts'] });
+      expect(res.status).toBe(200);
+      expect(res.body.ok).toBe(true);
+      expect(stageFiles).toHaveBeenCalledWith('my-repo', ['src/index.ts']);
+    });
+
+    it('should stage all files when paths is empty', async () => {
+      const res = await request(app)
+        .post('/api/git/my-repo/stage')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ paths: [] });
+      expect(res.status).toBe(200);
+      expect(res.body.ok).toBe(true);
+      expect(stageFiles).toHaveBeenCalledWith('my-repo', []);
+    });
+
+    it('should reject without auth', async () => {
+      const res = await request(app)
+        .post('/api/git/my-repo/stage')
+        .send({ paths: ['src/index.ts'] });
+      expect(res.status).toBe(401);
+    });
+  });
+
+  describe('POST /api/git/:name/unstage', () => {
+    it('should unstage files and return ok', async () => {
+      const res = await request(app)
+        .post('/api/git/my-repo/unstage')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ paths: ['src/index.ts'] });
+      expect(res.status).toBe(200);
+      expect(res.body.ok).toBe(true);
+      expect(unstageFiles).toHaveBeenCalledWith('my-repo', ['src/index.ts']);
+    });
+
+    it('should return 400 when paths is empty', async () => {
+      const res = await request(app)
+        .post('/api/git/my-repo/unstage')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ paths: [] });
+      expect(res.status).toBe(400);
+    });
+
+    it('should reject without auth', async () => {
+      const res = await request(app)
+        .post('/api/git/my-repo/unstage')
+        .send({ paths: ['src/index.ts'] });
+      expect(res.status).toBe(401);
+    });
+  });
+
+  describe('POST /api/git/:name/commit', () => {
+    it('should commit changes and return ok', async () => {
+      const res = await request(app)
+        .post('/api/git/my-repo/commit')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ message: 'feat: my commit message' });
+      expect(res.status).toBe(200);
+      expect(res.body.ok).toBe(true);
+      expect(commitChanges).toHaveBeenCalledWith('my-repo', 'feat: my commit message');
+    });
+
+    it('should return 400 when message is empty', async () => {
+      const res = await request(app)
+        .post('/api/git/my-repo/commit')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ message: '' });
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe('BAD_REQUEST');
+    });
+
+    it('should return 400 when message is missing', async () => {
+      const res = await request(app)
+        .post('/api/git/my-repo/commit')
+        .set('Authorization', `Bearer ${token}`)
+        .send({});
+      expect(res.status).toBe(400);
+    });
+
+    it('should reject without auth', async () => {
+      const res = await request(app)
+        .post('/api/git/my-repo/commit')
+        .send({ message: 'test' });
+      expect(res.status).toBe(401);
     });
   });
 });

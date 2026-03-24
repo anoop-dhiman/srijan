@@ -6,6 +6,7 @@ import { Dashboard } from './components/Dashboard';
 import { Settings } from './components/Settings';
 import { FileBrowser } from './components/FileBrowser';
 import { SessionRecording } from './components/SessionRecording';
+import { MobileNav } from './components/MobileNav';
 import { isAuthenticated, logout, apiFetch, getCurrentUser } from './lib/api';
 import { useChat } from './hooks/useChat';
 
@@ -225,27 +226,14 @@ function App() {
         </div>
       </header>
 
-      {/* Mobile tab bar */}
-      <div className="md:hidden flex border-b border-border shrink-0">
-        {navTabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => { setActiveView(tab.id); setReplaySessionId(null); }}
-            disabled={isTabDisabled(tab.id)}
-            className={`flex-1 py-2 text-sm font-medium transition-colors ${
-              effectiveView === tab.id && !replaySessionId
-                ? 'border-b-2 border-primary text-foreground'
-                : 'text-muted-foreground disabled:opacity-40'
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      <div className="flex flex-1 min-h-0">
+      <div className="flex flex-1 min-h-0 pb-16 md:pb-0">
         {renderMain()}
       </div>
+
+      <MobileNav
+        activeView={effectiveView}
+        onViewChange={(view) => { setActiveView(view as ActiveView); setReplaySessionId(null); }}
+      />
     </div>
     </ErrorBoundary>
   );

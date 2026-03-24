@@ -357,6 +357,199 @@ describe('Dashboard — CreateWorkspacePanel auth toggle', () => {
   });
 });
 
+describe('Dashboard — Git staging UI', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  const onRefresh = vi.fn();
+  const onViewSessions = vi.fn();
+  const onCreateWorkspace = vi.fn().mockResolvedValue(undefined);
+  const onDeleteWorkspace = vi.fn().mockResolvedValue(undefined);
+
+  const mockWorkspace: WorkspaceInfo = {
+    name: 'stage-repo',
+    sessionCount: 0,
+    runningContainerCount: 0,
+    totalCostUsd: null,
+    lastActivityAt: null,
+  };
+
+  function renderWithFiles(files: { path: string; staged: boolean; type: string }[]) {
+    vi.mocked(apiFetch).mockImplementation(async (url: string) => {
+      if (url.includes('/status')) return { branch: 'main', remoteUrl: null, files };
+      if (url.includes('/credentials')) return { configured: false };
+      if (url.includes('/identity')) return { name: '', email: '' };
+      if (url.includes('/apps')) return [];
+      if (url.includes('/spending')) return [];
+      return {};
+    });
+    render(
+      <Dashboard
+        workspaces={[mockWorkspace]}
+        onRefresh={onRefresh}
+        onViewSessions={onViewSessions}
+        onCreateWorkspace={onCreateWorkspace}
+        onDeleteWorkspace={onDeleteWorkspace}
+      />
+    );
+  }
+
+  it('shows Changes toggle button', async () => {
+    renderWithFiles([]);
+    await waitFor(() => {
+      expect(screen.getByTestId('changes-toggle')).toBeInTheDocument();
+    });
+  });
+
+  it('shows file count in Changes button when files exist', async () => {
+    renderWithFiles([{ path: 'src/app.ts', staged: false, type: 'M' }]);
+    await waitFor(() => {
+      expect(screen.getByTestId('changes-toggle').textContent).toContain('1');
+    });
+  });
+
+  it('staging panel is hidden by default', async () => {
+    renderWithFiles([{ path: 'src/app.ts', staged: false, type: 'M' }]);
+    await waitFor(() => screen.getByTestId('changes-toggle'));
+    expect(screen.queryByTestId('staging-panel')).not.toBeInTheDocument();
+  });
+
+  it('shows staging panel when Changes is clicked', async () => {
+    renderWithFiles([{ path: 'src/app.ts', staged: false, type: 'M' }]);
+    await waitFor(() => screen.getByTestId('changes-toggle'));
+    fireEvent.click(screen.getByTestId('changes-toggle'));
+    expect(screen.getByTestId('staging-panel')).toBeInTheDocument();
+  });
+
+  it('lists files with path and type in staging panel', async () => {
+    renderWithFiles([{ path: 'src/app.ts', staged: false, type: 'M' }]);
+    await waitFor(() => screen.getByTestId('changes-toggle'));
+    fireEvent.click(screen.getByTestId('changes-toggle'));
+    expect(screen.getByText('src/app.ts')).toBeInTheDocument();
+    expect(screen.getByText('M')).toBeInTheDocument();
+  });
+
+  it('checking a file calls stage endpoint', async () => {
+    vi.mocked(apiFetch).mockImplementation(async (url: string, opts?: any) => {
+      if (url.includes('/status')) return { branch: 'main', remoteUrl: null, files: [{ path: 'file.ts', staged: false, type: 'M' }] };
+      if (url.includes('/credentials')) return { configured: false };
+      if (url.includes('/identity')) return { name: '', email: '' };
+      if (url.includes('/stage') && opts?.method === 'POST') return { ok: true };
+      if (url.includes('/apps')) return [];
+      if (url.includes('/spending')) return [];
+      return {};
+    });
+
+    render(
+      <Dashboard
+        workspaces={[mockWorkspace]}
+        onRefresh={onRefresh}
+        onViewSessions={onViewSessions}
+        onCreateWorkspace={onCreateWorkspace}
+        onDeleteWorkspace={onDeleteWorkspace}
+      />
+    );
+
+    await waitFor(() => screen.getByTestId('changes-toggle'));
+    fireEvent.click(screen.getByTestId('changes-toggle'));
+
+    await waitFor(() => screen.getByLabelText('Stage file.ts'));
+    fireEvent.click(screen.getByLabelText('Stage file.ts'));
+
+    await waitFor(() => {
+      expect(apiFetch).toHaveBeenCalledWith(
+        '/git/stage-repo/stage',
+        expect.objectContaining({ method: 'POST' })
+      );
+    });
+  });
+
+  it('unchecking a staged file calls unstage endpoint', async () => {
+    vi.mocked(apiFetch).mockImplementation(async (url: string, opts?: any) => {
+      if (url.includes('/status')) return { branch: 'main', remoteUrl: null, files: [{ path: 'file.ts', staged: true, type: 'M' }] };
+      if (url.includes('/credentials')) return { configured: false };
+      if (url.includes('/identity')) return { name: '', email: '' };
+      if (url.includes('/unstage') && opts?.method === 'POST') return { ok: true };
+      if (url.includes('/apps')) return [];
+      if (url.includes('/spending')) return [];
+      return {};
+    });
+
+    render(
+      <Dashboard
+        workspaces={[mockWorkspace]}
+        onRefresh={onRefresh}
+        onViewSessions={onViewSessions}
+        onCreateWorkspace={onCreateWorkspace}
+        onDeleteWorkspace={onDeleteWorkspace}
+      />
+    );
+
+    await waitFor(() => screen.getByTestId('changes-toggle'));
+    fireEvent.click(screen.getByTestId('changes-toggle'));
+
+    await waitFor(() => screen.getByLabelText('Unstage file.ts'));
+    fireEvent.click(screen.getByLabelText('Unstage file.ts'));
+
+    await waitFor(() => {
+      expect(apiFetch).toHaveBeenCalledWith(
+        '/git/stage-repo/unstage',
+        expect.objectContaining({ method: 'POST' })
+      );
+    });
+  });
+
+  it('commit button is disabled when no commit message', async () => {
+    renderWithFiles([{ path: 'file.ts', staged: true, type: 'M' }]);
+    await waitFor(() => screen.getByTestId('changes-toggle'));
+    fireEvent.click(screen.getByTestId('changes-toggle'));
+    await waitFor(() => screen.getByRole('button', { name: 'Commit' }));
+    expect(screen.getByRole('button', { name: 'Commit' })).toBeDisabled();
+  });
+
+  it('commit button calls commit endpoint and clears message', async () => {
+    vi.mocked(apiFetch).mockImplementation(async (url: string, opts?: any) => {
+      if (url.includes('/status')) return { branch: 'main', remoteUrl: null, files: [{ path: 'file.ts', staged: true, type: 'M' }] };
+      if (url.includes('/credentials')) return { configured: false };
+      if (url.includes('/identity')) return { name: '', email: '' };
+      if (url.includes('/commit') && opts?.method === 'POST') return { ok: true };
+      if (url.includes('/apps')) return [];
+      if (url.includes('/spending')) return [];
+      return {};
+    });
+
+    render(
+      <Dashboard
+        workspaces={[mockWorkspace]}
+        onRefresh={onRefresh}
+        onViewSessions={onViewSessions}
+        onCreateWorkspace={onCreateWorkspace}
+        onDeleteWorkspace={onDeleteWorkspace}
+      />
+    );
+
+    await waitFor(() => screen.getByTestId('changes-toggle'));
+    fireEvent.click(screen.getByTestId('changes-toggle'));
+
+    await waitFor(() => screen.getByLabelText('Commit message'));
+    fireEvent.change(screen.getByLabelText('Commit message'), { target: { value: 'my commit' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Commit' }));
+
+    await waitFor(() => {
+      expect(apiFetch).toHaveBeenCalledWith(
+        '/git/stage-repo/commit',
+        expect.objectContaining({ method: 'POST', body: JSON.stringify({ message: 'my commit' }) })
+      );
+    });
+
+    // Commit message should be cleared
+    await waitFor(() => {
+      expect((screen.getByLabelText('Commit message') as HTMLInputElement).value).toBe('');
+    });
+  });
+});
+
 describe('Dashboard — CreateWorkspacePanel template selector', () => {
   beforeEach(() => {
     vi.clearAllMocks();

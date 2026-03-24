@@ -19,7 +19,19 @@ vi.mock('qrcode.react', () => ({
   QRCodeSVG: ({ value }: { value: string }) => <div data-testid="qrcode" data-value={value} />,
 }));
 
+vi.mock('../hooks/usePushNotifications', () => ({
+  usePushNotifications: vi.fn(() => ({
+    supported: true,
+    enabled: false,
+    loading: false,
+    enable: vi.fn(),
+    disable: vi.fn(),
+    error: null,
+  })),
+}));
+
 import { apiFetch } from '../lib/api';
+import { usePushNotifications } from '../hooks/usePushNotifications';
 
 describe('Settings', () => {
   const mockOnClose = vi.fn();
@@ -492,6 +504,186 @@ describe('Settings', () => {
         method: 'POST',
         body: JSON.stringify({ username: 'alice', password: 'secret123', role: 'user' }),
       }));
+    });
+  });
+
+  // MCP section tests
+  it('renders MCP Servers nav item', async () => {
+    render(<Settings open={true} onClose={mockOnClose} />);
+    await waitFor(() => screen.getByRole('heading', { name: 'Settings' }));
+    expect(screen.getByRole('button', { name: 'MCP Servers' })).toBeInTheDocument();
+  });
+
+  it('loads and lists MCP servers when section is active', async () => {
+    vi.mocked(apiFetch).mockImplementation((path: string) => {
+      if (path === '/auth/totp/status') return Promise.resolve({ enabled: false });
+      if (path === '/mcp') return Promise.resolve({ servers: [{ name: 'memory', command: 'npx', args: ['-y', '@modelcontextprotocol/server-memory'] }] });
+      return Promise.resolve([]);
+    });
+
+    render(<Settings open={true} onClose={mockOnClose} />);
+    await waitFor(() => screen.getByRole('heading', { name: 'Settings' }));
+    await clickNav('MCP Servers');
+
+    await waitFor(() => {
+      expect(screen.getByText('memory')).toBeInTheDocument();
+      expect(screen.getByText('npx')).toBeInTheDocument();
+    });
+  });
+
+  it('add MCP server form is present in MCP section', async () => {
+    vi.mocked(apiFetch).mockImplementation((path: string) => {
+      if (path === '/auth/totp/status') return Promise.resolve({ enabled: false });
+      if (path === '/mcp') return Promise.resolve({ servers: [] });
+      return Promise.resolve([]);
+    });
+
+    render(<Settings open={true} onClose={mockOnClose} />);
+    await waitFor(() => screen.getByRole('heading', { name: 'Settings' }));
+    await clickNav('MCP Servers');
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText('my-server')).toBeInTheDocument();
+      expect(screen.getByPlaceholderText('npx')).toBeInTheDocument();
+      expect(screen.getByText('Add Server')).toBeInTheDocument();
+    });
+  });
+
+  it('add MCP server calls POST endpoint', async () => {
+    vi.mocked(apiFetch).mockImplementation((path: string) => {
+      if (path === '/auth/totp/status') return Promise.resolve({ enabled: false });
+      if (path === '/mcp') return Promise.resolve({ servers: [] });
+      return Promise.resolve({});
+    });
+
+    render(<Settings open={true} onClose={mockOnClose} />);
+    await waitFor(() => screen.getByRole('heading', { name: 'Settings' }));
+    await clickNav('MCP Servers');
+
+    await waitFor(() => screen.getByPlaceholderText('my-server'));
+
+    await userEvent.type(screen.getByPlaceholderText('my-server'), 'my-mcp');
+    await userEvent.type(screen.getByPlaceholderText('npx'), 'npx');
+    await userEvent.type(screen.getByPlaceholderText(/-y @modelcontextprotocol/), '-y @example/server');
+    await userEvent.click(screen.getByText('Add Server'));
+
+    await waitFor(() => {
+      expect(apiFetch).toHaveBeenCalledWith('/forge/api/mcp', expect.objectContaining({
+        method: 'POST',
+        body: expect.stringContaining('my-mcp'),
+      }));
+    });
+  });
+
+  it('remove MCP server calls DELETE endpoint', async () => {
+    vi.mocked(apiFetch).mockImplementation((path: string) => {
+      if (path === '/auth/totp/status') return Promise.resolve({ enabled: false });
+      if (path === '/mcp') return Promise.resolve({ servers: [{ name: 'test-srv', command: 'node', args: [] }] });
+      return Promise.resolve({});
+    });
+
+    render(<Settings open={true} onClose={mockOnClose} />);
+    await waitFor(() => screen.getByRole('heading', { name: 'Settings' }));
+    await clickNav('MCP Servers');
+
+    await waitFor(() => screen.getByText('test-srv'));
+
+    const removeBtn = screen.getByTitle('Remove server');
+    await userEvent.click(removeBtn);
+
+    await waitFor(() => {
+      expect(apiFetch).toHaveBeenCalledWith('/forge/api/mcp/test-srv', { method: 'DELETE' });
+    });
+  });
+
+  // Push notifications tests
+  it('renders Desktop Notifications card in Security section', async () => {
+    render(<Settings open={true} onClose={mockOnClose} />);
+    await waitFor(() => screen.getByRole('heading', { name: 'Settings' }));
+    await clickNav('Security');
+
+    await waitFor(() => {
+      expect(screen.getByText('Desktop Notifications')).toBeInTheDocument();
+    });
+  });
+
+  it('calls enable when toggle clicked and not enabled', async () => {
+    const mockEnable = vi.fn().mockResolvedValue(undefined);
+    vi.mocked(usePushNotifications).mockReturnValue({
+      supported: true,
+      enabled: false,
+      loading: false,
+      enable: mockEnable,
+      disable: vi.fn(),
+      error: null,
+    });
+
+    render(<Settings open={true} onClose={mockOnClose} />);
+    await waitFor(() => screen.getByRole('heading', { name: 'Settings' }));
+    await clickNav('Security');
+
+    await waitFor(() => screen.getByText('Desktop Notifications'));
+    await userEvent.click(screen.getByRole('button', { name: 'Enable notifications' }));
+
+    expect(mockEnable).toHaveBeenCalled();
+  });
+
+  it('calls disable when toggle clicked and already enabled', async () => {
+    const mockDisable = vi.fn().mockResolvedValue(undefined);
+    vi.mocked(usePushNotifications).mockReturnValue({
+      supported: true,
+      enabled: true,
+      loading: false,
+      enable: vi.fn(),
+      disable: mockDisable,
+      error: null,
+    });
+
+    render(<Settings open={true} onClose={mockOnClose} />);
+    await waitFor(() => screen.getByRole('heading', { name: 'Settings' }));
+    await clickNav('Security');
+
+    await waitFor(() => screen.getByText('Desktop Notifications'));
+    await userEvent.click(screen.getByRole('button', { name: 'Disable notifications' }));
+
+    expect(mockDisable).toHaveBeenCalled();
+  });
+
+  it('shows not supported message when push not supported', async () => {
+    vi.mocked(usePushNotifications).mockReturnValue({
+      supported: false,
+      enabled: false,
+      loading: false,
+      enable: vi.fn(),
+      disable: vi.fn(),
+      error: null,
+    });
+
+    render(<Settings open={true} onClose={mockOnClose} />);
+    await waitFor(() => screen.getByRole('heading', { name: 'Settings' }));
+    await clickNav('Security');
+
+    await waitFor(() => {
+      expect(screen.getByText('Not supported in this browser')).toBeInTheDocument();
+    });
+  });
+
+  it('shows error message when push has error', async () => {
+    vi.mocked(usePushNotifications).mockReturnValue({
+      supported: true,
+      enabled: false,
+      loading: false,
+      enable: vi.fn(),
+      disable: vi.fn(),
+      error: 'Permission denied',
+    });
+
+    render(<Settings open={true} onClose={mockOnClose} />);
+    await waitFor(() => screen.getByRole('heading', { name: 'Settings' }));
+    await clickNav('Security');
+
+    await waitFor(() => {
+      expect(screen.getByText('Permission denied')).toBeInTheDocument();
     });
   });
 });

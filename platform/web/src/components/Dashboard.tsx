@@ -28,6 +28,7 @@ interface AppInfo {
 interface GitInfo {
   branch: string;
   remoteUrl: string | null;
+  files: { path: string; staged: boolean; type: string }[];
 }
 
 interface GitCredInfo {
@@ -362,6 +363,13 @@ function GitSection({ workspaceName }: { workspaceName: string }) {
   const [pushState, setPushState] = useState<'idle' | 'pushing' | 'done' | 'error'>('idle');
   const [pushError, setPushError] = useState<string | null>(null);
 
+  // Staging UI state
+  const [stagingOpen, setStagingOpen] = useState(false);
+  const [files, setFiles] = useState<{ path: string; staged: boolean; type: string }[]>([]);
+  const [commitMsg, setCommitMsg] = useState('');
+  const [committing, setCommitting] = useState(false);
+  const [stagingError, setStagingError] = useState('');
+
   // "Link remote" panel state
   const [showLinkPanel, setShowLinkPanel] = useState(false);
   const [linkUrl, setLinkUrl] = useState('');
@@ -394,7 +402,9 @@ function GitSection({ workspaceName }: { workspaceName: string }) {
         apiFetch(`/git/${workspaceName}/credentials`),
         apiFetch(`/git/${workspaceName}/identity`),
       ]);
-      setGitInfo({ branch: status.branch, remoteUrl: status.remoteUrl });
+      const statusFiles: { path: string; staged: boolean; type: string }[] = status.files ?? [];
+      setGitInfo({ branch: status.branch, remoteUrl: status.remoteUrl, files: statusFiles });
+      setFiles(statusFiles);
       setCredInfo(creds);
       if (creds.configured && creds.provider) {
         setAuthProvider(creds.provider);
@@ -494,6 +504,35 @@ function GitSection({ workspaceName }: { workspaceName: string }) {
     setSavingIdentity(false);
   };
 
+  const handleStageToggle = async (file: { path: string; staged: boolean; type: string }) => {
+    const endpoint = file.staged ? 'unstage' : 'stage';
+    try {
+      await apiFetch(`/git/${workspaceName}/${endpoint}`, {
+        method: 'POST',
+        body: JSON.stringify({ paths: [file.path] }),
+      });
+      await loadGitInfo();
+    } catch { /* ignore */ }
+  };
+
+  const handleCommit = async () => {
+    if (!commitMsg.trim() || !files.some(f => f.staged)) return;
+    setCommitting(true);
+    setStagingError('');
+    try {
+      await apiFetch(`/git/${workspaceName}/commit`, {
+        method: 'POST',
+        body: JSON.stringify({ message: commitMsg }),
+      });
+      setCommitMsg('');
+      await loadGitInfo();
+    } catch (e: unknown) {
+      setStagingError((e as Error).message || 'Commit failed');
+    } finally {
+      setCommitting(false);
+    }
+  };
+
   if (!gitInfo) return null;
 
   const remoteUrl = gitInfo.remoteUrl;
@@ -573,7 +612,60 @@ function GitSection({ workspaceName }: { workspaceName: string }) {
           <User size={11} />
           {identityInfo?.name || 'Set Identity'}
         </button>
+
+        {/* Changes toggle */}
+        <button
+          onClick={() => setStagingOpen(v => !v)}
+          className={`flex items-center gap-1 px-2 py-0.5 rounded-md border transition-colors ${
+            stagingOpen
+              ? 'border-primary/30 bg-primary/5 text-primary'
+              : 'border-border hover:bg-muted hover:text-foreground'
+          }`}
+          data-testid="changes-toggle"
+        >
+          <GitBranch size={11} />
+          Changes{files.length > 0 ? ` (${files.length})` : ''}
+        </button>
       </div>
+
+      {/* Staging panel */}
+      {stagingOpen && (
+        <div className="mt-2 space-y-1" data-testid="staging-panel">
+          {files.length === 0 ? (
+            <p className="text-xs text-muted-foreground">No changed files.</p>
+          ) : (
+            files.map(f => (
+              <div key={f.path} className="flex items-center gap-2 text-xs">
+                <input
+                  type="checkbox"
+                  checked={f.staged}
+                  onChange={() => handleStageToggle(f)}
+                  aria-label={`${f.staged ? 'Unstage' : 'Stage'} ${f.path}`}
+                />
+                <span className={`font-mono ${f.staged ? 'text-green-500' : 'text-yellow-500'}`}>{f.type}</span>
+                <span className="text-muted-foreground truncate">{f.path}</span>
+              </div>
+            ))
+          )}
+          <div className="mt-2 flex gap-2">
+            <input
+              value={commitMsg}
+              onChange={e => setCommitMsg(e.target.value)}
+              placeholder="Commit message..."
+              className="flex-1 text-xs px-2 py-1 rounded border bg-background"
+              aria-label="Commit message"
+            />
+            <button
+              onClick={handleCommit}
+              disabled={committing || !commitMsg.trim() || !files.some(f => f.staged)}
+              className="text-xs px-2 py-1 rounded bg-primary text-primary-foreground disabled:opacity-50"
+            >
+              {committing ? 'Committing...' : 'Commit'}
+            </button>
+          </div>
+          {stagingError && <div className="text-xs text-destructive">{stagingError}</div>}
+        </div>
+      )}
 
       {/* Link remote panel — shown when no remote is set yet */}
       {showLinkPanel && !remoteUrl && (
@@ -1244,7 +1336,7 @@ export function Dashboard({ workspaces, onRefresh, onViewSessions, onCreateWorks
         </div>
       </div>
 
-      <div className="flex-1 p-6">
+      <div className="flex-1 p-4 md:p-6">
         <div className="max-w-5xl mx-auto space-y-4">
           {showCreate && (
             <CreateWorkspacePanel

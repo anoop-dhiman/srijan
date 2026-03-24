@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { authMiddleware } from '../security/auth.js';
-import { cloneRepo, initRepo, getGit, setRemote, pushRepo, pullRepo, getGitIdentity, setGitIdentity } from '../git/manager.js';
+import { cloneRepo, initRepo, getGit, setRemote, pushRepo, pullRepo, getGitIdentity, setGitIdentity, getDetailedStatus, stageFiles, unstageFiles, commitChanges } from '../git/manager.js';
 import {
   detectProvider,
   getWorkspaceCredentials,
@@ -55,13 +55,18 @@ router.get('/:name/status', async (req: Request, res: Response) => {
   try {
     const name = req.params.name as string;
     const git = getGit(name);
-    const [status, remotes] = await Promise.all([git.status(), git.getRemotes(true)]);
+    const [status, remotes, files] = await Promise.all([
+      git.status(),
+      git.getRemotes(true),
+      getDetailedStatus(name),
+    ]);
     const remoteUrl = remotes.find(r => r.name === 'origin')?.refs?.push ?? null;
     res.json({
       branch: status.current,
       modified: status.modified,
       untracked: status.not_added,
       remoteUrl,
+      files,
     });
   } catch (err: any) {
     res.status(500).json({ error: { code: 'GIT_ERROR', message: err.message } });
@@ -160,6 +165,46 @@ router.post('/:name/credentials', (req: Request, res: Response) => {
 router.delete('/:name/credentials', (req: Request, res: Response) => {
   deleteWorkspaceCredentials(req.params.name as string);
   res.json({ ok: true });
+});
+
+router.post('/:name/stage', async (req: Request, res: Response) => {
+  try {
+    const name = req.params.name as string;
+    const paths: string[] = Array.isArray(req.body.paths) ? req.body.paths : [];
+    await stageFiles(name, paths);
+    res.json({ ok: true });
+  } catch (err: any) {
+    res.status(500).json({ error: { code: 'GIT_ERROR', message: err.message } });
+  }
+});
+
+router.post('/:name/unstage', async (req: Request, res: Response) => {
+  try {
+    const name = req.params.name as string;
+    const paths: string[] = Array.isArray(req.body.paths) ? req.body.paths : [];
+    if (paths.length === 0) {
+      res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'paths array is required and must be non-empty' } });
+      return;
+    }
+    await unstageFiles(name, paths);
+    res.json({ ok: true });
+  } catch (err: any) {
+    res.status(500).json({ error: { code: 'GIT_ERROR', message: err.message } });
+  }
+});
+
+router.post('/:name/commit', async (req: Request, res: Response) => {
+  const { message } = req.body;
+  if (!message || typeof message !== 'string' || message.trim() === '') {
+    res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'message is required' } });
+    return;
+  }
+  try {
+    await commitChanges(req.params.name as string, message);
+    res.json({ ok: true });
+  } catch (err: any) {
+    res.status(500).json({ error: { code: 'GIT_ERROR', message: err.message } });
+  }
 });
 
 export { detectProvider };

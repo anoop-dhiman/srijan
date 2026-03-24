@@ -68,6 +68,10 @@ export function getDb(): Database.Database {
     tryMigrate(`ALTER TABLE token_usage ADD COLUMN agent_id TEXT`);
     tryMigrate(`ALTER TABLE events ADD COLUMN agent_id TEXT`);
 
+    // Push notifications
+    tryMigrate(`CREATE TABLE IF NOT EXISTS push_subscriptions (id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))), user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, endpoint TEXT NOT NULL UNIQUE, keys_json TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')))`);
+    tryMigrate(`CREATE INDEX IF NOT EXISTS idx_push_subs_user_id ON push_subscriptions(user_id)`);
+
     // Seed default roles if table is empty
     const roleCount = (db.prepare('SELECT COUNT(*) as cnt FROM agent_roles').get() as { cnt: number }).cnt;
     if (roleCount === 0) {

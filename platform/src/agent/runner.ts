@@ -10,6 +10,7 @@ import { saveEvent, updateSessionAgentClaudeId } from './session.js';
 import { getDb } from '../db/store.js';
 import { decrypt } from '../lib/crypto.js';
 import { startSecretProxy, type SecretMap } from './secretProxy.js';
+import { sendPushToSession } from '../lib/webPush.js';
 import { checkSpendingLimits } from '../lib/spending.js';
 import type { IAgentRunner } from './IAgentRunner.js';
 import { OpenCodeRunner } from './OpenCodeRunner.js';
@@ -99,6 +100,7 @@ interface RunnerOptions {
   agentId?: string;        // for multi-agent sessions (e.g. 'frontend', 'backend')
   agentDbId?: string;      // DB row id in session_agents table
   claudeSessionId?: string | null;  // restore prior session for --resume
+  thinkingBudget?: number;  // max thinking tokens (undefined = disabled)
 }
 
 export class AgentRunner extends EventEmitter implements IAgentRunner {
@@ -117,6 +119,7 @@ export class AgentRunner extends EventEmitter implements IAgentRunner {
   private aborted = false;
   private roleConfig: RoleConfig | undefined;
   private agentDbId: string | undefined;
+  private thinkingBudget: number | undefined;
 
   constructor(options: RunnerOptions) {
     super();
@@ -131,6 +134,7 @@ export class AgentRunner extends EventEmitter implements IAgentRunner {
     this.userId = options.userId || '';
     this.roleConfig = options.roleConfig;
     this.agentDbId = options.agentDbId;
+    this.thinkingBudget = options.thinkingBudget;
 
     if (options.claudeSessionId) {
       this.claudeSessionId = options.claudeSessionId;
@@ -148,7 +152,7 @@ export class AgentRunner extends EventEmitter implements IAgentRunner {
     }
   }
 
-  async sendMessage(message: string): Promise<void> {
+  async sendMessage(message: string, thinkingBudget?: number): Promise<void> {
     // Spending pre-check: block spawn if limit exceeded
     if (this.userId && this.workspaceName) {
       const check = checkSpendingLimits(this.userId, this.workspaceName);
@@ -207,10 +211,18 @@ export class AgentRunner extends EventEmitter implements IAgentRunner {
         '--verbose',
         '--permission-mode', 'bypassPermissions',
         '--model', this.model,
+      ];
+
+      const effectiveBudget = thinkingBudget ?? this.thinkingBudget;
+      if (effectiveBudget && effectiveBudget > 0) {
+        args.push('--max-thinking-tokens', String(effectiveBudget));
+      }
+
+      args.push(
         '--mcp-config', mcpConfig,
         '--strict-mcp-config',
         '--append-system-prompt', this.getSystemPromptAddition(mode),
-      ];
+      );
 
       if (this.roleConfig?.allowedTools && this.roleConfig.allowedTools.length > 0) {
         args.push('--allowedTools', this.roleConfig.allowedTools.join(','));
@@ -318,12 +330,11 @@ export class AgentRunner extends EventEmitter implements IAgentRunner {
           this.aborted = false;
         } else if (code === 0 || code === null) {
           // Normal completion — always signal done so the frontend resets loading state
-          // (a tool_use emitted after the final agent_response would otherwise leave
-          // isLoading=true with no subsequent reset event)
           const doneEvent = createEvent(this.sessionId, 'agent_stopped', { message: '' });
           (doneEvent as any).agentId = this.agentId;
           saveEvent(doneEvent);
           this.emit('event', { ...doneEvent, agentId: this.agentId });
+          sendPushToSession(this.sessionId, { title: 'Srijan', body: 'Agent completed.' }).catch(() => {});
         } else if (code !== 0 && code !== null) {
           const raw = stderrBuffer.trim();
           // S8: redact real secret values from stderr before surfacing to users
@@ -340,6 +351,7 @@ export class AgentRunner extends EventEmitter implements IAgentRunner {
           (errEvent as any).agentId = this.agentId;
           saveEvent(errEvent);
           this.emit('event', { ...errEvent, agentId: this.agentId });
+          sendPushToSession(this.sessionId, { title: 'Srijan — Error', body: 'Agent exited with an error.' }).catch(() => {});
         }
         resolve();
       });
@@ -463,6 +475,17 @@ export class AgentRunner extends EventEmitter implements IAgentRunner {
             );
           } catch { /* non-fatal */ }
         }
+
+        // Emit usage_update event so the frontend can update cumulative token counts live
+        const usageEvent = createEvent(this.sessionId, 'usage_update', {
+          inputTokens: usage?.input_tokens ?? 0,
+          outputTokens: usage?.output_tokens ?? 0,
+          costUsd: msg.cost_usd ?? null,
+          model: this.model,
+        });
+        (usageEvent as any).agentId = this.agentId;
+        saveEvent(usageEvent);
+        this.emit('event', { ...usageEvent, agentId: this.agentId });
 
         if (msg.is_error) {
           const event = createEvent(this.sessionId, 'error', {

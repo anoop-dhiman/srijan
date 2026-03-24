@@ -19,6 +19,12 @@ vi.mock('../lib/monaco-setup', () => ({
   ),
 }));
 
+vi.mock('@monaco-editor/react', () => ({
+  DiffEditor: ({ original, modified }: any) => (
+    <div data-testid="monaco-diff-editor" data-original={original} data-modified={modified} />
+  ),
+}));
+
 import { apiFetch } from '../lib/api';
 
 const mockWorkspaces = [
@@ -259,5 +265,87 @@ describe('FileBrowser', () => {
     render(<FileBrowser workspaces={mockWorkspaces} currentWorkspace={null} />);
     const toggleBtn = document.querySelector('[aria-label="Toggle file tree"]');
     expect(toggleBtn).toBeInTheDocument();
+  });
+
+  // Diff view tests
+  it('shows Diff button when file is selected', async () => {
+    vi.mocked(apiFetch)
+      .mockResolvedValueOnce({ entries: mockEntries })
+      .mockResolvedValueOnce({ content: '# Hello' });
+
+    render(<FileBrowser workspaces={mockWorkspaces} currentWorkspace="my-app" />);
+    await waitFor(() => screen.getByText('README.md'));
+    await userEvent.click(screen.getByText('README.md'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('diff-toggle')).toBeInTheDocument();
+      expect(screen.getByText('Diff')).toBeInTheDocument();
+    });
+  });
+
+  it('clicking Diff button fetches diff endpoint and renders DiffEditor', async () => {
+    vi.mocked(apiFetch)
+      .mockResolvedValueOnce({ entries: mockEntries })
+      .mockResolvedValueOnce({ content: 'current content' })
+      .mockResolvedValueOnce({ original: 'original content' });
+
+    render(<FileBrowser workspaces={mockWorkspaces} currentWorkspace="my-app" />);
+    await waitFor(() => screen.getByText('README.md'));
+    await userEvent.click(screen.getByText('README.md'));
+
+    await waitFor(() => screen.getByTestId('diff-toggle'));
+    await userEvent.click(screen.getByTestId('diff-toggle'));
+
+    await waitFor(() => {
+      expect(apiFetch).toHaveBeenCalledWith(
+        expect.stringContaining('/workspaces/my-app/diff')
+      );
+      expect(screen.getByTestId('monaco-diff-editor')).toBeInTheDocument();
+    });
+  });
+
+  it('clicking Diff button again exits diff mode', async () => {
+    vi.mocked(apiFetch)
+      .mockResolvedValueOnce({ entries: mockEntries })
+      .mockResolvedValueOnce({ content: 'current content' })
+      .mockResolvedValueOnce({ original: 'original content' });
+
+    render(<FileBrowser workspaces={mockWorkspaces} currentWorkspace="my-app" />);
+    await waitFor(() => screen.getByText('README.md'));
+    await userEvent.click(screen.getByText('README.md'));
+
+    await waitFor(() => screen.getByTestId('diff-toggle'));
+    // Enable diff
+    await userEvent.click(screen.getByTestId('diff-toggle'));
+    await waitFor(() => screen.getByTestId('monaco-diff-editor'));
+
+    // Disable diff
+    await userEvent.click(screen.getByTestId('diff-toggle'));
+    await waitFor(() => {
+      expect(screen.queryByTestId('monaco-diff-editor')).not.toBeInTheDocument();
+      expect(screen.getByTestId('monaco-editor')).toBeInTheDocument();
+    });
+  });
+
+  it('diff mode is reset when a new file is selected', async () => {
+    vi.mocked(apiFetch)
+      .mockResolvedValueOnce({ entries: mockEntries })   // initial dir load
+      .mockResolvedValueOnce({ content: 'first file' })   // README.md content
+      .mockResolvedValueOnce({ original: 'original' })    // diff for README.md
+      .mockResolvedValueOnce({ content: 'second file' }); // README.md selected again (simulates re-select)
+
+    render(<FileBrowser workspaces={mockWorkspaces} currentWorkspace="my-app" />);
+    await waitFor(() => screen.getByText('README.md'));
+    await userEvent.click(screen.getByText('README.md'));
+
+    await waitFor(() => screen.getByTestId('diff-toggle'));
+    await userEvent.click(screen.getByTestId('diff-toggle'));
+    await waitFor(() => screen.getByTestId('monaco-diff-editor'));
+
+    // Click README.md again to re-select it (resets diff mode)
+    await userEvent.click(screen.getByText('README.md'));
+    await waitFor(() => {
+      expect(screen.queryByTestId('monaco-diff-editor')).not.toBeInTheDocument();
+    });
   });
 });

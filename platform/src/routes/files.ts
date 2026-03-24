@@ -3,6 +3,7 @@ import { authMiddleware } from '../security/auth.js';
 import { getWorkspaceRoot } from '../git/manager.js';
 import { readdirSync, statSync, lstatSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { join, resolve, sep, dirname } from 'path';
+import { execSync } from 'child_process';
 
 const router = Router();
 router.use(authMiddleware);
@@ -176,6 +177,60 @@ router.put('/:name/file', (req: Request, res: Response) => {
     writeFileSync(resolvedPath, content, 'utf-8');
     res.json({ ok: true });
   } catch (err: any) {
+    res.status(500).json({ error: { code: 'IO_ERROR', message: err.message } });
+  }
+});
+
+router.get('/:name/diff', (req: Request, res: Response) => {
+  const name = req.params.name as string;
+  const requestedPath = (req.query.path as string) || '';
+
+  if (!requestedPath) {
+    res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'path query param required' } });
+    return;
+  }
+
+  if (requestedPath.length > MAX_PATH_LENGTH) {
+    res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'Path too long' } });
+    return;
+  }
+
+  const workspaceBase = resolve(join(getWorkspaceRoot(), name));
+  const resolvedPath = resolve(workspaceBase, requestedPath);
+
+  if (!isUnderBase(resolvedPath, workspaceBase)) {
+    res.status(400).json({ error: { code: 'PATH_TRAVERSAL', message: 'Path traversal not allowed' } });
+    return;
+  }
+
+  try {
+    const lstat = lstatSync(resolvedPath);
+    if (lstat.isSymbolicLink()) {
+      res.status(403).json({ error: { code: 'SYMLINK', message: 'Symbolic links are not allowed' } });
+      return;
+    }
+
+    const currentContent = readFileSync(resolvedPath, 'utf-8');
+
+    let originalContent = '';
+    try {
+      // Use a relative path from the workspace root for git show
+      const relPath = requestedPath.replace(/^\//, '');
+      originalContent = execSync(`git show HEAD:${relPath}`, {
+        cwd: workspaceBase,
+        encoding: 'utf-8',
+      });
+    } catch {
+      // File not tracked in git — original is empty
+      originalContent = '';
+    }
+
+    res.json({ original: originalContent, current: currentContent });
+  } catch (err: any) {
+    if (err.code === 'ENOENT') {
+      res.status(404).json({ error: { code: 'NOT_FOUND', message: 'File not found' } });
+      return;
+    }
     res.status(500).json({ error: { code: 'IO_ERROR', message: err.message } });
   }
 });

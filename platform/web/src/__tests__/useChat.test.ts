@@ -526,6 +526,144 @@ describe('useChat hook', () => {
     });
   });
 
+  // ── sessionTokens / usage_update ──────────────────────────────────────────
+  describe('sessionTokens', () => {
+    async function setup() {
+      const { result } = renderHook(() => useChat());
+      const session = { id: 'sess', title: 'S', status: 'active', workspaceName: 'ws', createdAt: '' };
+
+      await act(async () => {
+        result.current.connect();
+        latestWs().triggerOpen();
+        latestWs().triggerMessage({ type: 'session_created', data: session });
+      });
+
+      return result;
+    }
+
+    it('starts with empty sessionTokens', async () => {
+      const { result } = renderHook(() => useChat());
+      expect(result.current.sessionTokens).toEqual({});
+    });
+
+    it('accumulates inputTokens and outputTokens from usage_update events', async () => {
+      const result = await setup();
+
+      await act(async () => {
+        latestWs().triggerMessage({
+          type: 'agent_event',
+          data: {
+            sessionId: 'sess',
+            type: 'usage_update',
+            data: { inputTokens: 100, outputTokens: 50 },
+          },
+        });
+      });
+
+      expect(result.current.sessionTokens['sess']).toEqual({ inputTokens: 100, outputTokens: 50 });
+    });
+
+    it('accumulates tokens across multiple usage_update events', async () => {
+      const result = await setup();
+
+      await act(async () => {
+        latestWs().triggerMessage({
+          type: 'agent_event',
+          data: { sessionId: 'sess', type: 'usage_update', data: { inputTokens: 100, outputTokens: 50 } },
+        });
+        latestWs().triggerMessage({
+          type: 'agent_event',
+          data: { sessionId: 'sess', type: 'usage_update', data: { inputTokens: 200, outputTokens: 75 } },
+        });
+      });
+
+      expect(result.current.sessionTokens['sess']).toEqual({ inputTokens: 300, outputTokens: 125 });
+    });
+
+    it('currentSessionTokens reflects the active session token counts', async () => {
+      const result = await setup();
+
+      await act(async () => {
+        latestWs().triggerMessage({
+          type: 'agent_event',
+          data: { sessionId: 'sess', type: 'usage_update', data: { inputTokens: 42, outputTokens: 8 } },
+        });
+      });
+
+      expect(result.current.currentSessionTokens).toEqual({ inputTokens: 42, outputTokens: 8 });
+    });
+
+    it('resets session tokens to zero on session_joined', async () => {
+      const result = await setup();
+
+      await act(async () => {
+        latestWs().triggerMessage({
+          type: 'agent_event',
+          data: { sessionId: 'sess', type: 'usage_update', data: { inputTokens: 999, outputTokens: 999 } },
+        });
+      });
+
+      await act(async () => {
+        latestWs().triggerMessage({
+          type: 'session_joined',
+          data: {
+            session: { id: 'sess', title: 'S', status: 'active', workspaceName: 'ws', createdAt: '' },
+            events: [],
+          },
+        });
+      });
+
+      expect(result.current.sessionTokens['sess']).toEqual({ inputTokens: 0, outputTokens: 0 });
+    });
+  });
+
+  // ── sendMessage thinkingBudget ─────────────────────────────────────────────
+  describe('sendMessage thinkingBudget', () => {
+    it('includes thinkingBudget in WS message when provided', async () => {
+      const { result } = renderHook(() => useChat());
+
+      await act(async () => {
+        result.current.connect();
+        latestWs().triggerOpen();
+        latestWs().triggerMessage({
+          type: 'session_created',
+          data: { id: 's1', title: 'T', status: 'active', workspaceName: 'ws', createdAt: '' },
+        });
+      });
+
+      latestWs().send.mockClear();
+
+      await act(async () => { result.current.sendMessage('hello', 4000); });
+
+      const calls = latestWs().send.mock.calls.map((c: any[]) => JSON.parse(c[0]));
+      const msgCall = calls.find(c => c.type === 'message');
+      expect(msgCall).toBeDefined();
+      expect(msgCall.thinkingBudget).toBe(4000);
+    });
+
+    it('omits thinkingBudget from WS message when not provided', async () => {
+      const { result } = renderHook(() => useChat());
+
+      await act(async () => {
+        result.current.connect();
+        latestWs().triggerOpen();
+        latestWs().triggerMessage({
+          type: 'session_created',
+          data: { id: 's1', title: 'T', status: 'active', workspaceName: 'ws', createdAt: '' },
+        });
+      });
+
+      latestWs().send.mockClear();
+
+      await act(async () => { result.current.sendMessage('hello'); });
+
+      const calls = latestWs().send.mock.calls.map((c: any[]) => JSON.parse(c[0]));
+      const msgCall = calls.find(c => c.type === 'message');
+      expect(msgCall).toBeDefined();
+      expect(msgCall.thinkingBudget).toBeUndefined();
+    });
+  });
+
   // ── session_joined ─────────────────────────────────────────────────────────
   describe('session_joined message', () => {
     it('sets currentSession and restores messages from events', async () => {

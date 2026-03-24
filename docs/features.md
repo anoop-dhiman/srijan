@@ -106,6 +106,22 @@
 | 50 | Session function tests | deleteSession cascade (events removed), getSessionsByWorkspace, workspaceName persistence | **Done** |
 | 51 | DB schema tests | git_credentials + token_usage tables; column checks for role/totp/workspace_name | **Done** |
 | 52 | Runner config tests | getAgentMode (auto/confirm/fallbacks), getSystemPrompt, getAgentSdk, getApiKey, DEFAULT_SYSTEM_PROMPT | **Done** |
+
+### Phase 10 — claudecodeui Feature Integration — Done
+
+| # | Feature | Description | Status |
+|---|---------|-------------|--------|
+| 53 | Per-Tool Permission Banner | PermissionBanner.tsx renders in Chat when agent emits [AWAITING_APPROVAL]; Approve/Deny buttons send response | **Done** |
+| 54 | Token Usage Pie | SVG donut ring per session showing context window fill (blue/amber/red); `usage_update` WS event from runner | **Done** |
+| 55 | @File Mentions | Type `@` in chat composer → fuzzy file dropdown from workspace tree; inserts relative path on select | **Done** |
+| 56 | MCP Server Management | `GET/POST/DELETE /api/mcp` wraps `claude mcp` CLI; MCP Servers section in Settings UI | **Done** |
+| 57 | Thinking Mode Selector | None/Low/Medium/Extended segmented buttons in chat header; maps to `--max-thinking-tokens` CLI flag per message | **Done** |
+| 58 | Slash Commands | `/clear`, `/compact`, `/new`, `/help` triggered by `/` in composer; keyboard-navigable CommandMenu dropdown | **Done** |
+| 59 | Git Staging & Commit UI | Per-file stage/unstage checkboxes + commit message + Commit button in Dashboard GitSection; `POST /api/git/:name/stage\|unstage\|commit` | **Done** |
+| 60 | Diff Viewer | "Diff" toggle in FileBrowser switches Monaco to DiffEditor (side-by-side vs HEAD); `GET /api/workspaces/:name/diff?path=` | **Done** |
+| 61 | Web Push Notifications | VAPID push on agent completion/error; `lib/webPush.ts`, `routes/push.ts`, `push_subscriptions` table; Settings toggle; `sw.js` push handler | **Done** |
+| 62 | Mobile-Responsive Layout | MobileNav.tsx bottom bar (md:hidden); sidebar drawer on mobile; Dashboard cards responsive; App.tsx breakpoints | **Done** |
+| 63 | PWA Manifest & Service Worker | `manifest.json`, `sw.js` (cache-first shell + push handler), theme-color meta in `index.html`; installable to home screen | **Done** |
 | 53 | useChat hook tests | 39 tests covering initial state, connect, all WS message types, sendMessage, workspace persistence | **Done** |
 | 54 | Dashboard git auth UI tests | Auth badge (configured/unconfigured), Push button, Save Credentials, CreateWorkspacePanel auth toggle | **Done** |
 | 55 | Chat tool pill tests | Expandable pills, toolInput/toolResult display, thinking indicator, cost badge, replay button | **Done** |

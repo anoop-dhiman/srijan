@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { Eye, EyeOff, Plus, Trash2, Save, RotateCcw, Shield, Lock, Users as UsersIcon, Copy, Check, Bot, Terminal, DollarSign, GitBranch, Package, ToggleLeft, ToggleRight } from 'lucide-react';
+import { Eye, EyeOff, Plus, Trash2, Save, RotateCcw, Shield, Lock, Users as UsersIcon, Copy, Check, Bot, Terminal, DollarSign, GitBranch, Package, ToggleLeft, ToggleRight, Server } from 'lucide-react';
 import { apiFetch, getClaudeOAuthStatus, connectClaudeOAuth, disconnectClaudeOAuth, getRoles, createRole, deleteRole, type AgentRole } from '../lib/api';
+import { usePushNotifications } from '../hooks/usePushNotifications';
 
 interface PluginEntry {
   id: string;
@@ -31,7 +32,7 @@ interface User {
   createdAt: string;
 }
 
-type SettingsSection = 'ai-provider' | 'agent' | 'git' | 'security' | 'secrets' | 'users' | 'spending' | 'plugins' | 'roles';
+type SettingsSection = 'ai-provider' | 'agent' | 'git' | 'security' | 'secrets' | 'users' | 'spending' | 'plugins' | 'roles' | 'mcp';
 
 export function Settings({ open, isAdmin = false }: SettingsProps) {
   const [provider, setProvider] = useState<'anthropic' | 'vertex' | 'litellm' | 'claude-oauth'>('anthropic');
@@ -123,6 +124,25 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
   const [newRoleTools, setNewRoleTools] = useState('');
   const [roleMessage, setRoleMessage] = useState('');
 
+  // MCP state
+  interface McpServer {
+    name: string;
+    command: string;
+    args?: string[];
+    type?: string;
+  }
+  const [mcpServers, setMcpServers] = useState<McpServer[]>([]);
+  const [mcpLoading, setMcpLoading] = useState(false);
+  const [mcpError, setMcpError] = useState('');
+  const [newMcpName, setNewMcpName] = useState('');
+  const [newMcpCommand, setNewMcpCommand] = useState('');
+  const [newMcpArgs, setNewMcpArgs] = useState('');
+  const [addingMcp, setAddingMcp] = useState(false);
+  const [mcpAddMessage, setMcpAddMessage] = useState('');
+
+  // Push notifications
+  const { supported: pushSupported, enabled: pushEnabled, loading: pushLoading, enable: pushEnable, disable: pushDisable, error: pushError } = usePushNotifications();
+
   useEffect(() => {
     if (!open) return;
     loadConfig();
@@ -141,6 +161,15 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
       getRoles().then(r => { setRoles(r); setRolesLoaded(true); }).catch(() => {});
     }
   }, [activeSection, rolesLoaded]);
+
+  useEffect(() => {
+    if (activeSection !== 'mcp') return;
+    setMcpLoading(true);
+    apiFetch('/mcp')
+      .then((data: any) => setMcpServers(data.servers || []))
+      .catch(() => setMcpError('Failed to load MCP servers'))
+      .finally(() => setMcpLoading(false));
+  }, [activeSection]);
 
   useEffect(() => {
     getClaudeOAuthStatus().then(setOauthStatus).catch(() => {});
@@ -504,9 +533,54 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
 
   if (!open) return null;
 
+  const loadMcpServers = async () => {
+    setMcpLoading(true);
+    setMcpError('');
+    try {
+      const data: any = await apiFetch('/mcp');
+      setMcpServers(data.servers || []);
+    } catch {
+      setMcpError('Failed to load MCP servers');
+    } finally {
+      setMcpLoading(false);
+    }
+  };
+
+  const handleAddMcp = async () => {
+    if (!newMcpName || !newMcpCommand) return;
+    setAddingMcp(true);
+    setMcpAddMessage('');
+    try {
+      await apiFetch('/forge/api/mcp', {
+        method: 'POST',
+        body: JSON.stringify({ name: newMcpName, command: newMcpCommand, args: newMcpArgs.split(' ').filter(Boolean) }),
+      });
+      setNewMcpName('');
+      setNewMcpCommand('');
+      setNewMcpArgs('');
+      setMcpAddMessage('Server added');
+      setTimeout(() => setMcpAddMessage(''), 2000);
+      await loadMcpServers();
+    } catch (err: unknown) {
+      setMcpAddMessage((err as Error).message || 'Failed to add server');
+    } finally {
+      setAddingMcp(false);
+    }
+  };
+
+  const handleRemoveMcp = async (name: string) => {
+    try {
+      await apiFetch(`/forge/api/mcp/${name}`, { method: 'DELETE' });
+      await loadMcpServers();
+    } catch (err: unknown) {
+      setMcpError((err as Error).message || 'Failed to remove server');
+    }
+  };
+
   const navItems: { key: SettingsSection; label: string; icon: React.ReactNode }[] = [
     { key: 'ai-provider', label: 'AI Provider', icon: <Bot size={15} /> },
     { key: 'agent',       label: 'Agent',       icon: <Terminal size={15} /> },
+    { key: 'mcp',         label: 'MCP Servers', icon: <Server size={15} /> },
     { key: 'git',         label: 'Git',         icon: <GitBranch size={15} /> },
     { key: 'security',    label: 'Security',    icon: <Lock size={15} /> },
     { key: 'secrets',     label: 'Secrets',     icon: <Shield size={15} /> },
@@ -972,8 +1046,32 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
           </section>
         </>}
 
-        {/* Security section (2FA only) */}
+        {/* Security section (2FA + notifications) */}
         {activeSection === 'security' && <>
+          <section className="space-y-4">
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Notifications</h3>
+            <div className="border border-border rounded-lg p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="font-medium text-sm">Desktop Notifications</div>
+                  <div className="text-sm text-muted-foreground">
+                    Get notified when an agent completes or needs approval
+                  </div>
+                </div>
+                <button
+                  onClick={pushEnabled ? pushDisable : pushEnable}
+                  disabled={pushLoading || !pushSupported}
+                  className="text-primary disabled:opacity-40 transition-colors"
+                  aria-label={pushEnabled ? 'Disable notifications' : 'Enable notifications'}
+                >
+                  {pushEnabled ? <ToggleRight size={28} /> : <ToggleLeft size={28} />}
+                </button>
+              </div>
+              {pushError && <div className="text-sm text-destructive mt-2">{pushError}</div>}
+              {!pushSupported && <div className="text-sm text-muted-foreground mt-2">Not supported in this browser</div>}
+            </div>
+          </section>
+
           <section className="space-y-4">
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Two-Factor Authentication</h3>
             {totpEnabled ? (
@@ -1485,6 +1583,101 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
                 {roleMessage && <p className="text-xs text-muted-foreground">{roleMessage}</p>}
               </div>
             )}
+          </div>
+        )}
+
+        {/* MCP Servers section */}
+        {activeSection === 'mcp' && (
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold mb-4">MCP Servers</h3>
+            {mcpLoading && <p className="text-sm text-muted-foreground">Loading…</p>}
+            {mcpError && <p className="text-sm text-destructive">{mcpError}</p>}
+
+            {/* Servers table */}
+            {!mcpLoading && mcpServers.length > 0 && (
+              <div className="rounded-xl border border-border overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-muted border-b border-border">
+                      <th className="text-left px-4 py-2 font-medium text-muted-foreground">Name</th>
+                      <th className="text-left px-4 py-2 font-medium text-muted-foreground">Command</th>
+                      <th className="text-left px-4 py-2 font-medium text-muted-foreground">Args</th>
+                      <th className="px-4 py-2" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {mcpServers.map((srv) => (
+                      <tr key={srv.name} className="border-b border-border last:border-0">
+                        <td className="px-4 py-2 font-mono">{srv.name}</td>
+                        <td className="px-4 py-2 font-mono text-muted-foreground">{srv.command}</td>
+                        <td className="px-4 py-2 font-mono text-muted-foreground text-xs">{(srv.args || []).join(' ')}</td>
+                        <td className="px-4 py-2 text-right">
+                          <button
+                            onClick={() => handleRemoveMcp(srv.name)}
+                            className="p-1.5 text-muted-foreground hover:text-destructive transition-colors"
+                            title="Remove server"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {!mcpLoading && mcpServers.length === 0 && !mcpError && (
+              <p className="text-sm text-muted-foreground">No MCP servers configured.</p>
+            )}
+
+            {/* Add server form */}
+            <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-3">
+              <p className="text-sm font-medium text-muted-foreground">Add MCP server</p>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">Name</label>
+                  <input
+                    type="text"
+                    placeholder="my-server"
+                    value={newMcpName}
+                    onChange={(e) => setNewMcpName(e.target.value)}
+                    className="w-full rounded-xl border border-border bg-muted px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">Command</label>
+                  <input
+                    type="text"
+                    placeholder="npx"
+                    value={newMcpCommand}
+                    onChange={(e) => setNewMcpCommand(e.target.value)}
+                    className="w-full rounded-xl border border-border bg-muted px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">Args (space-separated)</label>
+                  <input
+                    type="text"
+                    placeholder="-y @modelcontextprotocol/server-memory"
+                    value={newMcpArgs}
+                    onChange={(e) => setNewMcpArgs(e.target.value)}
+                    className="w-full rounded-xl border border-border bg-muted px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={handleAddMcp}
+                  disabled={!newMcpName || !newMcpCommand || addingMcp}
+                  className="flex items-center gap-2 rounded-xl bg-secondary px-4 py-2.5 text-sm font-medium text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 transition-colors"
+                >
+                  <Plus size={16} />
+                  {addingMcp ? 'Adding…' : 'Add Server'}
+                </button>
+                {mcpAddMessage && <p className="text-sm text-secondary-foreground">{mcpAddMessage}</p>}
+              </div>
+            </div>
           </div>
         )}
 

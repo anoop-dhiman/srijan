@@ -144,6 +144,35 @@ export async function deleteWorkspace(name: string): Promise<void> {
   await fs.rm(wsPath, { recursive: true, force: true });
 }
 
+export async function getDetailedStatus(name: string): Promise<{ path: string; staged: boolean; type: string }[]> {
+  const git = getGit(name);
+  const status = await git.status();
+  return status.files.map(f => ({
+    path: f.path,
+    staged: f.index !== ' ' && f.index !== '?',
+    type: f.working_dir !== ' ' ? f.working_dir : f.index,
+  }));
+}
+
+export async function stageFiles(name: string, paths: string[]): Promise<void> {
+  const git = getGit(name);
+  if (paths.length === 0) {
+    await git.add('.');
+  } else {
+    await git.add(paths);
+  }
+}
+
+export async function unstageFiles(name: string, paths: string[]): Promise<void> {
+  const git = getGit(name);
+  await git.raw(['restore', '--staged', ...paths]);
+}
+
+export async function commitChanges(name: string, message: string): Promise<void> {
+  const git = getGit(name);
+  await git.commit(message);
+}
+
 export async function pullRepo(name: string, creds?: GitCredentials): Promise<{ summary: object }> {
   const git = getGit(name);
   const remotes = await git.getRemotes(true);

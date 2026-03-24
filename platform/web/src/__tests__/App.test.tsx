@@ -53,6 +53,18 @@ vi.mock('../components/SessionRecording', () => ({
   ),
 }));
 
+vi.mock('../components/MobileNav', () => ({
+  MobileNav: ({ activeView, onViewChange }: { activeView: string; onViewChange: (v: string) => void }) => (
+    <nav role="navigation" aria-label="Mobile navigation" data-testid="mobile-nav" data-active-view={activeView}>
+      <button onClick={() => onViewChange('dashboard')}>Dashboard</button>
+      <button onClick={() => onViewChange('chat')}>Chat</button>
+      <button onClick={() => onViewChange('files')}>Files</button>
+      <button onClick={() => onViewChange('terminal')}>Terminal</button>
+      <button onClick={() => onViewChange('settings')}>Settings</button>
+    </nav>
+  ),
+}));
+
 import { isAuthenticated, logout, getCurrentUser } from '../lib/api';
 import { useChat } from '../hooks/useChat';
 import App from '../App';
@@ -295,6 +307,29 @@ describe('App', () => {
       render(<App />);
       fireEvent.click(screen.getAllByRole('button', { name: 'Files' })[0]);
       expect(screen.getByTestId('file-browser')).toBeInTheDocument();
+    });
+  });
+
+  describe('MobileNav', () => {
+    beforeEach(() => {
+      vi.mocked(isAuthenticated).mockReturnValue(true);
+    });
+
+    it('renders MobileNav in the DOM', () => {
+      render(<App />);
+      expect(screen.getByTestId('mobile-nav')).toBeInTheDocument();
+    });
+
+    it('MobileNav has role="navigation"', () => {
+      render(<App />);
+      const mobileNav = screen.getByTestId('mobile-nav');
+      expect(mobileNav).toHaveAttribute('role', 'navigation');
+    });
+
+    it('MobileNav reflects the active view', () => {
+      render(<App />);
+      const mobileNav = screen.getByTestId('mobile-nav');
+      expect(mobileNav).toHaveAttribute('data-active-view', 'dashboard');
     });
   });
 

@@ -22,3 +22,17 @@ export async function deleteWorkspaceViaApi(request: APIRequestContext, token: s
     headers: { Authorization: `Bearer ${token}` },
   });
 }
+
+export async function getWorkspaceGitStatus(request: APIRequestContext, token: string, name: string) {
+  const res = await request.get(`${API_BASE}/git/${name}/status`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return res.json();
+}
+
+export async function initWorkspaceGit(request: APIRequestContext, token: string, name: string) {
+  await request.post(`${API_BASE}/git/init`, {
+    headers: { Authorization: `Bearer ${token}` },
+    data: { name },
+  });
+}

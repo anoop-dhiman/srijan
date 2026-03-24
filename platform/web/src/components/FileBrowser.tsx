@@ -1,9 +1,13 @@
 import { useState, useEffect, useRef, lazy, Suspense } from 'react';
-import { Folder, FolderOpen, FileText, ChevronRight, ChevronDown, Loader2, Pencil, Save, X, Menu } from 'lucide-react';
+import { Folder, FolderOpen, FileText, ChevronRight, ChevronDown, Loader2, Pencil, Save, X, Menu, GitBranch } from 'lucide-react';
 import type { WorkspaceInfo } from '../hooks/useChat';
 import { apiFetch } from '../lib/api';
 
 const MonacoEditor = lazy(() => import('../lib/monaco-setup'));
+
+const MonacoDiffEditor = lazy(() =>
+  import('@monaco-editor/react').then((m) => ({ default: m.DiffEditor }))
+);
 
 interface Entry {
   name: string;
@@ -157,6 +161,11 @@ export function FileBrowser({ workspaces, currentWorkspace, theme = 'dark' }: Fi
   const [saveError, setSaveError] = useState<string | null>(null);
   const fileAbortRef = useRef<AbortController | null>(null);
 
+  // Diff state
+  const [diffMode, setDiffMode] = useState(false);
+  const [originalContent, setOriginalContent] = useState('');
+  const [loadingDiff, setLoadingDiff] = useState(false);
+
   useEffect(() => {
     const handleResize = () => {
       if (window.innerWidth >= 768) setTreeVisible(true);
@@ -225,6 +234,8 @@ export function FileBrowser({ workspaces, currentWorkspace, theme = 'dark' }: Fi
     setIsEditing(false);
     setIsDirty(false);
     setSaveError(null);
+    setDiffMode(false);
+    setOriginalContent('');
 
     setSelectedFile(path);
     setLoadingFile(true);
@@ -273,6 +284,24 @@ export function FileBrowser({ workspaces, currentWorkspace, theme = 'dark' }: Fi
     setIsDirty(false);
     setSaveError(null);
     setEditContent(fileContent ?? '');
+  };
+
+  const handleToggleDiff = async () => {
+    if (!diffMode && selectedFile && workspace) {
+      setLoadingDiff(true);
+      try {
+        const data = await apiFetch(`/workspaces/${encodeURIComponent(workspace)}/diff?path=${encodeURIComponent(selectedFile)}`);
+        setOriginalContent(data.original ?? '');
+        setDiffMode(true);
+      } catch {
+        // silently fail, keep edit mode
+      } finally {
+        setLoadingDiff(false);
+      }
+    } else {
+      setDiffMode(false);
+      setOriginalContent('');
+    }
   };
 
   const monacoTheme = theme === 'dark' ? 'vs-dark' : 'vs';
@@ -364,6 +393,18 @@ export function FileBrowser({ workspaces, currentWorkspace, theme = 'dark' }: Fi
                 </p>
               </div>
               <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  onClick={handleToggleDiff}
+                  disabled={fileContent === null || loadingFile || loadingDiff}
+                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-colors disabled:opacity-40 ${
+                    diffMode ? 'bg-primary text-primary-foreground' : 'border border-border hover:bg-background/60'
+                  }`}
+                  title="Toggle diff view (vs HEAD)"
+                  data-testid="diff-toggle"
+                >
+                  <GitBranch size={12} />
+                  Diff
+                </button>
                 {!isEditing ? (
                   <button
                     onClick={handleEdit}
@@ -418,26 +459,37 @@ export function FileBrowser({ workspaces, currentWorkspace, theme = 'dark' }: Fi
                     <Loader2 size={16} className="animate-spin" /> Loading editor…
                   </div>
                 }>
-                  <MonacoEditor
-                    height="100%"
-                    language={language}
-                    theme={monacoTheme}
-                    value={isEditing ? editContent : fileContent}
-                    onChange={(val) => {
-                      if (isEditing) {
-                        setEditContent(val ?? '');
-                        setIsDirty(true);
-                      }
-                    }}
-                    options={{
-                      readOnly: !isEditing,
-                      minimap: { enabled: false },
-                      fontSize: 13,
-                      lineNumbers: 'on',
-                      scrollBeyondLastLine: false,
-                      wordWrap: 'on',
-                    }}
-                  />
+                  {diffMode ? (
+                    <MonacoDiffEditor
+                      original={originalContent}
+                      modified={fileContent}
+                      language={language}
+                      theme={monacoTheme}
+                      options={{ readOnly: true, renderSideBySide: true }}
+                      height="100%"
+                    />
+                  ) : (
+                    <MonacoEditor
+                      height="100%"
+                      language={language}
+                      theme={monacoTheme}
+                      value={isEditing ? editContent : fileContent}
+                      onChange={(val) => {
+                        if (isEditing) {
+                          setEditContent(val ?? '');
+                          setIsDirty(true);
+                        }
+                      }}
+                      options={{
+                        readOnly: !isEditing,
+                        minimap: { enabled: false },
+                        fontSize: 13,
+                        lineNumbers: 'on',
+                        scrollBeyondLastLine: false,
+                        wordWrap: 'on',
+                      }}
+                    />
+                  )}
                 </Suspense>
               )}
             </div>

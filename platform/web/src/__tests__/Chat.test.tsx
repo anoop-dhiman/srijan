@@ -204,7 +204,7 @@ describe('Chat', () => {
       const textarea = screen.getByPlaceholderText('Type a message...');
       await userEvent.type(textarea, 'hello world');
       fireEvent.submit(document.querySelector('form')!);
-      expect(defaultProps.onSendMessage).toHaveBeenCalledWith('hello world');
+      expect(defaultProps.onSendMessage).toHaveBeenCalledWith('hello world', undefined);
     });
 
     it('Enter key submits the form', async () => {
@@ -212,7 +212,7 @@ describe('Chat', () => {
       const textarea = screen.getByPlaceholderText('Type a message...');
       await userEvent.type(textarea, 'hello');
       await userEvent.keyboard('{Enter}');
-      expect(defaultProps.onSendMessage).toHaveBeenCalledWith('hello');
+      expect(defaultProps.onSendMessage).toHaveBeenCalledWith('hello', undefined);
     });
 
     it('Shift+Enter does not submit the form', async () => {
@@ -342,6 +342,57 @@ describe('Chat', () => {
     });
   });
 
+  describe('ThinkingModeSelector', () => {
+    it('renders ThinkingModeSelector in the header', () => {
+      render(<Chat {...defaultProps} />);
+      expect(screen.getByRole('group', { name: 'Thinking mode' })).toBeInTheDocument();
+    });
+
+    it('shows None mode as active by default', () => {
+      render(<Chat {...defaultProps} />);
+      const noneBtn = screen.getByRole('button', { name: /None/ });
+      expect(noneBtn).toHaveAttribute('aria-pressed', 'true');
+    });
+  });
+
+  describe('TokenPie', () => {
+    it('shows TokenPie when session has token usage', () => {
+      const tokens: Record<string, { inputTokens: number; outputTokens: number }> = {
+        'session-1': { inputTokens: 1000, outputTokens: 500 },
+      };
+      render(
+        <Chat
+          {...defaultProps}
+          currentSession={mockSession}
+          sessionTokens={tokens}
+        />
+      );
+      const svg = document.querySelector('svg[aria-label]');
+      expect(svg).toBeInTheDocument();
+    });
+
+    it('does not show TokenPie when no token usage', () => {
+      render(<Chat {...defaultProps} currentSession={mockSession} />);
+      expect(document.querySelector('svg[aria-label*="tokens used"]')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('PermissionBanner integration', () => {
+    it('shows PermissionBanner component when pendingApproval is true', () => {
+      const pendingActivity: Record<string, SessionActivity> = {
+        'session-1': { isLoading: false, agentStatus: '', hasUnread: false, pendingApproval: true },
+      };
+      render(
+        <Chat
+          {...defaultProps}
+          currentSession={mockSession}
+          sessionActivity={pendingActivity}
+        />
+      );
+      expect(screen.getByText('Agent awaiting your approval')).toBeInTheDocument();
+    });
+  });
+
   describe('approval bar (pendingApproval)', () => {
     const pendingActivity: Record<string, SessionActivity> = {
       'session-1': { isLoading: false, agentStatus: '', hasUnread: false, pendingApproval: true },
@@ -355,7 +406,7 @@ describe('Chat', () => {
           sessionActivity={pendingActivity}
         />
       );
-      expect(screen.getByText('Agent is requesting permission to proceed')).toBeInTheDocument();
+      expect(screen.getByText('Agent awaiting your approval')).toBeInTheDocument();
     });
 
     it('Approve button calls onSendMessage with "Approved"', async () => {
@@ -372,7 +423,7 @@ describe('Chat', () => {
       expect(onSendMessage).toHaveBeenCalledWith('Approved');
     });
 
-    it('Deny button calls onSendMessage with denial message', async () => {
+    it('Deny button calls onSendMessage with "Denied"', async () => {
       const onSendMessage = vi.fn();
       render(
         <Chat
@@ -383,9 +434,7 @@ describe('Chat', () => {
         />
       );
       await userEvent.click(screen.getByText('Deny'));
-      expect(onSendMessage).toHaveBeenCalledWith(
-        'Denied, please stop and propose an alternative.'
-      );
+      expect(onSendMessage).toHaveBeenCalledWith('Denied');
     });
 
     it('textarea is disabled when pendingApproval is true', () => {
