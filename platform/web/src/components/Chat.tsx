@@ -9,6 +9,7 @@ import type { ChatMessage, Session, WorkspaceInfo, SessionActivity } from '../ho
 import ReactMarkdown from 'react-markdown';
 import rehypeSanitize from 'rehype-sanitize';
 import { apiFetch } from '../lib/api';
+import { BashOutput } from './BashOutput';
 
 interface ChatProps {
   messages: ChatMessage[];
@@ -88,14 +89,23 @@ function ToolMessage({ msg }: { msg: ChatMessage }) {
             </div>
           )}
           {msg.toolResult && (
-            <div className="px-3 py-2">
-              <div className={`mb-1 text-[10px] uppercase tracking-wider ${isError ? 'text-destructive' : 'text-muted-foreground'}`}>
-                {isError ? 'Error' : 'Output'}
+            msg.toolName === 'Bash' ? (
+              <div>
+                <div className={`px-3 py-1.5 text-[10px] uppercase tracking-wider border-t border-border/30 ${isError ? 'text-destructive' : 'text-muted-foreground'}`}>
+                  {isError ? 'Error' : 'Output'}
+                </div>
+                <BashOutput content={msg.toolResult} />
               </div>
-              <pre className="whitespace-pre-wrap break-all text-foreground/80 max-h-60 overflow-y-auto">
-                {msg.toolResult}
-              </pre>
-            </div>
+            ) : (
+              <div className="px-3 py-2">
+                <div className={`mb-1 text-[10px] uppercase tracking-wider ${isError ? 'text-destructive' : 'text-muted-foreground'}`}>
+                  {isError ? 'Error' : 'Output'}
+                </div>
+                <pre className="whitespace-pre-wrap break-all text-foreground/80 max-h-60 overflow-y-auto">
+                  {msg.toolResult}
+                </pre>
+              </div>
+            )
           )}
         </div>
       )}
