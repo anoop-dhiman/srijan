@@ -166,7 +166,7 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
     if (activeSection !== 'mcp') return;
     setMcpLoading(true);
     apiFetch('/mcp')
-      .then((data: any) => setMcpServers(data.servers || []))
+      .then((data: { servers: McpServer[] }) => setMcpServers(data.servers || []))
       .catch(() => setMcpError('Failed to load MCP servers'))
       .finally(() => setMcpLoading(false));
   }, [activeSection]);
@@ -537,7 +537,7 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
     setMcpLoading(true);
     setMcpError('');
     try {
-      const data: any = await apiFetch('/mcp');
+      const data: { servers: McpServer[] } = await apiFetch('/mcp');
       setMcpServers(data.servers || []);
     } catch {
       setMcpError('Failed to load MCP servers');

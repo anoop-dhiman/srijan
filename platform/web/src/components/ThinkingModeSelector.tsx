@@ -1,14 +1,6 @@
 import React from 'react';
 import { Sparkles } from 'lucide-react';
-
-export type ThinkingMode = 'none' | 'low' | 'medium' | 'extended';
-
-export const THINKING_BUDGETS: Record<ThinkingMode, number | undefined> = {
-  none: undefined,
-  low: 4000,
-  medium: 16000,
-  extended: 64000,
-};
+import type { ThinkingMode } from './thinkingModes';
 
 interface ThinkingModeSelectorProps {
   value: ThinkingMode;

@@ -416,7 +416,6 @@ function GitSection({ workspaceName }: { workspaceName: string }) {
     } catch { /* ignore */ }
   }, [workspaceName]);
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { loadGitInfo(); }, [loadGitInfo]);
 
   const handleLink = async () => {

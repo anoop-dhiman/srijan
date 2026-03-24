@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { apiFetch } from '../lib/api';
 
 interface FileEntry {
@@ -81,10 +81,15 @@ export function useFileMentions({
   textareaRef,
 }: UseFileMentionsOptions): UseFileMentionsReturn {
   const [allFiles, setAllFiles] = useState<FileEntry[]>([]);
-  const [mentionOpen, setMentionOpen] = useState(false);
-  const [mentionQuery, setMentionQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [dismissedInput, setDismissedInput] = useState<string | null>(null);
   const fetchedWorkspace = useRef<string | null>(null);
+
+  // Derive mention state directly from input — no setState-in-effect
+  const detectedQuery = useMemo(() => detectMentionQuery(input), [input]);
+  // mentionOpen is false when user explicitly dismissed the menu for the current input value
+  const mentionOpen = detectedQuery !== null && input !== dismissedInput;
+  const mentionQuery = detectedQuery ?? '';
 
   // Fetch file list when workspace changes
   useEffect(() => {
@@ -96,19 +101,6 @@ export function useFileMentions({
     });
   }, [workspaceName]);
 
-  // Detect @mention trigger on input change
-  useEffect(() => {
-    const query = detectMentionQuery(input);
-    if (query !== null) {
-      setMentionQuery(query);
-      setSelectedIndex(0);
-      setMentionOpen(true);
-    } else {
-      setMentionOpen(false);
-      setMentionQuery('');
-    }
-  }, [input]);
-
   const suggestions = mentionQuery
     ? allFiles.filter((f) => f.path.toLowerCase().includes(mentionQuery.toLowerCase())).slice(0, 8)
     : allFiles.slice(0, 8);
@@ -118,8 +110,7 @@ export function useFileMentions({
       // Replace the trailing @<query> with the file path
       const newInput = input.replace(/@([^\s@]*)$/, `@${entry.path} `);
       setInput(newInput);
-      setMentionOpen(false);
-      setMentionQuery('');
+      // mentionOpen auto-closes because @query is replaced; no setState needed
       // Restore focus to textarea
       setTimeout(() => textareaRef.current?.focus(), 0);
     },
@@ -127,10 +118,10 @@ export function useFileMentions({
   );
 
   const closeMention = useCallback(() => {
-    setMentionOpen(false);
-    setMentionQuery('');
+    // Record current input as dismissed so mentionOpen becomes false
+    setDismissedInput(input);
     setSelectedIndex(0);
-  }, []);
+  }, [input]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent): boolean => {
@@ -159,10 +150,13 @@ export function useFileMentions({
     [mentionOpen, suggestions, selectedIndex, selectSuggestion, closeMention]
   );
 
+  // Clamp so a stale index from a previous mention never goes out-of-bounds
+  const safeIndex = suggestions.length > 0 ? Math.min(selectedIndex, suggestions.length - 1) : 0;
+
   return {
     mentionOpen,
     suggestions,
-    selectedIndex,
+    selectedIndex: safeIndex,
     mentionQuery,
     handleKeyDown,
     selectSuggestion,

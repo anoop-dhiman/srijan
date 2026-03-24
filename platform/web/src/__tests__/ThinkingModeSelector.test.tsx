@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { ThinkingModeSelector, THINKING_BUDGETS } from '../components/ThinkingModeSelector';
-import type { ThinkingMode } from '../components/ThinkingModeSelector';
+import { ThinkingModeSelector } from '../components/ThinkingModeSelector';
+import { THINKING_BUDGETS } from '../components/thinkingModes';
 
 describe('ThinkingModeSelector', () => {
   it('renders all 4 mode options', () => {
