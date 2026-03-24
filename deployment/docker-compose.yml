@@ -38,7 +38,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./workspaces:/workspaces
       - ./data:/data
-      - srijan_claude_home:/home/node/.claude
+      - ./data/claude-home:/home/node/.claude
     environment:
       - PORT=8080
       - SRIJAN_ADMIN_PASSWORD=${SRIJAN_ADMIN_PASSWORD:?SRIJAN_ADMIN_PASSWORD is required}
@@ -66,6 +66,3 @@ services:
       options:
         max-size: "50m"
         max-file: "5"
-
-volumes:
-  srijan_claude_home:

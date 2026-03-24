@@ -93,7 +93,10 @@ echo
 # ── Write deployment files ─────────────────────────────────────────────────────
 info "Writing deployment files to $INSTALL_DIR..."
 mkdir -p "$INSTALL_DIR/caddy/data" "$INSTALL_DIR/caddy/config" \
-         "$INSTALL_DIR/workspaces" "$INSTALL_DIR/data"
+         "$INSTALL_DIR/workspaces" "$INSTALL_DIR/data" \
+         "$INSTALL_DIR/data/claude-home"
+# node user inside the container has UID 1000; chown so it can write plugins
+chown 1000:1000 "$INSTALL_DIR/data/claude-home"
 
 cat > "$INSTALL_DIR/docker-compose.yml" <<'COMPOSE'
 services:
@@ -132,7 +135,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./workspaces:/workspaces
       - ./data:/data
-      - srijan_claude_home:/home/node/.claude
+      - ./data/claude-home:/home/node/.claude
     environment:
       - PORT=8080
       - SRIJAN_ADMIN_PASSWORD=${SRIJAN_ADMIN_PASSWORD:?SRIJAN_ADMIN_PASSWORD is required}
@@ -160,9 +163,6 @@ services:
       options:
         max-size: "50m"
         max-file: "5"
-
-volumes:
-  srijan_claude_home:
 COMPOSE
 
 if [[ "$TLS_MODE" == "caddy" ]]; then
