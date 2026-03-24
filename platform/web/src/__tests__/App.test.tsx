@@ -101,6 +101,8 @@ const mockChat = {
   activeRole: null,
   agents: [],
   createAgent: vi.fn(),
+  sessionTokens: {},
+  currentSessionTokens: { inputTokens: 0, outputTokens: 0, costUsd: 0 },
 };
 
 describe('App', () => {

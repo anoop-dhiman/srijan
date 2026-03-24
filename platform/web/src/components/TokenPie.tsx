@@ -1,4 +1,3 @@
-import React from 'react';
 
 interface TokenPieProps {
   inputTokens: number;
@@ -43,10 +42,10 @@ export function TokenPie({ inputTokens, outputTokens, model }: TokenPieProps) {
       width={size}
       height={size}
       viewBox={`0 0 ${size} ${size}`}
-      title={`${total.toLocaleString()} tokens used (${pct}%)`}
       aria-label={`${total.toLocaleString()} tokens used (${pct}%)`}
       style={{ display: 'inline-block', verticalAlign: 'middle' }}
     >
+      <title>{`${total.toLocaleString()} tokens used (${pct}%)`}</title>
       {/* Background ring */}
       <circle
         cx={cx}

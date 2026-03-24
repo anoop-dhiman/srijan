@@ -13,7 +13,7 @@ interface UseFileMentionsOptions {
   workspaceName: string | null;
   input: string;
   setInput: (v: string) => void;
-  textareaRef: React.RefObject<HTMLTextAreaElement>;
+  textareaRef: React.RefObject<HTMLTextAreaElement | null>;
 }
 
 interface UseFileMentionsReturn {
