@@ -18,9 +18,9 @@ describe('TokenPie', () => {
 
   it('shows title with correct token count and percentage', () => {
     render(<TokenPie inputTokens={100000} outputTokens={0} model="claude-3-5-sonnet" />);
-    const svg = document.querySelector('svg');
+    const title = document.querySelector('svg title');
     // 100000 / 200000 = 50%
-    expect(svg?.getAttribute('title')).toContain('100,000 tokens used (50%)');
+    expect(title?.textContent).toContain('100,000 tokens used (50%)');
   });
 
   it('uses blue color when usage < 50%', () => {
@@ -49,8 +49,8 @@ describe('TokenPie', () => {
 
   it('clamps ratio to 1 when tokens exceed limit', () => {
     render(<TokenPie inputTokens={300000} outputTokens={0} model="claude-3-5-sonnet" />);
-    const svg = document.querySelector('svg');
-    expect(svg?.getAttribute('title')).toContain('100%');
+    const title = document.querySelector('svg title');
+    expect(title?.textContent).toContain('100%');
   });
 
   it('works with claude-sonnet-4 model', () => {
@@ -58,6 +58,6 @@ describe('TokenPie', () => {
     const svg = document.querySelector('svg');
     // 100000 / 200000 = 50% → amber
     expect(svg).not.toBeNull();
-    expect(svg?.getAttribute('title')).toContain('100,000 tokens used (50%)');
+    expect(document.querySelector('svg title')?.textContent).toContain('100,000 tokens used (50%)');
   });
 });
