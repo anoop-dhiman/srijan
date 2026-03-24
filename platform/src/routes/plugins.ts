@@ -4,6 +4,9 @@ import { fileURLToPath } from 'url';
 import { dirname, resolve } from 'path';
 import { authMiddleware, requireAdmin } from '../security/auth.js';
 import { getApiKey } from '../agent/runner.js';
+import { createLogger } from '../lib/logger.js';
+
+const log = createLogger('plugins');
 
 const router = Router();
 router.use(authMiddleware);
@@ -23,6 +26,9 @@ function runPluginCmd(args: string[]): Promise<string> {
   if (key) env['ANTHROPIC_API_KEY'] = key;
   if (!env['HOME']) env['HOME'] = '/home/node';
   if (!env['SHELL']) env['SHELL'] = '/bin/sh';
+  // Prevent git from blocking on interactive prompts during marketplace clone
+  env['GIT_TERMINAL_PROMPT'] = '0';
+  env['GIT_SSH_COMMAND'] = 'ssh -o StrictHostKeyChecking=no -o BatchMode=yes';
 
   return new Promise((resolve, reject) => {
     const proc = spawn(process.execPath, [CLAUDE_BIN, 'plugin', ...args], {
@@ -70,16 +76,24 @@ function runPluginCmd(args: string[]): Promise<string> {
  */
 export async function ensureOfficialMarketplace(): Promise<void> {
   try {
+    log.info('Checking plugin marketplace registration...');
     const stdout = await runPluginCmd(['marketplace', 'list', '--json']);
     const list: { name: string }[] = JSON.parse(stdout.trim() || '[]');
+    log.info({ marketplaces: list.map((m) => m.name) }, 'Registered marketplaces');
+
     if (!list.some((m) => m.name === 'claude-plugins-official')) {
-      // Not registered — add it (GitHub shorthand) before updating
-      await runPluginCmd(['marketplace', 'add', 'anthropics/claude-plugins-official']);
+      log.info('Official marketplace not registered — adding anthropics/claude-plugins-official');
+      const addOut = await runPluginCmd(['marketplace', 'add', 'anthropics/claude-plugins-official']);
+      log.info({ output: addOut.trim() }, 'Marketplace add output');
     }
-    // Always update to fetch/refresh the plugin catalog from GitHub
-    await runPluginCmd(['marketplace', 'update', 'claude-plugins-official']);
-  } catch {
+
+    log.info('Updating marketplace catalog from GitHub...');
+    const updateOut = await runPluginCmd(['marketplace', 'update', 'claude-plugins-official']);
+    log.info({ output: updateOut.trim() }, 'Marketplace update complete');
+  } catch (err: any) {
     // Non-fatal: may fail in air-gapped environments
+    log.warn({ err: err.message, stderr: err.stderr?.trim(), stdout: err.stdout?.trim() },
+      'ensureOfficialMarketplace failed — plugin install may not work');
   }
 }
 
@@ -122,10 +136,13 @@ router.post('/', async (req: Request, res: Response) => {
     const msg: string = (firstErr.stderr || firstErr.stdout || firstErr.message || '').toString();
     // If the catalog doesn't have the plugin yet, refresh the marketplace and retry once
     if (msg.toLowerCase().includes('not found in marketplace')) {
+      log.info({ id }, 'Plugin not found — refreshing marketplace catalog and retrying');
       try {
-        await runPluginCmd(['marketplace', 'update']);
+        const updateOut = await runPluginCmd(['marketplace', 'update']);
+        log.info({ output: updateOut.trim() }, 'Marketplace update (retry) complete');
         await runPluginCmd(['install', id]);
       } catch (retryErr: any) {
+        log.warn({ id, err: (retryErr.stderr || retryErr.message)?.trim() }, 'Plugin install retry failed');
         const detail = (retryErr.stderr || retryErr.stdout || retryErr.message || '').toString().trim();
         res.status(500).json({ error: { code: 'PLUGIN_ERROR', message: detail || retryErr.message } });
         return;
