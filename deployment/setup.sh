@@ -93,7 +93,8 @@ echo
 # ── Write deployment files ─────────────────────────────────────────────────────
 info "Writing deployment files to $INSTALL_DIR..."
 mkdir -p "$INSTALL_DIR/caddy/data" "$INSTALL_DIR/caddy/config" \
-         "$INSTALL_DIR/workspaces" "$INSTALL_DIR/data"
+         "$INSTALL_DIR/workspaces" "$INSTALL_DIR/data" \
+         "$INSTALL_DIR/data/claude-home"
 
 cat > "$INSTALL_DIR/docker-compose.yml" <<'COMPOSE'
 services:
@@ -132,6 +133,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./workspaces:/workspaces
       - ./data:/data
+      - ./data/claude-home:/home/node/.claude
     environment:
       - PORT=8080
       - SRIJAN_ADMIN_PASSWORD=${SRIJAN_ADMIN_PASSWORD:?SRIJAN_ADMIN_PASSWORD is required}
