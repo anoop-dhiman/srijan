@@ -180,7 +180,6 @@ npx playwright test          # 62 E2E tests (requires running server)
 | Phase 13.3 | Consistent `/forge` prefix end-to-end — Caddy passes path unchanged, backend mounts all routes at `/forge/api/...`; e2e tests pass against direct `:8080` without Caddy | **Done** |
 | Phase 14 | Claude OAuth, orchestration plan UI, @mention agent roles, multi-agent per-workspace sessions | **Done** |
 | Phase 15 | claudecodeui integration — thinking mode, context-window ring, @file mentions, slash commands, permission banner, git staging panel, diff viewer, MCP server management, PWA + mobile nav, VAPID push notifications | **Done** |
-| Phase 16 | Local models (Ollama), GitHub bot, webhook notifications | Planned |
 
 ## Tech Stack
 
