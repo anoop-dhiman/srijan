@@ -20,10 +20,18 @@ Srijan is a self-hosted platform that runs on a single VM and provides:
 - **Orchestration plan UI** — agent calls `propose_plan` to show a collapsible step-by-step plan card before starting complex tasks
 - **Real-time activity feedback** — per-session spinner and unread indicators; background sessions continue streaming
 - **Agent Boundaries** — blocklist of dangerous Bash commands enforced at the platform level
-- **Confirm mode** — optional human-in-the-loop approval before agent executes actions
+- **Confirm mode** — optional human-in-the-loop approval before agent executes actions; inline approve/deny banner in chat
 - **Cost tracking** — token usage and USD cost per session, shown in sidebar; monthly spending caps per user and per workspace
+- **Context-window usage ring** — SVG donut indicator next to agent status shows tokens consumed vs model limit (blue → amber → red)
+- **Thinking mode** — per-message budget selector: None / Low (4 k) / Medium (16 k) / Extended (64 k) thinking tokens
+- **@file mentions** — type `@` in the composer to fuzzy-search workspace files and insert paths
+- **Slash commands** — `/clear`, `/compact`, `/new`, `/help` triggered by `/` with keyboard-navigable menu
+- **Git staging panel** — per-file checkboxes + commit message input directly in the Dashboard workspace card
 - **PTY terminal** — browser-based terminal (xterm.js) connected to the agent's workspace
-- **File browser + editor** — Monaco editor in the browser for reading and editing workspace files
+- **File browser + editor** — Monaco editor in the browser for reading, editing, and diff-viewing (side-by-side vs HEAD) workspace files
+- **MCP server management** — add, list, and remove Claude MCP servers from Settings
+- **PWA + mobile nav** — installable as a home-screen app; fixed bottom nav bar on narrow viewports; service worker for offline shell caching
+- **Desktop push notifications** — VAPID web push; notified on agent completion or error even when the tab is in the background
 
 ## How it Works
 
@@ -77,11 +85,11 @@ Then visit `https://dev.example.com/forge` from any device.
 
 ```bash
 cd platform
-npm test                     # 286 backend tests
+npm test                     # 325 backend tests
 
 cd web
-npx vitest run               # 197 frontend unit tests
-npx playwright test          # E2E tests (requires running server)
+npx vitest run               # 290 frontend unit tests
+npx playwright test          # 62 E2E tests (requires running server)
 ```
 
 ## Architecture
@@ -123,7 +131,7 @@ npx playwright test          # E2E tests (requires running server)
 - **Terminal** — xterm.js PTY terminal in the browser connected to the current session's workspace
 - **File browser + Monaco editor** — two-panel tree + in-browser code editor with save; Files tab
 - **Session recording** — read-only replay of any past session; replay button in Chat sidebar
-- **Settings** — two-column sidebar nav: AI Provider (Anthropic / Vertex AI / LiteLLM / Claude OAuth), Agent (system prompt, mode, blocklist, SDK), Security (TOTP 2FA with QR code), Secrets, Users, Agent Roles (admin only)
+- **Settings** — two-column sidebar nav: AI Provider (Anthropic / Vertex AI / LiteLLM / Claude OAuth), Agent (system prompt, mode, blocklist, SDK), Security (TOTP 2FA with QR code, desktop notifications), Secrets, Users, Agent Roles, MCP Servers (admin only)
 - **Agent roles** — built-in roles (coder, reviewer, devops, planner) seeded on first launch; admins can create/edit/delete custom roles with tool restrictions and system prompt overrides
 - **Agent sidebar** — shows all active agents in a session with status indicators; create new agents with optional role and subdirectory scope
 - **Message attribution** — assistant messages show which agent sent them when multiple agents are active
@@ -131,6 +139,16 @@ npx playwright test          # E2E tests (requires running server)
 - **TOTP 2FA** — enable/disable via Settings Security section; QR code + manual key; challenge step at login
 - **Real-time tool activity** — expandable pills showing file reads, edits, bash commands with input/output details
 - **Thinking indicator** — animated status showing what the agent is doing (Thinking, Reading file, Running command)
+- **Thinking mode selector** — None / Low / Medium / Extended token budget per message; persisted for the session
+- **Context-window ring** — SVG donut shows tokens used vs model limit; colour-coded (blue < 50 %, amber 50–75 %, red ≥ 75 %)
+- **@file mentions** — type `@` in the composer to fuzzy-search and insert workspace file paths
+- **Slash commands** — `/clear`, `/compact`, `/new`, `/help` via keyboard-navigable `/` menu
+- **Permission banner** — inline Approve / Deny when the agent awaits human confirmation in confirm mode
+- **Git staging panel** — per-file checkboxes and commit message input in the Dashboard workspace card; commit without leaving the browser
+- **Diff viewer** — toggle Monaco to side-by-side DiffEditor comparing working copy against `HEAD`
+- **MCP Servers** — list, add (name + command + args), and remove Claude MCP servers from Settings
+- **Mobile nav + PWA** — fixed bottom nav bar on narrow screens; installable to home screen; service worker for offline shell
+- **Desktop push notifications** — VAPID web push notifies on agent completion/error when the tab is backgrounded
 - **Theme toggle** — light/dark mode, persisted to localStorage
 
 ## Documentation
@@ -161,7 +179,8 @@ npx playwright test          # E2E tests (requires running server)
 | Phase 13.2 | Security: MCP-based app registration (agent never sees platform URL or user JWT); platform served exclusively at `/forge`; scoped per-session registration tokens | **Done** |
 | Phase 13.3 | Consistent `/forge` prefix end-to-end — Caddy passes path unchanged, backend mounts all routes at `/forge/api/...`; e2e tests pass against direct `:8080` without Caddy | **Done** |
 | Phase 14 | Claude OAuth, orchestration plan UI, @mention agent roles, multi-agent per-workspace sessions | **Done** |
-| Phase 15 | Local models (Ollama), GitHub bot, webhook notifications | Planned |
+| Phase 15 | claudecodeui integration — thinking mode, context-window ring, @file mentions, slash commands, permission banner, git staging panel, diff viewer, MCP server management, PWA + mobile nav, VAPID push notifications | **Done** |
+| Phase 16 | Local models (Ollama), GitHub bot, webhook notifications | Planned |
 
 ## Tech Stack
 
@@ -170,7 +189,7 @@ npx playwright test          # E2E tests (requires running server)
 | Frontend | React 19 + Vite 8 + Tailwind 4 + Monaco Editor |
 | Backend | Node.js 22 + Express 5 + TypeScript 5.9 + WebSocket (ws) |
 | Agent | @anthropic-ai/claude-code (CLI subprocess) |
-| LLM Providers | Anthropic API, Google Cloud Vertex AI, LiteLLM proxy |
+| LLM Providers | Anthropic API, Google Cloud Vertex AI, LiteLLM proxy, Claude OAuth |
 | Database | SQLite (better-sqlite3, WAL mode) |
 | Git | simple-git (auth-aware; encrypted PAT per workspace) |
 | Terminal | node-pty + xterm.js |
