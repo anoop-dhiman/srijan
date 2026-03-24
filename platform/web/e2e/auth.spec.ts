@@ -4,7 +4,7 @@ const ADMIN_PASSWORD = process.env.SRIJAN_ADMIN_PASSWORD || 'testpass';
 
 test.describe('Authentication', () => {
   test('login with valid credentials shows dashboard', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/forge/');
     await page.getByLabel(/username/i).fill('admin');
     await page.getByLabel(/password/i).fill(ADMIN_PASSWORD);
     await page.getByRole('button', { name: /sign in/i }).click();
@@ -12,7 +12,7 @@ test.describe('Authentication', () => {
   });
 
   test('login with invalid credentials shows error', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/forge/');
     await page.getByLabel(/username/i).fill('admin');
     await page.getByLabel(/password/i).fill('wrongpassword');
     await page.getByRole('button', { name: /sign in/i }).click();
@@ -20,7 +20,7 @@ test.describe('Authentication', () => {
   });
 
   test('token persists across page reload', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/forge/');
     await page.getByLabel(/username/i).fill('admin');
     await page.getByLabel(/password/i).fill(ADMIN_PASSWORD);
     await page.getByRole('button', { name: /sign in/i }).click();
@@ -31,12 +31,12 @@ test.describe('Authentication', () => {
   });
 
   test('unauthenticated user sees login form', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/forge/');
     await expect(page.getByRole('button', { name: /sign in/i })).toBeVisible();
   });
 
   test('login form has username and password fields', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/forge/');
     await expect(page.getByLabel(/username/i)).toBeVisible();
     await expect(page.getByLabel(/password/i)).toBeVisible();
   });

@@ -87,18 +87,18 @@ Single Docker container that runs the entire platform:
 ```
 Platform Container (:8080)
 +-- API Server (Node.js + Express + TypeScript)
-|   +-- /api/auth          # Login (password + TOTP challenge), JWT session tokens
-|   +-- /api/chat          # Agent chat (WebSocket; persistent per-session forwarders)
-|   +-- /api/config        # LLM/agent/system-prompt settings (GET/PUT)
-|   +-- /api/secrets       # Secret management (CRUD, encrypted at rest)
-|   +-- /api/apps          # Deployed app registration + Caddy route management
-|   +-- /api/git/:name/*   # status, clone, init, remote, push, pull, credentials CRUD
-|   +-- /api/workspaces    # List + create + delete workspaces (clone, init, optional remote + creds)
-|   +-- /api/workspaces/:name/files  # File tree + read/write (Monaco editor backend)
-|   +-- /api/containers    # List/start/stop/logs Docker containers
-|   +-- /api/sessions/:id  # Cost aggregates, recording (event replay)
-|   +-- /api/users         # CRUD (admin only; RBAC)
-|   +-- /api/terminal      # WS PTY via node-pty (xterm.js backend)
+|   +-- /forge/api/auth          # Login (password + TOTP challenge), JWT session tokens
+|   +-- /forge/api/chat          # Agent chat (WebSocket; persistent per-session forwarders)
+|   +-- /forge/api/config        # LLM/agent/system-prompt settings (GET/PUT)
+|   +-- /forge/api/secrets       # Secret management (CRUD, encrypted at rest)
+|   +-- /forge/api/apps          # Deployed app registration + Caddy route management
+|   +-- /forge/api/git/:name/*   # status, clone, init, remote, push, pull, credentials CRUD
+|   +-- /forge/api/workspaces    # List + create + delete workspaces (clone, init, optional remote + creds)
+|   +-- /forge/api/workspaces/:name/files  # File tree + read/write (Monaco editor backend)
+|   +-- /forge/api/containers    # List/start/stop/logs Docker containers
+|   +-- /forge/api/sessions/:id  # Cost aggregates, recording (event replay)
+|   +-- /forge/api/users         # CRUD (admin only; RBAC)
+|   +-- /forge/api/terminal      # WS PTY via node-pty (xterm.js backend)
 |
 +-- Web UI (React/Vite)
 |   +-- Chat interface
@@ -171,7 +171,7 @@ Agent Sandbox (within platform container)
 ```
 User (browser)
   |
-  | WebSocket: /forge/api/chat  (Caddy strips /forge -> /api/chat at platform)
+  | WebSocket: /forge/api/chat  (path preserved end-to-end; no prefix stripping)
   v
 API Server
   |
@@ -223,7 +223,7 @@ Agent:
   7. docker compose up -d
      -> app on :3001, postgres on :5432 (internal)
   8. mcp__srijan__register_app {name: "todo", port: 3001, path: "/todo"}
-     -> MCP server calls POST http://localhost:8080/api/apps/register
+     -> MCP server calls POST http://localhost:8080/forge/api/apps/register
         with X-Registration-Token (scoped per-session, not user JWT)
   9. Caddy Route Manager calls Caddy Admin API:
      POST http://caddy:2019/config/apps/http/servers/srv0/routes

@@ -51,7 +51,7 @@ npm run dev                  # Backend on :8080
 
 cd web
 npm install
-npx vite                     # Frontend on :5173 (proxies /forge -> :8080, strips prefix)
+npx vite                     # Frontend on :5173 (proxies /forge/* -> backend :8080)
 ```
 
 Login: username `admin`, password `admin` (or set `SRIJAN_ADMIN_PASSWORD` env var).
@@ -159,6 +159,7 @@ npx playwright test          # E2E tests (requires running server)
 | Phase 13 | Production Dockerfile + CI/CD (GitHub Actions → ghcr.io), monthly spending caps, Playwright E2E tests — 497 tests | **Done** |
 | Phase 13.1 | CI/CD improvements: merged build+push job, path filters, E2E race condition fixes, self-contained setup.sh (pull prebuilt image, no git clone) | **Done** |
 | Phase 13.2 | Security: MCP-based app registration (agent never sees platform URL or user JWT); platform served exclusively at `/forge`; scoped per-session registration tokens | **Done** |
+| Phase 13.3 | Consistent `/forge` prefix end-to-end — Caddy passes path unchanged, backend mounts all routes at `/forge/api/...`; e2e tests pass against direct `:8080` without Caddy | **Done** |
 | Phase 14 | Claude OAuth, orchestration plan UI, @mention agent roles, multi-agent per-workspace sessions | **Done** |
 | Phase 15 | Local models (Ollama), GitHub bot, webhook notifications | Planned |
 

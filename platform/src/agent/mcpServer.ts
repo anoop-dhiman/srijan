@@ -111,7 +111,7 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
     if (WORKSPACE) body.workspaceName = WORKSPACE;
 
     try {
-      const res = await fetch(`${PLATFORM_URL}/api/apps/register`, {
+      const res = await fetch(`${PLATFORM_URL}/forge/api/apps/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
