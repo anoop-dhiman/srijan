@@ -229,6 +229,8 @@ export function Chat({
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_WIDTH);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const isAtBottom = useRef(true);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const isResizing = useRef(false);
   const [spendingWarning, setSpendingWarning] = useState<{ percent: number; limit_usd: number } | null>(null);
@@ -247,8 +249,22 @@ export function Chat({
     ? !!(sessionActivity[currentSession.id]?.pendingApproval)
     : false;
 
+  // Track whether the user is near the bottom of the message list
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    const handleScroll = () => {
+      isAtBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    };
+    el.addEventListener('scroll', handleScroll, { passive: true });
+    return () => el.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Auto-scroll only when the user is already at the bottom
+  useEffect(() => {
+    if (isAtBottom.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
   }, [messages, agentStatus]);
 
   // Collapse sidebar on mobile when viewport is narrow
@@ -289,6 +305,7 @@ export function Chat({
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     if (!input.trim() || isLoading || noWorkspace || isPendingApproval) return;
+    isAtBottom.current = true;
     onSendMessage(input.trim());
     setInput('');
     if (inputRef.current) {
@@ -468,7 +485,7 @@ export function Chat({
         )}
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto py-6">
+        <div ref={scrollContainerRef} className="flex-1 overflow-y-auto py-6">
           {messages.length === 0 && !isLoading && (
             <div className="flex items-center justify-center h-full">
               <div className="text-center space-y-3">
