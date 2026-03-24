@@ -29,6 +29,7 @@ import filesRouter from './routes/files.js';
 import sessionsRouter from './routes/sessions.js';
 import usersRouter from './routes/users.js';
 import spendingRouter from './routes/spending.js';
+import pluginsRouter, { ensureOfficialMarketplace } from './routes/plugins.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -77,6 +78,7 @@ app.use('/api/workspaces', filesRouter);
 app.use('/api/sessions', sessionsRouter);
 app.use('/api/users', usersRouter);
 app.use('/api/spending', spendingRouter);
+app.use('/api/plugins', pluginsRouter);
 
 // Health check
 app.get('/health', async (_req, res) => {
@@ -178,6 +180,8 @@ server.listen(PORT, () => {
   // Tag Caddy's host-route subroute so dynamic app routes land inside it
   // (avoids the terminal: true route shadowing dynamically added routes)
   initCaddyRouteId().catch(err => log.warn({ err: err.message }, 'initCaddyRouteId failed at startup'));
+  // Ensure the official Claude plugin marketplace is registered in the container's Claude home
+  ensureOfficialMarketplace().catch(() => {});
 });
 
 // Graceful shutdown

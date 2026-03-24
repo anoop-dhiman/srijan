@@ -23,6 +23,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - srijan_workspaces:/workspaces
       - srijan_data:/data
+      - srijan_claude_home:/home/node/.claude
     environment:
       - PORT=8080
       - NODE_ENV=development
@@ -42,3 +43,4 @@ volumes:
   caddy_config:
   srijan_workspaces:
   srijan_data:
+  srijan_claude_home:

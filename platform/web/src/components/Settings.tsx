@@ -1,7 +1,16 @@
 import { useState, useEffect } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { Eye, EyeOff, Plus, Trash2, Save, RotateCcw, Shield, Lock, Users as UsersIcon, Copy, Check, Bot, Terminal, DollarSign, GitBranch } from 'lucide-react';
+import { Eye, EyeOff, Plus, Trash2, Save, RotateCcw, Shield, Lock, Users as UsersIcon, Copy, Check, Bot, Terminal, DollarSign, GitBranch, Package, ToggleLeft, ToggleRight } from 'lucide-react';
 import { apiFetch } from '../lib/api';
+
+interface PluginEntry {
+  id: string;
+  version: string;
+  scope: string;
+  enabled: boolean;
+  installPath: string;
+  installedAt: string;
+}
 
 interface SettingsProps {
   open: boolean;
@@ -22,7 +31,7 @@ interface User {
   createdAt: string;
 }
 
-type SettingsSection = 'ai-provider' | 'agent' | 'git' | 'security' | 'secrets' | 'users' | 'spending';
+type SettingsSection = 'ai-provider' | 'agent' | 'git' | 'security' | 'secrets' | 'users' | 'spending' | 'plugins';
 
 export function Settings({ open, isAdmin = false }: SettingsProps) {
   const [provider, setProvider] = useState<'anthropic' | 'vertex' | 'litellm'>('anthropic');
@@ -90,6 +99,13 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
   const [spendingWsLimits, setSpendingWsLimits] = useState<Record<string, string>>({});
   const [spendingMessage, setSpendingMessage] = useState('');
 
+  // Plugins state (admin only)
+  const [plugins, setPlugins] = useState<PluginEntry[]>([]);
+  const [pluginsLoading, setPluginsLoading] = useState(false);
+  const [newPluginId, setNewPluginId] = useState('');
+  const [pluginInstalling, setPluginInstalling] = useState(false);
+  const [pluginMessage, setPluginMessage] = useState('');
+
   useEffect(() => {
     if (!open) return;
     loadConfig();
@@ -100,6 +116,7 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
 
   useEffect(() => {
     if (open && isAdmin && activeSection === 'spending') loadSpending();
+    if (open && isAdmin && activeSection === 'plugins') loadPlugins();
   }, [open, isAdmin, activeSection]);
 
   const loadConfig = async () => {
@@ -154,6 +171,20 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
       const me = await apiFetch('/auth/me');
       setCurrentUserId(me.user?.userId || null);
     } catch { /* ignore */ }
+  };
+
+  const loadPlugins = async () => {
+    setPluginsLoading(true);
+    setPluginMessage('');
+    try {
+      const data = await apiFetch('/plugins');
+      setPlugins(Array.isArray(data) ? data : []);
+    } catch (err: unknown) {
+      setPlugins([]);
+      setPluginMessage((err as Error).message || 'Failed to load plugins');
+    } finally {
+      setPluginsLoading(false);
+    }
   };
 
   const loadSpending = async () => {
@@ -427,6 +458,7 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
     { key: 'secrets',     label: 'Secrets',     icon: <Shield size={15} /> },
     ...(isAdmin ? [{ key: 'users' as const, label: 'Users', icon: <UsersIcon size={15} /> }] : []),
     ...(isAdmin ? [{ key: 'spending' as const, label: 'Spending', icon: <DollarSign size={15} /> }] : []),
+    ...(isAdmin ? [{ key: 'plugins' as const, label: 'Plugins', icon: <Package size={15} /> }] : []),
   ];
 
   return (
@@ -1079,6 +1111,118 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
             </div>
 
             {usersMessage && <p className="text-sm text-secondary-foreground">{usersMessage}</p>}
+          </section>
+        </>}
+
+        {/* Plugins section — admin only */}
+        {activeSection === 'plugins' && isAdmin && <>
+          <section className="space-y-4">
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
+              <Package size={13} />
+              Claude Code Plugins
+            </h3>
+            <p className="text-sm text-muted-foreground">
+              Plugins are installed into the container's Claude home directory and active for every agent session.
+            </p>
+
+            {/* Installed plugins list */}
+            {pluginsLoading ? (
+              <p className="text-sm text-muted-foreground">Loading…</p>
+            ) : plugins.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No plugins installed.</p>
+            ) : (
+              <div className="space-y-2">
+                {plugins.map((p) => (
+                  <div key={p.id} className="flex items-center justify-between rounded-xl border border-border px-4 py-3">
+                    <div className="flex flex-col gap-0.5 min-w-0">
+                      <span className="text-sm font-mono truncate">{p.id}</span>
+                      <span className="text-xs text-muted-foreground">v{p.version} · {p.scope}</span>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0 ml-3">
+                      <button
+                        title={p.enabled ? 'Disable plugin' : 'Enable plugin'}
+                        onClick={async () => {
+                          const action = p.enabled ? 'disable' : 'enable';
+                          try {
+                            await apiFetch(`/plugins/${encodeURIComponent(p.id)}/${action}`, { method: 'POST' });
+                            setPluginMessage(`Plugin ${action}d`);
+                            setTimeout(() => setPluginMessage(''), 2000);
+                            loadPlugins();
+                          } catch (err: unknown) {
+                            setPluginMessage((err as Error).message);
+                          }
+                        }}
+                        className={`transition-colors ${p.enabled ? 'text-primary hover:text-primary/70' : 'text-muted-foreground hover:text-foreground'}`}
+                      >
+                        {p.enabled ? <ToggleRight size={22} /> : <ToggleLeft size={22} />}
+                      </button>
+                      <button
+                        title="Uninstall plugin"
+                        onClick={async () => {
+                          if (!confirm(`Uninstall ${p.id}?`)) return;
+                          try {
+                            await apiFetch(`/plugins/${encodeURIComponent(p.id)}`, { method: 'DELETE' });
+                            setPluginMessage('Plugin uninstalled');
+                            setTimeout(() => setPluginMessage(''), 2000);
+                            loadPlugins();
+                          } catch (err: unknown) {
+                            setPluginMessage((err as Error).message);
+                          }
+                        }}
+                        className="p-1.5 text-muted-foreground hover:text-destructive transition-colors"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Install new plugin */}
+            <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-3">
+              <p className="text-sm font-medium text-muted-foreground">Install plugin</p>
+              <p className="text-xs text-muted-foreground">
+                Enter a plugin ID from the official marketplace, e.g. <code className="font-mono bg-muted px-1 rounded">frontend-design@claude-plugins-official</code>
+              </p>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="plugin-name@marketplace"
+                  value={newPluginId}
+                  onChange={(e) => setNewPluginId(e.target.value)}
+                  className="flex-1 rounded-xl border border-border bg-muted px-3 py-2.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+                <button
+                  onClick={async () => {
+                    if (!newPluginId.trim()) return;
+                    setPluginInstalling(true);
+                    setPluginMessage('');
+                    try {
+                      await apiFetch('/plugins', {
+                        method: 'POST',
+                        body: JSON.stringify({ id: newPluginId.trim() }),
+                      });
+                      setPluginMessage('Plugin installed');
+                      setNewPluginId('');
+                      setTimeout(() => setPluginMessage(''), 3000);
+                      loadPlugins();
+                    } catch (err: unknown) {
+                      setPluginMessage((err as Error).message);
+                    } finally {
+                      setPluginInstalling(false);
+                    }
+                  }}
+                  disabled={!newPluginId.trim() || pluginInstalling}
+                  className="flex items-center gap-2 rounded-xl bg-secondary px-4 py-2.5 text-sm font-medium text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 transition-colors"
+                >
+                  <Plus size={16} />
+                  {pluginInstalling ? 'Installing…' : 'Install'}
+                </button>
+              </div>
+            </div>
+
+            {pluginMessage && <p className="text-sm text-secondary-foreground">{pluginMessage}</p>}
           </section>
         </>}
 
