@@ -25,20 +25,20 @@ Srijan/
 │   ├── src/
 │   │   ├── server.ts        # Express entry point (:8080), WS upgrade dispatcher
 │   │   ├── routes/
-│   │   │   ├── auth.ts      # POST /api/auth/login, GET /api/auth/me, /auth/totp/* TOTP endpoints
-│   │   │   ├── chat.ts      # WebSocket /api/chat (sessions, agent messaging, persistent forwarders)
-│   │   │   ├── config.ts    # GET/PUT /api/config (LLM + system prompt settings)
-│   │   │   ├── secrets.ts   # CRUD /api/secrets (AES-256 encrypted)
-│   │   │   ├── apps.ts      # CRUD /api/apps (registers routes with Caddy, accepts workspace_name)
+│   │   │   ├── auth.ts      # POST /forge/api/auth/login, GET /forge/api/auth/me, /auth/totp/* TOTP endpoints
+│   │   │   ├── chat.ts      # WebSocket /forge/api/chat (sessions, agent messaging, persistent forwarders)
+│   │   │   ├── config.ts    # GET/PUT /forge/api/config (LLM + system prompt settings)
+│   │   │   ├── secrets.ts   # CRUD /forge/api/secrets (AES-256 encrypted)
+│   │   │   ├── apps.ts      # CRUD /forge/api/apps (registers routes with Caddy, accepts workspace_name)
 │   │   │   ├── git.ts       # Git routes: clone, init, status, pull, push, remote, credentials CRUD
-│   │   │   ├── cost.ts      # GET /api/sessions/:id/cost (token usage aggregates)
-│   │   │   ├── containers.ts# GET /api/containers (filtered to registered app containers)
-│   │   │   ├── workspaces.ts# GET/POST /api/workspaces (WorkspaceInfo[], create/clone); DELETE /:name (cascading cleanup)
-│   │   │   ├── terminal.ts  # WS /api/terminal (node-pty PTY)
-│   │   │   ├── files.ts     # GET /api/workspaces/:name/files, /file; PUT /file (Monaco save)
-│   │   │   ├── sessions.ts  # GET /api/sessions/:id/recording (event replay)
-│   │   │   ├── spending.ts  # GET /api/spending/* (me, users, workspaces, workspace/:name)
-│   │   │   └── users.ts     # CRUD /api/users (admin only, RBAC); PUT /:id/spending-limit
+│   │   │   ├── cost.ts      # GET /forge/api/sessions/:id/cost (token usage aggregates)
+│   │   │   ├── containers.ts# GET /forge/api/containers (filtered to registered app containers)
+│   │   │   ├── workspaces.ts# GET/POST /forge/api/workspaces (WorkspaceInfo[], create/clone); DELETE /:name (cascading cleanup)
+│   │   │   ├── terminal.ts  # WS /forge/api/terminal (node-pty PTY)
+│   │   │   ├── files.ts     # GET /forge/api/workspaces/:name/files, /file; PUT /file (Monaco save)
+│   │   │   ├── sessions.ts  # GET /forge/api/sessions/:id/recording (event replay)
+│   │   │   ├── spending.ts  # GET /forge/api/spending/* (me, users, workspaces, workspace/:name)
+│   │   │   └── users.ts     # CRUD /forge/api/users (admin only, RBAC); PUT /:id/spending-limit
 │   │   ├── agent/
 │   │   │   ├── runner.ts    # AgentRunner — Claude Code CLI subprocess, Vertex AI, boundaries, cost
 │   │   │   ├── IAgentRunner.ts  # Interface for pluggable agent backends
@@ -124,7 +124,7 @@ Key details:
 - **LiteLLM** — if provider is `litellm`, sets `ANTHROPIC_BASE_URL` + `ANTHROPIC_API_KEY` to route through LiteLLM proxy
 - **Secret Proxy** — DB secrets decrypted at spawn time, injected as `SRIJAN_SECRET_<NAME>` env vars; HTTP proxy + CONNECT relay substitutes placeholders in outbound LLM requests
 - **Agent Boundaries** — Bash tool_use requests checked against blocklist (DB key `agent_boundaries`, default hardcoded list); blocked commands return an error event
-- **Cost Tracking** — `result` event → INSERT into `token_usage` table; `GET /api/sessions/:id/cost` aggregates
+- **Cost Tracking** — `result` event → INSERT into `token_usage` table; `GET /forge/api/sessions/:id/cost` aggregates
 - **System prompt** — configurable via DB (`config` table, key `system_prompt`), falls back to `DEFAULT_SYSTEM_PROMPT`
 - **Multi-SDK** — factory checks DB key `agentSdk`: `claude-code` (default) or `opencode` (stub, emits error)
 
@@ -189,19 +189,19 @@ Supported providers: `github` (PAT), `azure` (Azure DevOps PAT), `generic` (any 
 - **Secrets**: CRUD with AES-256 encryption; injected as env vars at agent spawn via secret proxy
 - **Apps**: list, register (triggers Caddy route, accepts `workspace_name`), delete (removes Caddy route)
 - **Git**: clone, init, pull, push, status (with remoteUrl), set remote — all operations auth-aware
-- **Git credentials**: CRUD per workspace (`GET/POST/DELETE /api/git/:name/credentials`); tokens encrypted at rest
+- **Git credentials**: CRUD per workspace (`GET/POST/DELETE /forge/api/git/:name/credentials`); tokens encrypted at rest
 - **Chat (WebSocket)**: create/join/list/delete sessions (with `workspace_name`), send messages, stream agent events via persistent forwarders
 - **Agent runner**: Claude Code CLI subprocess with Anthropic, Vertex AI, and LiteLLM support; boundaries enforcement; cost tracking
 - **Session persistence**: events stored in DB, restored on join (with JSON parsing)
-- **Session recording**: `GET /api/sessions/:id/recording` returns ordered event list for replay
+- **Session recording**: `GET /forge/api/sessions/:id/recording` returns ordered event list for replay
 - **Cost tracking**: token usage INSERT on each `result` event; aggregate GET endpoint
 - **Workspaces**: list with metadata; create (accepts `cloneUrl`, `remoteUrl`, `gitProvider`, `gitUsername`, `gitToken`); clone; **delete** (cascades: credentials → sessions → apps → filesystem)
-- **File browser**: `GET /api/workspaces/:name/files?path=` (directory listing) + `/file?path=` (file content) + `PUT /file` (save)
+- **File browser**: `GET /forge/api/workspaces/:name/files?path=` (directory listing) + `/file?path=` (file content) + `PUT /file` (save)
 - **Containers**: filtered to registered app containers only; optional `?workspace=` scoping
-- **Terminal**: PTY via node-pty, WS at `/api/terminal?token=&sessionId=`, xterm.js on frontend
-- **Users (RBAC)**: `GET/POST/DELETE /api/users` (admin only); `role` column in users table; `requireAdmin` middleware; `PUT /api/users/:id/spending-limit` (admin)
+- **Terminal**: PTY via node-pty, WS at `/forge/api/terminal?token=&sessionId=`, xterm.js on frontend
+- **Users (RBAC)**: `GET/POST/DELETE /forge/api/users` (admin only); `role` column in users table; `requireAdmin` middleware; `PUT /forge/api/users/:id/spending-limit` (admin)
 - **Spending caps**: `lib/spending.ts` — `checkSpendingLimits(userId, workspaceName)` called before agent spawn; `getMonthWindowStart()` for calendar-month windows; `getUserSpending` / `getWorkspaceSpending` aggregate `token_usage` by month; agent spawn blocked (503) when limit exceeded
-- **Spending routes**: `GET /api/spending/me`, `GET /api/spending/users` (admin), `GET /api/spending/workspaces` (admin), `GET /api/spending/workspace/:name`
+- **Spending routes**: `GET /forge/api/spending/me`, `GET /forge/api/spending/users` (admin), `GET /forge/api/spending/workspaces` (admin), `GET /forge/api/spending/workspace/:name`
 - **CI/CD**: `.github/workflows/ci.yml` — `lint → test → build-and-push → e2e`; build and push merged into one job (no double build); path filters (`platform/**`, `.github/workflows/ci.yml`) skip CI for doc/deployment-only changes; `WORKSPACE_ROOT` set to writable path in E2E job; E2E race conditions fixed with `toBeEnabled()` waits and `data-testid="workspace-card"` selector
 - **setup.sh**: fully interactive (prompts via `/dev/tty` — works with `curl | bash`); prompts: domain, TLS mode (`caddy` = auto HTTPS / `external` = LB handles TLS), email (caddy only), admin password (hidden + confirm, min 8 chars), install dir (default `$(pwd)/srijan`); dependency checks before prompts; embeds `docker-compose.yml` + appropriate `Caddyfile` as heredocs; pulls `ghcr.io/anoop-dhiman/srijan-platform:latest`; re-runs preserve existing `JWT_SECRET`/`SECRETS_KEY` and only rewrite domain/email/password; no `sudo` required; trap on INT/TERM for clean exit
 

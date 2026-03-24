@@ -80,6 +80,42 @@ CREATE TABLE IF NOT EXISTS workspace_spending (
   spending_reset_at TEXT
 );
 
+CREATE TABLE IF NOT EXISTS user_oauth_tokens (
+  user_id                 TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  encrypted_access_token  TEXT NOT NULL,
+  encrypted_refresh_token TEXT,
+  expires_at              INTEGER,
+  account_email           TEXT,
+  subscription_type       TEXT,
+  updated_at              TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS agent_roles (
+  id                     TEXT PRIMARY KEY,
+  name                   TEXT UNIQUE NOT NULL,
+  display_name           TEXT NOT NULL,
+  description            TEXT NOT NULL DEFAULT '',
+  system_prompt_addition TEXT NOT NULL DEFAULT '',
+  allowed_tools          TEXT,
+  blocked_tools          TEXT NOT NULL DEFAULT '[]',
+  subdir                 TEXT NOT NULL DEFAULT '',
+  is_default             INTEGER NOT NULL DEFAULT 0,
+  created_at             TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS session_agents (
+  id               TEXT PRIMARY KEY,
+  session_id       TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+  name             TEXT NOT NULL,
+  display_name     TEXT NOT NULL,
+  role_id          TEXT REFERENCES agent_roles(id),
+  subdir           TEXT NOT NULL DEFAULT '',
+  claude_session_id TEXT,
+  status           TEXT NOT NULL DEFAULT 'idle',
+  created_at       TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE(session_id, name)
+);
+
 -- Indexes for common query patterns
 CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_workspace_name ON sessions(workspace_name);
@@ -88,3 +124,4 @@ CREATE INDEX IF NOT EXISTS idx_token_usage_session_id ON token_usage(session_id)
 CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
 CREATE INDEX IF NOT EXISTS idx_secrets_name ON secrets(name);
 CREATE INDEX IF NOT EXISTS idx_apps_name ON apps(name);
+CREATE INDEX IF NOT EXISTS idx_session_agents_session_id ON session_agents(session_id);

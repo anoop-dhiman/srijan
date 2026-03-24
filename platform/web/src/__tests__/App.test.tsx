@@ -85,6 +85,10 @@ const mockChat = {
   newSession: vi.fn(),
   deleteSession: vi.fn(),
   abortSession: vi.fn(),
+  updatePlanStep: vi.fn(),
+  activeRole: null,
+  agents: [],
+  createAgent: vi.fn(),
 };
 
 describe('App', () => {

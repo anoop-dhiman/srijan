@@ -1,9 +1,17 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { createChatSocket, apiFetch } from '../lib/api';
 
+export interface PlanStep {
+  id: string;
+  title: string;
+  description?: string;
+  dependencies?: string[];
+  status: 'pending' | 'running' | 'done' | 'failed';
+}
+
 export interface ChatMessage {
   id: string;
-  role: 'user' | 'assistant' | 'system' | 'tool';
+  role: 'user' | 'assistant' | 'system' | 'tool' | 'plan';
   content: string;
   streaming?: boolean;
   timestamp: number;
@@ -12,6 +20,23 @@ export interface ChatMessage {
   toolInput?: any;
   toolResult?: string;
   toolStatus?: 'running' | 'done' | 'error';
+  // Plan fields (role === 'plan')
+  planTitle?: string;
+  planSteps?: PlanStep[];
+  // Multi-agent attribution
+  agentId?: string;
+}
+
+export interface SessionAgent {
+  id: string;
+  session_id: string;
+  name: string;
+  display_name: string;
+  role_id: string | null;
+  subdir: string;
+  claude_session_id: string | null;
+  status: string;
+  created_at: string;
 }
 
 export interface Session {
@@ -78,6 +103,8 @@ export function useChat() {
   const [currentWorkspace, setCurrentWorkspaceState] = useState<string | null>(
     () => localStorage.getItem('srijan_workspace')
   );
+  const [activeRole, setActiveRole] = useState<{ name: string; displayName: string } | null>(null);
+  const [agents, setAgents] = useState<SessionAgent[]>([]);
 
   const wsRef = useRef<WebSocket | null>(null);
   const streamBufferRef = useRef('');
@@ -202,6 +229,8 @@ export function useChat() {
             }
           }
           setMessages(restored);
+          setAgents([]);
+          // agents_list will arrive automatically from server after join
           break;
         }
 
@@ -229,6 +258,16 @@ export function useChat() {
         case 'agent_event': {
           const evt = msg.data;
           const sid: string = evt.sessionId;
+
+          // Update agent running status
+          if (evt.agentId) {
+            setAgents(prev => prev.map(a => {
+              if (a.name !== evt.agentId) return a;
+              if (evt.type === 'session_start' || evt.type === 'tool_use') return { ...a, status: 'running' };
+              if (evt.type === 'agent_stopped' || evt.type === 'error') return { ...a, status: 'idle' };
+              return a;
+            }));
+          }
 
           // Update per-session activity state
           setSessionActivity(prev => {
@@ -275,6 +314,10 @@ export function useChat() {
           // Only update messages / streaming for the active session
           if (sid !== currentSessionRef.current?.id) break;
 
+          if (evt.type === 'role_switched') {
+            setActiveRole({ name: evt.data.role, displayName: evt.data.displayName });
+          }
+
           if (evt.type === 'agent_response') {
             if (evt.data.streaming) {
               streamBufferRef.current += evt.data.content;
@@ -294,6 +337,7 @@ export function useChat() {
                     content: streamBufferRef.current,
                     streaming: true,
                     timestamp: Date.now(),
+                    agentId: evt.agentId || undefined,
                   },
                 ];
               });
@@ -313,6 +357,7 @@ export function useChat() {
                     content: finalContent,
                     streaming: false,
                     timestamp: Date.now(),
+                    agentId: evt.agentId || undefined,
                   }];
                 }
                 return prev;
@@ -332,6 +377,7 @@ export function useChat() {
                 toolInput: evt.data.input,
                 toolStatus: 'running',
                 timestamp: Date.now(),
+                agentId: evt.agentId || undefined,
               },
             ]);
           }
@@ -365,6 +411,41 @@ export function useChat() {
           if (evt.type === 'agent_stopped') {
             streamBufferRef.current = '';
           }
+
+          if (evt.type === 'plan_proposed') {
+            const steps: PlanStep[] = (evt.data.steps || []).map((s: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
+              id: s.id,
+              title: s.title,
+              description: s.description,
+              dependencies: s.dependencies,
+              status: 'pending' as const,
+            }));
+            setMessages(prev => [
+              ...prev,
+              {
+                id: genId(),
+                role: 'plan' as const,
+                content: evt.data.title || 'Execution Plan',
+                planTitle: evt.data.title,
+                planSteps: steps,
+                timestamp: Date.now(),
+              },
+            ]);
+          }
+          break;
+        }
+
+        case 'agents_list': {
+          setAgents(msg.data || []);
+          break;
+        }
+
+        case 'agent_created': {
+          setAgents(prev => {
+            const exists = prev.find(a => a.id === msg.data.id);
+            if (exists) return prev;
+            return [...prev, msg.data];
+          });
           break;
         }
 
@@ -464,6 +545,21 @@ export function useChat() {
     wsRef.current.send(JSON.stringify({ type: 'abort_session' }));
   }, []);
 
+  const createAgent = useCallback((name: string, displayName: string, roleId?: string, subdir?: string) => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+    wsRef.current.send(JSON.stringify({ type: 'create_agent', name, displayName, roleId, subdir }));
+  }, []);
+
+  const updatePlanStep = useCallback((planMsgId: string, stepId: string, status: PlanStep['status']) => {
+    setMessages(prev => prev.map(m => {
+      if (m.id !== planMsgId || m.role !== 'plan') return m;
+      return {
+        ...m,
+        planSteps: m.planSteps?.map(s => s.id === stepId ? { ...s, status } : s),
+      };
+    }));
+  }, []);
+
   useEffect(() => {
     return () => disconnect();
   }, [disconnect]);
@@ -492,5 +588,9 @@ export function useChat() {
     newSession,
     deleteSession,
     abortSession,
+    updatePlanStep,
+    activeRole,
+    agents,
+    createAgent,
   };
 }

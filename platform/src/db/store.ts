@@ -57,6 +57,31 @@ export function getDb(): Database.Database {
     tryMigrate(`CREATE INDEX IF NOT EXISTS idx_token_usage_workspace_name ON token_usage(workspace_name)`);
     tryMigrate(`CREATE TABLE IF NOT EXISTS workspace_spending (workspace_name TEXT PRIMARY KEY, spending_limit_usd REAL, spending_reset_at TEXT)`);
     tryMigrate(`ALTER TABLE sessions ADD COLUMN registration_token TEXT`);
+    tryMigrate(`CREATE TABLE IF NOT EXISTS user_oauth_tokens (user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE, encrypted_access_token TEXT NOT NULL, encrypted_refresh_token TEXT, expires_at INTEGER, account_email TEXT, subscription_type TEXT, updated_at TEXT NOT NULL DEFAULT (datetime('now')))`);
+
+    // Phase C: agent_roles table
+    tryMigrate(`CREATE TABLE IF NOT EXISTS agent_roles (id TEXT PRIMARY KEY, name TEXT UNIQUE NOT NULL, display_name TEXT NOT NULL, description TEXT NOT NULL DEFAULT '', system_prompt_addition TEXT NOT NULL DEFAULT '', allowed_tools TEXT, blocked_tools TEXT NOT NULL DEFAULT '[]', subdir TEXT NOT NULL DEFAULT '', is_default INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT (datetime('now')))`);
+
+    // Phase D migrations
+    tryMigrate(`CREATE TABLE IF NOT EXISTS session_agents (id TEXT PRIMARY KEY, session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE, name TEXT NOT NULL, display_name TEXT NOT NULL, role_id TEXT REFERENCES agent_roles(id), subdir TEXT NOT NULL DEFAULT '', claude_session_id TEXT, status TEXT NOT NULL DEFAULT 'idle', created_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE(session_id, name))`);
+    tryMigrate(`CREATE INDEX IF NOT EXISTS idx_session_agents_session_id ON session_agents(session_id)`);
+    tryMigrate(`ALTER TABLE token_usage ADD COLUMN agent_id TEXT`);
+    tryMigrate(`ALTER TABLE events ADD COLUMN agent_id TEXT`);
+
+    // Seed default roles if table is empty
+    const roleCount = (db.prepare('SELECT COUNT(*) as cnt FROM agent_roles').get() as { cnt: number }).cnt;
+    if (roleCount === 0) {
+      const seedRoles = [
+        { id: 'role-coder', name: 'coder', display_name: 'Full-Stack Coder', description: 'Full implementation access to all tools', system_prompt_addition: '', allowed_tools: null, is_default: 1 },
+        { id: 'role-reviewer', name: 'reviewer', display_name: 'Code Reviewer', description: 'Read-only code review mode', system_prompt_addition: '## Mode: Code Review\nYou are in read-only review mode. Analyze code, identify issues, suggest improvements. Do NOT modify files or run commands.', allowed_tools: '["Read","Glob","Grep","LS"]', is_default: 0 },
+        { id: 'role-devops', name: 'devops', display_name: 'DevOps Engineer', description: 'Infrastructure and deployment focus', system_prompt_addition: '## Mode: DevOps\nFocus on Docker, docker-compose, CI/CD, environment configuration, and deployment.', allowed_tools: '["Bash","Read","Write","Edit","Glob","Grep"]', is_default: 0 },
+        { id: 'role-planner', name: 'planner', display_name: 'Architect Planner', description: 'Architecture planning without execution', system_prompt_addition: '## Mode: Architecture Planning\nFocus on design, planning, and documentation. Use propose_plan tool before starting work. Do NOT execute code or modify files.', allowed_tools: '["Read","Glob","Grep"]', is_default: 0 },
+      ];
+      const insertRole = db.prepare(`INSERT OR IGNORE INTO agent_roles (id, name, display_name, description, system_prompt_addition, allowed_tools, blocked_tools, subdir, is_default, created_at) VALUES (?, ?, ?, ?, ?, ?, '[]', '', ?, datetime('now'))`);
+      for (const r of seedRoles) {
+        insertRole.run(r.id, r.name, r.display_name, r.description, r.system_prompt_addition, r.allowed_tools, r.is_default);
+      }
+    }
   }
   return db;
 }

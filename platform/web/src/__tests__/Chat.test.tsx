@@ -10,6 +10,7 @@ vi.mock('react-markdown', () => ({
 
 vi.mock('../lib/api', () => ({
   apiFetch: vi.fn().mockResolvedValue([]),
+  getRoles: vi.fn().mockResolvedValue([]),
 }));
 
 // jsdom does not implement scrollIntoView

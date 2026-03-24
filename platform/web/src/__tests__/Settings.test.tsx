@@ -6,6 +6,13 @@ import { Settings } from '../components/Settings';
 
 vi.mock('../lib/api', () => ({
   apiFetch: vi.fn(),
+  getClaudeOAuthStatus: vi.fn().mockResolvedValue({ connected: false }),
+  connectClaudeOAuth: vi.fn().mockResolvedValue(undefined),
+  disconnectClaudeOAuth: vi.fn().mockResolvedValue(undefined),
+  getRoles: vi.fn().mockResolvedValue([]),
+  createRole: vi.fn().mockResolvedValue({}),
+  updateRole: vi.fn().mockResolvedValue({}),
+  deleteRole: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock('qrcode.react', () => ({

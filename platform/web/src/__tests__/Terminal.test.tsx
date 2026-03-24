@@ -72,7 +72,7 @@ describe('Terminal', () => {
     render(<Terminal sessionId="my-session-123" />);
 
     expect(wsInstances.length).toBe(1);
-    expect(wsInstances[0].url).toContain('/api/terminal');
+    expect(wsInstances[0].url).toContain('/forge/api/terminal');
     expect(wsInstances[0].url).toContain('token=test-token');
     expect(wsInstances[0].url).toContain('sessionId=my-session-123');
   });

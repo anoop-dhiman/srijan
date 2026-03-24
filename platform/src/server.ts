@@ -30,6 +30,7 @@ import sessionsRouter from './routes/sessions.js';
 import usersRouter from './routes/users.js';
 import spendingRouter from './routes/spending.js';
 import pluginsRouter, { ensureOfficialMarketplace } from './routes/plugins.js';
+import rolesRouter from './routes/roles.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -65,20 +66,21 @@ app.use(cors({
 app.use(requestIdMiddleware);
 app.use(express.json());
 
-// API routes
-app.use('/api/auth', authRouter);
-app.use('/api/config', configRouter);
-app.use('/api/secrets', secretsRouter);
-app.use('/api/apps', appsRouter);
-app.use('/api/git', gitRouter);
-app.use('/api/sessions/:id/cost', costRouter);
-app.use('/api/containers', containersRouter);
-app.use('/api/workspaces', workspacesRouter);
-app.use('/api/workspaces', filesRouter);
-app.use('/api/sessions', sessionsRouter);
-app.use('/api/users', usersRouter);
-app.use('/api/spending', spendingRouter);
-app.use('/api/plugins', pluginsRouter);
+// API routes (all under /forge/api so path is consistent whether accessed via Caddy, Vite proxy, or directly)
+app.use('/forge/api/auth', authRouter);
+app.use('/forge/api/config', configRouter);
+app.use('/forge/api/secrets', secretsRouter);
+app.use('/forge/api/apps', appsRouter);
+app.use('/forge/api/git', gitRouter);
+app.use('/forge/api/sessions/:id/cost', costRouter);
+app.use('/forge/api/containers', containersRouter);
+app.use('/forge/api/workspaces', workspacesRouter);
+app.use('/forge/api/workspaces', filesRouter);
+app.use('/forge/api/sessions', sessionsRouter);
+app.use('/forge/api/users', usersRouter);
+app.use('/forge/api/spending', spendingRouter);
+app.use('/forge/api/plugins', pluginsRouter);
+app.use('/forge/api/roles', rolesRouter);
 
 // Health check
 app.get('/health', async (_req, res) => {
@@ -118,13 +120,11 @@ app.use((err: any, _req: any, res: any, _next: any) => {
 });
 
 // Serve frontend static files (after build)
-// Mount at both root and /forge so assets work with or without Caddy prefix stripping
+// Mounted at /forge to match the Vite base path; root redirects to /forge/ for convenience
 const webDist = join(__dirname, '../web/dist');
 if (existsSync(webDist)) {
   app.use('/forge', express.static(webDist));
-  app.use(express.static(webDist));
   app.get('/forge/{*splat}', (_req, res) => res.sendFile(join(webDist, 'index.html')));
-  app.get('/{*splat}', (_req, res) => res.sendFile(join(webDist, 'index.html')));
 }
 
 // Initialize
@@ -161,11 +161,11 @@ server.on('upgrade', (request: IncomingMessage, socket, head) => {
     return;
   }
 
-  if (pathname === '/api/chat') {
+  if (pathname === '/forge/api/chat') {
     chatWss.handleUpgrade(request, socket, head, (ws) => {
       chatWss.emit('connection', ws, request, payload, token);
     });
-  } else if (pathname === '/api/terminal') {
+  } else if (pathname === '/forge/api/terminal') {
     const sessionId = query.sessionId as string || '';
     terminalWss.handleUpgrade(request, socket, head, (ws) => {
       terminalWss.emit('connection', ws, request, payload, sessionId);

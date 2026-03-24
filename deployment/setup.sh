@@ -191,11 +191,7 @@ http://{$SRIJAN_DOMAIN:localhost} {
 		-Server
 	}
 
-	handle_path /forge/* {
-		reverse_proxy localhost:8080
-	}
-
-	handle /forge {
+	handle /forge* {
 		reverse_proxy localhost:8080
 	}
 }
@@ -226,11 +222,7 @@ http://{$SRIJAN_DOMAIN:localhost} {
 		-Server
 	}
 
-	handle_path /forge/* {
-		reverse_proxy localhost:8080
-	}
-
-	handle /forge {
+	handle /forge* {
 		reverse_proxy localhost:8080
 	}
 }
