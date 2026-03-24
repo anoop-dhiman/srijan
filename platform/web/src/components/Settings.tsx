@@ -593,16 +593,36 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
   return (
     <div className="flex-1 flex flex-col min-h-0">
       <div className="flex flex-col md:flex-row flex-1 min-h-0">
-        {/* Left sidebar nav */}
-        <nav className="w-full md:w-48 shrink-0 border-b md:border-b-0 md:border-r border-border flex flex-col">
-          <div className="px-5 py-5 border-b border-border shrink-0">
-            <h2 className="font-semibold text-base">Settings</h2>
-          </div>
-          <div className="py-3 flex flex-row md:flex-col overflow-x-auto gap-0.5 px-2">
+        {/* Mobile: horizontal scrollable tab strip */}
+        <div className="flex overflow-x-auto border-b border-border shrink-0 md:hidden" aria-hidden="true">
           {navItems.map(({ key, label, icon }) => (
             <button
               key={key}
               onClick={() => setActiveSection(key)}
+              style={{ touchAction: 'manipulation' }}
+              className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
+                activeSection === key
+                  ? 'border-primary text-primary'
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {icon}
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {/* Desktop: vertical sidebar nav */}
+        <nav className="hidden md:flex w-48 shrink-0 border-r border-border flex-col">
+          <div className="px-5 py-5 border-b border-border shrink-0">
+            <h2 className="font-semibold text-base">Settings</h2>
+          </div>
+          <div className="py-3 flex flex-col gap-0.5 px-2">
+          {navItems.map(({ key, label, icon }) => (
+            <button
+              key={key}
+              onClick={() => setActiveSection(key)}
+              style={{ touchAction: 'manipulation' }}
               className={`flex items-center gap-2.5 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium text-left transition-colors ${
                 activeSection === key
                   ? 'bg-muted text-foreground'
@@ -617,7 +637,7 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
         </nav>
 
         {/* Right content panel */}
-        <div className="flex-1 overflow-y-auto py-4 md:py-6 px-4 md:px-6">
+        <div className="flex-1 w-full overflow-y-auto py-4 md:py-6 px-4 md:px-6">
           <div className="max-w-5xl mx-auto space-y-6">
 
         {/* AI Provider section */}
@@ -809,7 +829,7 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
                       <p>3. Run: <code className="font-mono bg-muted px-1 rounded">cat ~/.claude/.credentials.json</code></p>
                       <p>4. Copy the <code className="font-mono bg-muted px-1 rounded">accessToken</code> value and paste it below:</p>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex flex-col sm:flex-row gap-2">
                       <input
                         type="password"
                         placeholder="Paste access token..."
@@ -820,6 +840,7 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
                       <button
                         onClick={handleOAuthConnect}
                         disabled={oauthConnecting || !oauthToken.trim()}
+                        style={{ touchAction: 'manipulation' }}
                         className="rounded bg-primary px-3 py-1.5 text-sm text-primary-foreground disabled:opacity-50"
                       >
                         {oauthConnecting ? 'Connecting...' : 'Connect'}
@@ -872,10 +893,11 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
               className="w-full rounded-xl border border-border bg-muted px-4 py-3 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary resize-y leading-relaxed"
             />
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
               <button
                 onClick={saveSystemPrompt}
                 disabled={savingPrompt}
+                style={{ touchAction: 'manipulation' }}
                 className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-base font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
               >
                 <Save size={16} />
@@ -886,6 +908,7 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
                   setSystemPrompt('');
                   setPromptMessage('Reset to default — click Save to apply');
                 }}
+                style={{ touchAction: 'manipulation' }}
                 className="flex items-center gap-2 rounded-xl border border-border px-4 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
               >
                 <RotateCcw size={14} />
@@ -1081,7 +1104,7 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
                   2FA is active
                 </div>
                 <p className="text-xs text-muted-foreground">Enter your authenticator code to disable 2FA.</p>
-                <div className="flex gap-2">
+                <div className="flex flex-col sm:flex-row gap-2">
                   <input
                     type="text"
                     inputMode="numeric"
@@ -1095,6 +1118,7 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
                   <button
                     onClick={handleDisable2FA}
                     disabled={totpLoading || totpCode.length !== 6}
+                    style={{ touchAction: 'manipulation' }}
                     className="flex items-center gap-2 rounded-xl border border-destructive/50 px-4 py-2 text-sm font-medium text-destructive hover:bg-destructive/10 disabled:opacity-50 transition-colors"
                   >
                     Disable 2FA
@@ -1149,7 +1173,7 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
                     <p className="text-xs text-muted-foreground">
                       Then enter the 6-digit code from your app to confirm:
                     </p>
-                    <div className="flex gap-2">
+                    <div className="flex flex-col sm:flex-row gap-2">
                       <input
                         type="text"
                         inputMode="numeric"
@@ -1163,12 +1187,14 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
                       <button
                         onClick={handleEnable2FA}
                         disabled={totpLoading || totpCode.length !== 6}
+                        style={{ touchAction: 'manipulation' }}
                         className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
                       >
                         Activate
                       </button>
                       <button
                         onClick={() => { setTotpSetupSecret(null); setTotpSetupUri(null); setTotpCode(''); }}
+                        style={{ touchAction: 'manipulation' }}
                         className="flex items-center gap-2 rounded-xl border border-border px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
                       >
                         Cancel
@@ -1206,7 +1232,7 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
             {/* Add secret */}
             <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-3">
               <p className="text-sm font-medium text-muted-foreground">Add new secret</p>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-muted-foreground">Name</label>
                   <input
@@ -1278,7 +1304,7 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
             {/* Add user form */}
             <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-3">
               <p className="text-sm font-medium text-muted-foreground">Add new user</p>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-muted-foreground">Username</label>
                   <input
@@ -1421,7 +1447,7 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
               <p className="text-xs text-muted-foreground">
                 Enter a plugin ID from the official marketplace, e.g. <code className="font-mono bg-muted px-1 rounded">frontend-design@claude-plugins-official</code>
               </p>
-              <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row gap-2">
                 <input
                   type="text"
                   placeholder="plugin-name@marketplace"
@@ -1520,7 +1546,7 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
             {isAdmin && (
               <div className="rounded-lg border border-border p-3 space-y-2">
                 <div className="text-xs font-semibold">Create New Role</div>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <input
                     placeholder="name (e.g. tester)"
                     value={newRoleName}
@@ -1634,7 +1660,7 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
             {/* Add server form */}
             <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-3">
               <p className="text-sm font-medium text-muted-foreground">Add MCP server</p>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-muted-foreground">Name</label>
                   <input

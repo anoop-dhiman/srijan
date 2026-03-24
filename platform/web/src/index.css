@@ -38,10 +38,38 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   font-size: 16px;
   -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
 }
 
 #root {
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
+  /* Safe area bottom padding handled by MobileNav via inline style */
+}
+
+/* Prevent iOS auto-zoom on focused inputs (requires font-size >= 16px) */
+input, textarea, select {
+  font-size: 16px;
+}
+@media (min-width: 768px) {
+  input, textarea, select {
+    font-size: inherit;
+  }
+}
+
+/* Remove 300ms tap delay on interactive elements */
+button, a, [role="button"] {
+  touch-action: manipulation;
+}
+
+/* Smooth scrolling + prevent iOS text size adjustment on orientation change */
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* Remove grey tap highlight flash on iOS/Android */
+* {
+  -webkit-tap-highlight-color: transparent;
 }

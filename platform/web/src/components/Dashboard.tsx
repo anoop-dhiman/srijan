@@ -264,7 +264,8 @@ function ContainerRow({ container, app, workspaceName, onAction, onRegistered, o
                 <button
                   onClick={() => onDeregister(app.id)}
                   title="Deregister route"
-                  className="text-muted-foreground hover:text-destructive transition-colors"
+                  style={{ touchAction: 'manipulation' }}
+                  className="p-1 text-muted-foreground hover:text-destructive transition-colors"
                 >
                   <Trash2 size={11} />
                 </button>
@@ -294,7 +295,8 @@ function ContainerRow({ container, app, workspaceName, onAction, onRegistered, o
           onClick={toggleContainer}
           disabled={actioning}
           title={isRunning ? 'Stop' : 'Start'}
-          className={`p-1.5 rounded-lg transition-colors ${isRunning ? 'hover:bg-destructive/10 hover:text-destructive' : 'hover:bg-green-500/10 hover:text-green-600'} text-muted-foreground`}
+          style={{ touchAction: 'manipulation' }}
+          className={`p-2 rounded-lg transition-colors ${isRunning ? 'hover:bg-destructive/10 hover:text-destructive' : 'hover:bg-green-500/10 hover:text-green-600'} text-muted-foreground`}
         >
           {actioning ? <RefreshCw size={14} className="animate-spin" /> : isRunning ? <Square size={14} /> : <Play size={14} />}
         </button>
@@ -302,7 +304,8 @@ function ContainerRow({ container, app, workspaceName, onAction, onRegistered, o
           onClick={deleteContainer}
           disabled={deleting}
           title={isRunning ? 'Force delete' : 'Delete container'}
-          className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50"
+          style={{ touchAction: 'manipulation' }}
+          className="p-2 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50"
         >
           {deleting ? <RefreshCw size={14} className="animate-spin" /> : <Trash2 size={14} />}
         </button>
@@ -311,13 +314,13 @@ function ContainerRow({ container, app, workspaceName, onAction, onRegistered, o
       {showRegister && (
         <div className="border-t border-border bg-muted/30 px-3 py-2.5 space-y-2">
           <p className="text-xs font-medium text-foreground">Register public URL via Caddy</p>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <input
               type="text"
               value={regPath}
               onChange={e => setRegPath(e.target.value)}
               placeholder="/myapp"
-              className="flex-1 text-xs px-2 py-1 rounded border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+              className="flex-1 min-w-0 text-xs px-2 py-1 rounded border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
             />
             <input
               type="number"
@@ -328,16 +331,18 @@ function ContainerRow({ container, app, workspaceName, onAction, onRegistered, o
             />
           </div>
           {regError && <p className="text-xs text-destructive">{regError}</p>}
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button
               onClick={submitRegister}
               disabled={registering}
+              style={{ touchAction: 'manipulation' }}
               className="text-xs px-3 py-1 rounded bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
             >
               {registering ? 'Registering…' : 'Register'}
             </button>
             <button
               onClick={() => setShowRegister(false)}
+              style={{ touchAction: 'manipulation' }}
               className="text-xs px-3 py-1 rounded border border-border hover:bg-muted transition-colors"
             >
               Cancel
@@ -646,7 +651,7 @@ function GitSection({ workspaceName }: { workspaceName: string }) {
               </div>
             ))
           )}
-          <div className="mt-2 flex gap-2">
+          <div className="mt-2 flex flex-col sm:flex-row gap-2">
             <input
               value={commitMsg}
               onChange={e => setCommitMsg(e.target.value)}
@@ -657,6 +662,7 @@ function GitSection({ workspaceName }: { workspaceName: string }) {
             <button
               onClick={handleCommit}
               disabled={committing || !commitMsg.trim() || !files.some(f => f.staged)}
+              style={{ touchAction: 'manipulation' }}
               className="text-xs px-2 py-1 rounded bg-primary text-primary-foreground disabled:opacity-50"
             >
               {committing ? 'Committing...' : 'Commit'}
@@ -785,10 +791,11 @@ function GitSection({ workspaceName }: { workspaceName: string }) {
 
           {authError && <p className="text-xs text-destructive">{authError}</p>}
 
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button
               onClick={handleSaveAuth}
               disabled={!authToken.trim() || savingAuth}
+              style={{ touchAction: 'manipulation' }}
               className="flex-1 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors flex items-center justify-center gap-1.5"
             >
               {savingAuth && <RefreshCw size={11} className="animate-spin" />}
@@ -797,6 +804,7 @@ function GitSection({ workspaceName }: { workspaceName: string }) {
             {credInfo?.configured && (
               <button
                 onClick={handleRemoveAuth}
+                style={{ touchAction: 'manipulation' }}
                 className="px-3 py-1.5 rounded-lg border border-destructive/30 text-destructive text-xs hover:bg-destructive/10 transition-colors"
               >
                 Remove
@@ -925,14 +933,15 @@ function WorkspaceCard({ workspace, onViewSessions, onDeleteWorkspace, spendingI
             <button
               onClick={() => onDeleteWorkspace(workspace)}
               title="Delete workspace"
-              className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+              style={{ touchAction: 'manipulation' }}
+              className="p-2 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
             >
               <Trash2 size={14} />
             </button>
           </div>
         </div>
 
-        <div className="mt-2 flex items-center gap-4 text-sm text-muted-foreground">
+        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
           <span>{workspace.sessionCount} session{workspace.sessionCount !== 1 ? 's' : ''}</span>
           <span>{workspace.runningContainerCount} container{workspace.runningContainerCount !== 1 ? 's' : ''} running</span>
           {lastActive && <span>Last active {lastActive}</span>}
@@ -980,7 +989,7 @@ function WorkspaceCard({ workspace, onViewSessions, onDeleteWorkspace, spendingI
       {containersOpen && (
         <div className="border-t border-border px-4 py-3 space-y-2">
           {containers.length > 0 && (
-            <div className="flex items-center gap-2 pb-1">
+            <div className="flex flex-wrap items-center gap-2 pb-1">
               {hasStopped && (
                 <button
                   onClick={startAll}
@@ -1052,7 +1061,8 @@ function WorkspaceCard({ workspace, onViewSessions, onDeleteWorkspace, spendingI
                   onClick={() => deregisterApp(app.id)}
                   disabled={deregistering === app.id}
                   title="Deregister route"
-                  className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50"
+                  style={{ touchAction: 'manipulation' }}
+                  className="p-2 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50"
                 >
                   {deregistering === app.id ? <RefreshCw size={13} className="animate-spin" /> : <Trash2 size={13} />}
                 </button>
@@ -1311,11 +1321,12 @@ export function Dashboard({ workspaces, onRefresh, onViewSessions, onCreateWorks
 
   return (
     <div className="flex-1 flex flex-col min-h-0 overflow-y-auto">
-      <div className="px-6 py-4 border-b border-border flex items-center justify-between shrink-0">
+      <div className="px-4 md:px-6 py-4 border-b border-border flex flex-wrap items-center justify-between gap-2 shrink-0">
         <h2 className="text-base font-semibold">Workspaces</h2>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => setShowCreate(v => !v)}
+            style={{ touchAction: 'manipulation' }}
             className={`flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border transition-colors font-medium ${
               showCreate
                 ? 'bg-primary/10 border-primary/30 text-primary'
@@ -1327,6 +1338,7 @@ export function Dashboard({ workspaces, onRefresh, onViewSessions, onCreateWorks
           </button>
           <button
             onClick={onRefresh}
+            style={{ touchAction: 'manipulation' }}
             className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground px-3 py-1.5 rounded-lg hover:bg-muted transition-colors"
           >
             <RefreshCw size={14} />

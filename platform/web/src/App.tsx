@@ -182,7 +182,7 @@ function App() {
   return (
     <ErrorBoundary>
     <div className="flex flex-col h-dvh">
-      <header className="h-16 flex items-center justify-between px-6 bg-muted border-b-2 border-primary/40 shadow-md shrink-0 z-10">
+      <header className="h-12 md:h-16 flex items-center justify-between px-6 bg-muted border-b-2 border-primary/40 shadow-md shrink-0 z-10">
         <div className="flex items-center gap-5">
           <span className="font-bold text-xl tracking-tight">Srijan</span>
           <nav className="hidden md:flex items-center gap-1">
@@ -212,14 +212,14 @@ function App() {
           </button>
           <div className="flex items-center gap-2">
             <div className={`w-2.5 h-2.5 rounded-full ${chat.isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
-            <span className="text-base text-muted-foreground">
+            <span className="hidden md:inline text-base text-muted-foreground">
               {chat.isConnected ? 'Connected' : 'Disconnected'}
             </span>
           </div>
-          <span className="text-base text-muted-foreground font-medium">{username}</span>
+          <span className="hidden md:block text-base text-muted-foreground font-medium">{username}</span>
           <button
             onClick={logout}
-            className="text-base px-4 py-2 rounded-lg border border-border hover:bg-background/60 transition-colors font-medium"
+            className="hidden md:block text-base px-4 py-2 rounded-lg border border-border hover:bg-background/60 transition-colors font-medium"
           >
             Logout
           </button>
@@ -233,6 +233,9 @@ function App() {
       <MobileNav
         activeView={effectiveView}
         onViewChange={(view) => { setActiveView(view as ActiveView); setReplaySessionId(null); }}
+        sessionActivity={chat.sessionActivity}
+        hasWorkspaces={chat.workspaces.length > 0}
+        hasSession={!!chat.currentSession}
       />
     </div>
     </ErrorBoundary>

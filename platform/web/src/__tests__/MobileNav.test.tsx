@@ -19,7 +19,7 @@ describe('MobileNav', () => {
 
   it('calls onViewChange with "chat" when Chat is clicked', () => {
     const onViewChange = vi.fn();
-    render(<MobileNav activeView="dashboard" onViewChange={onViewChange} />);
+    render(<MobileNav activeView="dashboard" onViewChange={onViewChange} hasWorkspaces={true} />);
     fireEvent.click(screen.getByLabelText('Chat'));
     expect(onViewChange).toHaveBeenCalledWith('chat');
   });
@@ -33,14 +33,14 @@ describe('MobileNav', () => {
 
   it('calls onViewChange with "files" when Files is clicked', () => {
     const onViewChange = vi.fn();
-    render(<MobileNav activeView="dashboard" onViewChange={onViewChange} />);
+    render(<MobileNav activeView="dashboard" onViewChange={onViewChange} hasWorkspaces={true} />);
     fireEvent.click(screen.getByLabelText('Files'));
     expect(onViewChange).toHaveBeenCalledWith('files');
   });
 
   it('calls onViewChange with "terminal" when Terminal is clicked', () => {
     const onViewChange = vi.fn();
-    render(<MobileNav activeView="dashboard" onViewChange={onViewChange} />);
+    render(<MobileNav activeView="dashboard" onViewChange={onViewChange} hasSession={true} />);
     fireEvent.click(screen.getByLabelText('Terminal'));
     expect(onViewChange).toHaveBeenCalledWith('terminal');
   });
@@ -70,7 +70,7 @@ describe('MobileNav', () => {
   });
 
   it('inactive item has muted color class', () => {
-    render(<MobileNav activeView="dashboard" onViewChange={vi.fn()} />);
+    render(<MobileNav activeView="dashboard" onViewChange={vi.fn()} hasWorkspaces={true} />);
     const chatBtn = screen.getByLabelText('Chat');
     expect(chatBtn.className).toContain('text-muted-foreground');
   });

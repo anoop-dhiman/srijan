@@ -94,7 +94,7 @@ function ToolMessage({ msg }: { msg: ChatMessage }) {
       </button>
 
       {expanded && hasDetails && (
-        <div className="ml-2 w-full max-w-2xl rounded-lg border border-border/50 bg-background text-xs font-mono overflow-hidden">
+        <div className="ml-2 w-full max-w-full sm:max-w-2xl rounded-lg border border-border/50 bg-background text-xs font-mono overflow-hidden">
           {msg.toolInput && (
             <div className="px-3 py-2 border-b border-border/30">
               <div className="text-muted-foreground mb-1 text-[10px] uppercase tracking-wider">Input</div>
@@ -246,7 +246,6 @@ export function Chat({
   const [input, setInput] = useState('');
   const [thinkingMode, setThinkingMode] = useState<ThinkingMode>('none');
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [roles, setRoles] = useState<AgentRole[]>([]);
   const [mentionDropdown, setMentionDropdown] = useState(false);
   const [mentionQuery, setMentionQuery] = useState('');
@@ -330,15 +329,6 @@ export function Chat({
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages, agentStatus]);
-
-  // Collapse sidebar on mobile when viewport is narrow
-  useEffect(() => {
-    const handleResize = () => {
-      if (window.innerWidth < 768) setSidebarOpen(false);
-    };
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -444,9 +434,9 @@ export function Chat({
       {/* Sidebar */}
       <div
         className={`fixed inset-y-0 left-0 z-40 bg-muted border-r border-border flex flex-col transform transition-all duration-200 md:relative md:translate-x-0 md:top-auto md:inset-y-auto ${
-          (sidebarOpen || mobileSidebarOpen) ? 'translate-x-0' : '-translate-x-full'
+          mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'
         } ${sidebarCollapsed ? 'md:w-0 md:overflow-hidden md:border-r-0' : ''}`}
-        style={sidebarCollapsed ? undefined : { width: `${sidebarWidth}px` }}
+        style={sidebarCollapsed ? undefined : { width: `${sidebarWidth}px`, maxWidth: '85vw' }}
       >
         {/* Workspace switcher */}
         <div className="p-3 border-b border-border shrink-0 space-y-2">
@@ -460,7 +450,6 @@ export function Chat({
             onClick={() => {
               if (currentWorkspace) {
                 onNewSession(currentWorkspace);
-                setSidebarOpen(false);
               }
             }}
             disabled={!currentWorkspace}
@@ -487,7 +476,6 @@ export function Chat({
                 <button
                   onClick={() => {
                     onJoinSession(s.id);
-                    setSidebarOpen(false);
                   }}
                   className={`flex-1 min-w-0 text-left px-4 py-3 text-base transition-colors ${
                     isActive ? 'text-foreground' : 'text-muted-foreground'
@@ -513,7 +501,7 @@ export function Chat({
                     e.stopPropagation();
                     onReplaySession(s.id);
                   }}
-                  className="shrink-0 p-2 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-primary transition-all"
+                  className="shrink-0 p-2 text-muted-foreground hover:text-primary transition-all sm:opacity-0 sm:group-hover:opacity-100"
                   title="Replay session"
                 >
                   <PlayCircle size={14} />
@@ -523,7 +511,7 @@ export function Chat({
                     e.stopPropagation();
                     onDeleteSession(s.id);
                   }}
-                  className="shrink-0 p-2 mr-1 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all"
+                  className="shrink-0 p-2 mr-1 text-muted-foreground hover:text-destructive transition-all sm:opacity-0 sm:group-hover:opacity-100"
                   title="Delete session"
                 >
                   <Trash2 size={14} />
@@ -561,10 +549,10 @@ export function Chat({
       )}
 
       {/* Sidebar overlay on mobile */}
-      {(sidebarOpen || mobileSidebarOpen) && (
+      {mobileSidebarOpen && (
         <div
           className="fixed inset-0 z-30 bg-black/50 md:hidden"
-          onClick={() => { setSidebarOpen(false); setMobileSidebarOpen(false); }}
+          onClick={() => { setMobileSidebarOpen(false); }}
         />
       )}
 
@@ -598,7 +586,7 @@ export function Chat({
 
         {/* Spending warning banner */}
         {spendingWarning && (
-          <div className="mx-6 mt-3 flex items-center gap-2 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-700 px-4 py-2.5">
+          <div className="mx-3 sm:mx-6 mt-3 flex items-center gap-2 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-700 px-4 py-2.5">
             <AlertTriangle size={15} className="shrink-0 text-amber-600 dark:text-amber-400" />
             <span className="text-sm text-amber-800 dark:text-amber-300">
               You've used {Math.round(spendingWarning.percent)}% of your ${spendingWarning.limit_usd.toFixed(2)} monthly limit
@@ -619,7 +607,7 @@ export function Chat({
             </div>
           )}
 
-          <div className="max-w-5xl mx-auto px-6 space-y-3">
+          <div className="max-w-5xl mx-auto px-3 sm:px-6 space-y-3">
             {messages.map((msg) => {
               if (msg.role === 'tool') {
                 return <ToolMessage key={msg.id} msg={msg} />;
@@ -684,7 +672,7 @@ export function Chat({
         </div>
 
         {/* Input */}
-        <div className="px-6 pb-5">
+        <div className="px-3 sm:px-6 pb-5">
           {/* Approval bar */}
           {isPendingApproval && (
             <div className="max-w-5xl mx-auto mb-3">
@@ -748,6 +736,7 @@ export function Chat({
                   value={input}
                   onChange={handleInput}
                   onKeyDown={handleKeyDown}
+                  enterKeyHint="send"
                   disabled={noWorkspace || isPendingApproval}
                   placeholder={noWorkspace ? 'Select a workspace to start chatting…' : isPendingApproval ? 'Approve or deny above before continuing…' : 'Type a message...'}
                   rows={2}
