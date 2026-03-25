@@ -320,7 +320,7 @@ export function Chat({
   // Auto-scroll only when the user is already at the bottom
   useEffect(() => {
     if (isAtBottom.current) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      messagesEndRef.current?.scrollIntoView({ behavior: 'instant' });
     }
   }, [messages, agentStatus]);
 
