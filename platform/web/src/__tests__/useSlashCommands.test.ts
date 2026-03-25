@@ -70,55 +70,40 @@ describe('useSlashCommands', () => {
     expect(result.current.filteredCommands.length).toBe(0);
   });
 
-  it('/clear command calls clearMessages and setInput', () => {
+  it('/clear command selection completes to /clear in input', () => {
     const { result } = renderHook(() => useSlashCommands(context, null));
-    act(() => {
-      result.current.handleInputChange('/');
-    });
+    act(() => { result.current.handleInputChange('/'); });
     const clearCmd = result.current.filteredCommands.find((c) => c.name === 'clear');
-    act(() => {
-      result.current.selectCommand(clearCmd!);
-    });
-    expect(context.clearMessages).toHaveBeenCalledOnce();
-    expect(context.setInput).toHaveBeenCalledWith('');
+    act(() => { result.current.selectCommand(clearCmd!); });
+    expect(context.setInput).toHaveBeenCalledWith('/clear ');
+    expect(context.clearMessages).not.toHaveBeenCalled();
   });
 
-  it('/compact command calls sendMessage with summary text', () => {
+  it('/compact command selection completes to /compact in input', () => {
     const { result } = renderHook(() => useSlashCommands(context, null));
-    act(() => {
-      result.current.handleInputChange('/');
-    });
+    act(() => { result.current.handleInputChange('/'); });
     const compactCmd = result.current.filteredCommands.find((c) => c.name === 'compact');
-    act(() => {
-      result.current.selectCommand(compactCmd!);
-    });
-    expect(context.sendMessage).toHaveBeenCalledWith(
-      expect.stringContaining('summarize our conversation')
-    );
+    act(() => { result.current.selectCommand(compactCmd!); });
+    expect(context.setInput).toHaveBeenCalledWith('/compact ');
+    expect(context.sendMessage).not.toHaveBeenCalled();
   });
 
-  it('/new command calls newSession', () => {
+  it('/new command selection completes to /new in input', () => {
     const { result } = renderHook(() => useSlashCommands(context, null));
-    act(() => {
-      result.current.handleInputChange('/');
-    });
+    act(() => { result.current.handleInputChange('/'); });
     const newCmd = result.current.filteredCommands.find((c) => c.name === 'new');
-    act(() => {
-      result.current.selectCommand(newCmd!);
-    });
-    expect(context.newSession).toHaveBeenCalledOnce();
+    act(() => { result.current.selectCommand(newCmd!); });
+    expect(context.setInput).toHaveBeenCalledWith('/new ');
+    expect(context.newSession).not.toHaveBeenCalled();
   });
 
-  it('/help command calls sendMessage with "/help"', () => {
+  it('/help command selection completes to /help in input', () => {
     const { result } = renderHook(() => useSlashCommands(context, null));
-    act(() => {
-      result.current.handleInputChange('/');
-    });
+    act(() => { result.current.handleInputChange('/'); });
     const helpCmd = result.current.filteredCommands.find((c) => c.name === 'help');
-    act(() => {
-      result.current.selectCommand(helpCmd!);
-    });
-    expect(context.sendMessage).toHaveBeenCalledWith('/help');
+    act(() => { result.current.selectCommand(helpCmd!); });
+    expect(context.setInput).toHaveBeenCalledWith('/help ');
+    expect(context.sendMessage).not.toHaveBeenCalled();
   });
 
   it('selectCommand closes the menu', () => {
@@ -198,8 +183,8 @@ describe('useSlashCommands', () => {
         handled = result.current.handleKeyDown(makeKeyEvent('Enter'));
       });
       expect(handled).toBe(true);
-      // First command is 'clear'
-      expect(context.clearMessages).toHaveBeenCalledOnce();
+      // First command is 'clear' — selection completes to /clear in input
+      expect(context.setInput).toHaveBeenCalledWith('/clear ');
     });
 
     it('returns false when menu is not open', () => {

@@ -353,8 +353,10 @@ export function Chat({
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     if (!input.trim() || isLoading || noWorkspace || isPendingApproval) return;
+    const processed = processInput(input.trim());
+    if (processed === null) { setInput(''); return; } // side-effect command (e.g. /clear, /new)
     isAtBottom.current = true;
-    onSendMessage(processInput(input.trim()), THINKING_BUDGETS[thinkingMode]);
+    onSendMessage(processed, THINKING_BUDGETS[thinkingMode]);
     setInput('');
     if (inputRef.current) {
       inputRef.current.style.height = 'auto';

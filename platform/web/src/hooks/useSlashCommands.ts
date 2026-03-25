@@ -20,39 +20,25 @@ const BUILTIN_COMMANDS: SlashCommand[] = [
     name: 'clear',
     description: 'Clear all messages in the current session',
     type: 'builtin',
-    action: (ctx) => {
-      ctx.clearMessages();
-      ctx.setInput('');
-    },
+    action: (ctx) => ctx.setInput('/clear '),
   },
   {
     name: 'compact',
     description: 'Summarize and compact the conversation',
     type: 'builtin',
-    action: (ctx) => {
-      ctx.sendMessage(
-        'Please summarize our conversation so far concisely, then continue from where we left off.'
-      );
-      ctx.setInput('');
-    },
+    action: (ctx) => ctx.setInput('/compact '),
   },
   {
     name: 'new',
     description: 'Start a new session',
     type: 'builtin',
-    action: (ctx) => {
-      ctx.newSession();
-      ctx.setInput('');
-    },
+    action: (ctx) => ctx.setInput('/new '),
   },
   {
     name: 'help',
     description: 'Show available commands',
     type: 'builtin',
-    action: (ctx) => {
-      ctx.sendMessage('/help');
-      ctx.setInput('');
-    },
+    action: (ctx) => ctx.setInput('/help '),
   },
 ];
 
@@ -68,15 +54,8 @@ function buildWorkspaceCommand(def: WorkspaceCommandDef): SlashCommand {
     name: def.name,
     description: def.description,
     type: 'workspace',
-    action: (ctx) => {
-      if (def.hasArguments) {
-        // Let user type arguments after the command name
-        ctx.setInput(`/${def.name} `);
-      } else {
-        ctx.sendMessage(def.content);
-        ctx.setInput('');
-      }
-    },
+    // Always complete to /commandname — execution happens in processInput on submit
+    action: (ctx) => ctx.setInput(`/${def.name} `),
   };
 }
 
@@ -127,21 +106,35 @@ export function useSlashCommands(context: SlashCommandContext, workspaceName: st
   );
 
   /**
-   * If the raw input matches a workspace command with $ARGUMENTS, substitute
-   * the template and return the processed content. Otherwise return as-is.
-   * Call this before sending a message.
+   * Process a slash command input on submit.
+   * Returns the message string to send, or null if the command was a side-effect
+   * (e.g. /clear, /new) and nothing should be sent.
+   * For non-slash input, returns the raw string unchanged.
    */
   const processInput = useCallback(
-    (rawInput: string): string => {
+    (rawInput: string): string | null => {
       if (!rawInput.startsWith('/')) return rawInput;
       const [token, ...rest] = rawInput.trim().split(/\s+/);
       const commandName = token.slice(1);
+
+      // Builtin side-effect commands
+      if (commandName === 'clear') { context.clearMessages(); return null; }
+      if (commandName === 'new')   { context.newSession();    return null; }
+      if (commandName === 'compact') {
+        return 'Please summarize our conversation so far concisely, then continue from where we left off.';
+      }
+      if (commandName === 'help') return '/help';
+
+      // Workspace template commands
       const def = workspaceDefs.find((d) => d.name === commandName);
-      if (!def || !def.hasArguments) return rawInput;
-      const args = rest.join(' ');
-      return def.content.replace(/\$ARGUMENTS/g, args);
+      if (def) {
+        const args = rest.join(' ');
+        return def.content.replace(/\$ARGUMENTS/g, args);
+      }
+
+      return rawInput;
     },
-    [workspaceDefs]
+    [context, workspaceDefs]
   );
 
   /**
@@ -187,6 +180,10 @@ export function useSlashCommands(context: SlashCommandContext, workspaceName: st
         setSelectedIndex((i) =>
           (i - 1 + Math.max(filteredCommands.length, 1)) % Math.max(filteredCommands.length, 1)
         );
+        return true;
+      }
+      if (e.key === 'Tab' && filteredCommands.length === 1) {
+        selectCommand(filteredCommands[0]);
         return true;
       }
       if (e.key === 'Enter' && filteredCommands.length > 0) {
