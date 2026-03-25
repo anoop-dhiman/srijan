@@ -29,8 +29,8 @@ export function MobileNav({ activeView, onViewChange, sessionActivity = {}, hasW
     <nav
       role="navigation"
       aria-label="Mobile navigation"
-      className="fixed bottom-0 left-0 right-0 bg-background border-t border-border flex justify-around pt-2 md:hidden z-20"
-      style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 8px)' }}
+      className="fixed bottom-0 left-0 right-0 bg-background border-t border-border flex justify-around pt-1 md:hidden z-20"
+      style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 4px)' }}
     >
       {NAV_ITEMS.map(({ id, label, icon: Icon }) => {
         const isActive = activeView === id;
@@ -43,7 +43,7 @@ export function MobileNav({ activeView, onViewChange, sessionActivity = {}, hasW
             aria-label={label}
             aria-current={isActive ? 'page' : undefined}
             aria-disabled={disabled}
-            className={`relative flex-1 flex flex-col items-center gap-0.5 py-2.5 transition-colors ${
+            className={`relative flex-1 flex flex-col items-center gap-0 py-1.5 transition-colors ${
               disabled
                 ? 'opacity-40 cursor-not-allowed'
                 : isActive
@@ -51,9 +51,9 @@ export function MobileNav({ activeView, onViewChange, sessionActivity = {}, hasW
                 : 'text-muted-foreground hover:text-foreground'
             }`}
           >
-            <Icon size={20} />
+            <Icon size={18} />
             {showBadge && (
-              <span className="absolute top-1.5 right-2 w-2 h-2 bg-blue-500 rounded-full" />
+              <span className="absolute top-1 right-2 w-1.5 h-1.5 bg-blue-500 rounded-full" />
             )}
             <span className="text-[10px] font-medium">{label}</span>
           </button>

@@ -233,7 +233,7 @@ function App() {
         </div>
       </header>
 
-      <div className="flex flex-1 min-h-0 min-w-0 overflow-hidden pb-16 md:pb-0">
+      <div className="flex flex-1 min-h-0 min-w-0 overflow-hidden pb-12 md:pb-0">
         {renderMain()}
       </div>
 
