@@ -317,6 +317,12 @@ export function Chat({
     return () => el.removeEventListener('scroll', handleScroll);
   }, []);
 
+  // Scroll to bottom on session switch
+  useEffect(() => {
+    isAtBottom.current = true;
+    messagesEndRef.current?.scrollIntoView({ behavior: 'instant' });
+  }, [currentSession?.id]);
+
   // Auto-scroll only when the user is already at the bottom
   useEffect(() => {
     if (isAtBottom.current) {

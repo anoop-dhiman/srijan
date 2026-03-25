@@ -245,70 +245,75 @@ function ContainerRow({ container, app, workspaceName, onAction, onRegistered, o
 
   return (
     <div className="rounded-lg border border-border overflow-hidden">
-      <div className="flex flex-wrap items-center gap-3 px-3 py-2.5">
-        <div className={`w-2 h-2 rounded-full shrink-0 ${statusColor(container.State)}`} />
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="font-mono text-sm font-medium truncate">{displayName}</span>
-            {app && (
-              <>
-                <a
-                  href={app.path}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex items-center gap-0.5 text-xs text-primary hover:underline truncate min-w-0"
-                >
-                  <ExternalLink size={11} className="shrink-0" />
-                  <span className="truncate">{app.path}</span>
-                </a>
-                <button
-                  onClick={() => onDeregister(app.id)}
-                  title="Deregister route"
-                  style={{ touchAction: 'manipulation' }}
-                  className="p-1 text-muted-foreground hover:text-destructive transition-colors"
-                >
-                  <Trash2 size={11} />
-                </button>
-              </>
-            )}
+      <div className="px-3 py-2.5 space-y-2">
+        <div className="flex items-center gap-3">
+          <div className={`w-2 h-2 rounded-full shrink-0 ${statusColor(container.State)}`} />
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-sm font-medium truncate">{displayName}</span>
+              {app && (
+                <>
+                  <a
+                    href={app.path}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center gap-0.5 text-xs text-primary hover:underline truncate min-w-0"
+                  >
+                    <ExternalLink size={11} className="shrink-0" />
+                    <span className="truncate">{app.path}</span>
+                  </a>
+                  <button
+                    onClick={() => onDeregister(app.id)}
+                    title="Deregister route"
+                    style={{ touchAction: 'manipulation' }}
+                    className="p-1 text-muted-foreground hover:text-destructive transition-colors"
+                  >
+                    <Trash2 size={11} />
+                  </button>
+                </>
+              )}
+            </div>
+            <div className="text-xs text-muted-foreground mt-0.5 truncate">{container.Image} · {container.Status}</div>
           </div>
-          <div className="text-xs text-muted-foreground mt-0.5 truncate">{container.Image} · {container.Status}</div>
         </div>
-        {!app && isRunning && (
+        <div className="flex items-center gap-1 pl-5">
+          {!app && isRunning && (
+            <button
+              onClick={openRegister}
+              title="Register public URL"
+              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded-lg hover:bg-muted transition-colors"
+            >
+              <Globe size={12} />
+              Publish
+            </button>
+          )}
           <button
-            onClick={openRegister}
-            title="Register public URL"
+            onClick={fetchLogs}
             className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded-lg hover:bg-muted transition-colors"
           >
-            <Globe size={12} />
-            Publish
+            {loadingLogs ? <RefreshCw size={12} className="animate-spin" /> : (expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />)}
+            Logs
           </button>
-        )}
-        <button
-          onClick={fetchLogs}
-          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded-lg hover:bg-muted transition-colors"
-        >
-          {loadingLogs ? <RefreshCw size={12} className="animate-spin" /> : (expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />)}
-          Logs
-        </button>
-        <button
-          onClick={toggleContainer}
-          disabled={actioning}
-          title={isRunning ? 'Stop' : 'Start'}
-          style={{ touchAction: 'manipulation' }}
-          className={`p-2 rounded-lg transition-colors ${isRunning ? 'hover:bg-destructive/10 hover:text-destructive' : 'hover:bg-green-500/10 hover:text-green-600'} text-muted-foreground`}
-        >
-          {actioning ? <RefreshCw size={14} className="animate-spin" /> : isRunning ? <Square size={14} /> : <Play size={14} />}
-        </button>
-        <button
-          onClick={deleteContainer}
-          disabled={deleting}
-          title={isRunning ? 'Force delete' : 'Delete container'}
-          style={{ touchAction: 'manipulation' }}
-          className="p-2 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50"
-        >
-          {deleting ? <RefreshCw size={14} className="animate-spin" /> : <Trash2 size={14} />}
-        </button>
+          <div className="flex-1" />
+          <button
+            onClick={toggleContainer}
+            disabled={actioning}
+            title={isRunning ? 'Stop' : 'Start'}
+            style={{ touchAction: 'manipulation' }}
+            className={`p-2 rounded-lg transition-colors ${isRunning ? 'hover:bg-destructive/10 hover:text-destructive' : 'hover:bg-green-500/10 hover:text-green-600'} text-muted-foreground`}
+          >
+            {actioning ? <RefreshCw size={14} className="animate-spin" /> : isRunning ? <Square size={14} /> : <Play size={14} />}
+          </button>
+          <button
+            onClick={deleteContainer}
+            disabled={deleting}
+            title={isRunning ? 'Force delete' : 'Delete container'}
+            style={{ touchAction: 'manipulation' }}
+            className="p-2 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50"
+          >
+            {deleting ? <RefreshCw size={14} className="animate-spin" /> : <Trash2 size={14} />}
+          </button>
+        </div>
       </div>
 
       {showRegister && (
@@ -1039,7 +1044,7 @@ function WorkspaceCard({ workspace, onViewSessions, onDeleteWorkspace, spendingI
             <p className="text-sm text-muted-foreground text-center py-2">No published routes for this workspace.</p>
           ) : (
             workspaceApps.map(app => (
-              <div key={app.id} className="flex items-center gap-3 px-3 py-2 rounded-lg border border-border bg-background min-w-0">
+              <div key={app.id} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-border bg-background min-w-0">
                 <Globe size={13} className="text-muted-foreground shrink-0" />
                 <a
                   href={app.path}
@@ -1050,19 +1055,18 @@ function WorkspaceCard({ workspace, onViewSessions, onDeleteWorkspace, spendingI
                   <ExternalLink size={12} className="shrink-0" />
                   <span className="truncate">{app.path}</span>
                 </a>
-                <span className="text-xs text-muted-foreground border border-border rounded px-1.5 py-0.5">
+                <span className="text-xs text-muted-foreground border border-border rounded px-1.5 py-0.5 shrink-0">
                   :{app.port}
                 </span>
-                <span className={`text-xs px-1.5 py-0.5 rounded-full ${app.status === 'running' ? 'bg-green-500/15 text-green-600' : 'bg-muted text-muted-foreground'}`}>
+                <span className={`text-xs px-1.5 py-0.5 rounded-full shrink-0 ${app.status === 'running' ? 'bg-green-500/15 text-green-600' : 'bg-muted text-muted-foreground'}`}>
                   {app.status}
                 </span>
-                <div className="flex-1" />
                 <button
                   onClick={() => deregisterApp(app.id)}
                   disabled={deregistering === app.id}
                   title="Deregister route"
                   style={{ touchAction: 'manipulation' }}
-                  className="p-2 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50"
+                  className="p-2 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50 shrink-0"
                 >
                   {deregistering === app.id ? <RefreshCw size={13} className="animate-spin" /> : <Trash2 size={13} />}
                 </button>
