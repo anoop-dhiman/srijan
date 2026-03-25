@@ -593,40 +593,21 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
   return (
     <div className="flex-1 flex flex-col min-h-0">
       <div className="flex flex-col md:flex-row flex-1 min-h-0">
-        {/* Mobile: horizontal scrollable tab strip */}
-        <div className="flex overflow-x-auto border-b border-border shrink-0 md:hidden" aria-hidden="true">
-          {navItems.map(({ key, label, icon }) => (
-            <button
-              key={key}
-              onClick={() => setActiveSection(key)}
-              style={{ touchAction: 'manipulation' }}
-              className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
-                activeSection === key
-                  ? 'border-primary text-primary'
-                  : 'border-transparent text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              {icon}
-              {label}
-            </button>
-          ))}
-        </div>
-
-        {/* Desktop: vertical sidebar nav */}
-        <nav className="hidden md:flex w-48 shrink-0 border-r border-border flex-col">
-          <div className="px-5 py-5 border-b border-border shrink-0">
+        {/* Single responsive nav: horizontal scrollable on mobile, vertical sidebar on desktop */}
+        <nav className="flex overflow-x-auto border-b border-border shrink-0 md:flex-col md:overflow-x-visible md:border-b-0 md:border-r md:w-48">
+          <div className="hidden md:block px-5 py-5 border-b border-border shrink-0">
             <h2 className="font-semibold text-base">Settings</h2>
           </div>
-          <div className="py-3 flex flex-col gap-0.5 px-2">
+          <div className="flex md:flex-col md:gap-0.5 md:py-3 md:px-2">
           {navItems.map(({ key, label, icon }) => (
             <button
               key={key}
               onClick={() => setActiveSection(key)}
               style={{ touchAction: 'manipulation' }}
-              className={`flex items-center gap-2.5 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium text-left transition-colors ${
+              className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors border-b-2 md:border-b-0 md:w-full md:rounded-lg md:px-3 md:py-2 md:gap-2.5 md:text-left ${
                 activeSection === key
-                  ? 'bg-muted text-foreground'
-                  : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
+                  ? 'border-primary text-primary md:border-transparent md:bg-muted md:text-foreground'
+                  : 'border-transparent text-muted-foreground hover:text-foreground md:hover:bg-muted/50'
               }`}
             >
               {icon}

@@ -45,7 +45,7 @@ test.describe('Slash Commands', () => {
     await expect(menu).toBeVisible({ timeout: 5000 });
 
     // At least one of the built-in commands should appear
-    const commandTexts = menu.locator('li');
+    const commandTexts = menu.locator('[role="option"]');
     await expect(commandTexts.first()).toBeVisible({ timeout: 5000 });
 
     // Check for common slash commands (clear, compact, new, help)
@@ -80,7 +80,7 @@ test.describe('Slash Commands', () => {
     await expect(menu).toBeVisible({ timeout: 5000 });
 
     // Click the first command option
-    const firstOption = menu.locator('li').first();
+    const firstOption = menu.locator('[role="option"]').first();
     await expect(firstOption).toBeVisible({ timeout: 5000 });
     await firstOption.click();
 
@@ -102,7 +102,7 @@ test.describe('Slash Commands', () => {
     // Menu may or may not be visible depending on whether /cl matches something
     const menuVisible = await menu.isVisible({ timeout: 3000 }).catch(() => false);
     if (menuVisible) {
-      const items = menu.locator('li');
+      const items = menu.locator('[role="option"]');
       const count = await items.count();
       // All visible items should contain 'cl' in their text
       for (let i = 0; i < count; i++) {

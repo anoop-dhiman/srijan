@@ -21,12 +21,12 @@ describe('useSlashCommands', () => {
   });
 
   it('menu is closed by default', () => {
-    const { result } = renderHook(() => useSlashCommands(context));
+    const { result } = renderHook(() => useSlashCommands(context, null));
     expect(result.current.menuOpen).toBe(false);
   });
 
   it('opens menu when handleInputChange receives "/" prefix', () => {
-    const { result } = renderHook(() => useSlashCommands(context));
+    const { result } = renderHook(() => useSlashCommands(context, null));
     act(() => {
       result.current.handleInputChange('/');
     });
@@ -34,7 +34,7 @@ describe('useSlashCommands', () => {
   });
 
   it('closes menu when handleInputChange receives non-slash input', () => {
-    const { result } = renderHook(() => useSlashCommands(context));
+    const { result } = renderHook(() => useSlashCommands(context, null));
     act(() => {
       result.current.handleInputChange('/');
     });
@@ -46,7 +46,7 @@ describe('useSlashCommands', () => {
   });
 
   it('filters commands by query', () => {
-    const { result } = renderHook(() => useSlashCommands(context));
+    const { result } = renderHook(() => useSlashCommands(context, null));
     act(() => {
       result.current.handleInputChange('/cl');
     });
@@ -55,7 +55,7 @@ describe('useSlashCommands', () => {
   });
 
   it('shows all commands for empty query "/"', () => {
-    const { result } = renderHook(() => useSlashCommands(context));
+    const { result } = renderHook(() => useSlashCommands(context, null));
     act(() => {
       result.current.handleInputChange('/');
     });
@@ -63,7 +63,7 @@ describe('useSlashCommands', () => {
   });
 
   it('returns empty filteredCommands for non-matching query', () => {
-    const { result } = renderHook(() => useSlashCommands(context));
+    const { result } = renderHook(() => useSlashCommands(context, null));
     act(() => {
       result.current.handleInputChange('/zzz');
     });
@@ -71,7 +71,7 @@ describe('useSlashCommands', () => {
   });
 
   it('/clear command calls clearMessages and setInput', () => {
-    const { result } = renderHook(() => useSlashCommands(context));
+    const { result } = renderHook(() => useSlashCommands(context, null));
     act(() => {
       result.current.handleInputChange('/');
     });
@@ -84,7 +84,7 @@ describe('useSlashCommands', () => {
   });
 
   it('/compact command calls sendMessage with summary text', () => {
-    const { result } = renderHook(() => useSlashCommands(context));
+    const { result } = renderHook(() => useSlashCommands(context, null));
     act(() => {
       result.current.handleInputChange('/');
     });
@@ -98,7 +98,7 @@ describe('useSlashCommands', () => {
   });
 
   it('/new command calls newSession', () => {
-    const { result } = renderHook(() => useSlashCommands(context));
+    const { result } = renderHook(() => useSlashCommands(context, null));
     act(() => {
       result.current.handleInputChange('/');
     });
@@ -110,7 +110,7 @@ describe('useSlashCommands', () => {
   });
 
   it('/help command calls sendMessage with "/help"', () => {
-    const { result } = renderHook(() => useSlashCommands(context));
+    const { result } = renderHook(() => useSlashCommands(context, null));
     act(() => {
       result.current.handleInputChange('/');
     });
@@ -122,7 +122,7 @@ describe('useSlashCommands', () => {
   });
 
   it('selectCommand closes the menu', () => {
-    const { result } = renderHook(() => useSlashCommands(context));
+    const { result } = renderHook(() => useSlashCommands(context, null));
     act(() => {
       result.current.handleInputChange('/');
     });
@@ -135,7 +135,7 @@ describe('useSlashCommands', () => {
   });
 
   it('closeMenu closes the menu', () => {
-    const { result } = renderHook(() => useSlashCommands(context));
+    const { result } = renderHook(() => useSlashCommands(context, null));
     act(() => {
       result.current.handleInputChange('/');
     });
@@ -152,7 +152,7 @@ describe('useSlashCommands', () => {
     }
 
     it('Escape closes the menu and returns true', () => {
-      const { result } = renderHook(() => useSlashCommands(context));
+      const { result } = renderHook(() => useSlashCommands(context, null));
       act(() => {
         result.current.handleInputChange('/');
       });
@@ -165,7 +165,7 @@ describe('useSlashCommands', () => {
     });
 
     it('ArrowDown increments selectedIndex', () => {
-      const { result } = renderHook(() => useSlashCommands(context));
+      const { result } = renderHook(() => useSlashCommands(context, null));
       act(() => {
         result.current.handleInputChange('/');
       });
@@ -177,7 +177,7 @@ describe('useSlashCommands', () => {
     });
 
     it('ArrowUp wraps selectedIndex', () => {
-      const { result } = renderHook(() => useSlashCommands(context));
+      const { result } = renderHook(() => useSlashCommands(context, null));
       act(() => {
         result.current.handleInputChange('/');
       });
@@ -189,7 +189,7 @@ describe('useSlashCommands', () => {
     });
 
     it('Enter selects the current command', () => {
-      const { result } = renderHook(() => useSlashCommands(context));
+      const { result } = renderHook(() => useSlashCommands(context, null));
       act(() => {
         result.current.handleInputChange('/');
       });
@@ -203,7 +203,7 @@ describe('useSlashCommands', () => {
     });
 
     it('returns false when menu is not open', () => {
-      const { result } = renderHook(() => useSlashCommands(context));
+      const { result } = renderHook(() => useSlashCommands(context, null));
       let handled = true;
       act(() => {
         handled = result.current.handleKeyDown(makeKeyEvent('Escape'));

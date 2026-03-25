@@ -63,7 +63,7 @@ interface WorkspaceCommandDef {
   hasArguments: boolean;
 }
 
-function buildWorkspaceCommand(def: WorkspaceCommandDef, context: SlashCommandContext): SlashCommand {
+function buildWorkspaceCommand(def: WorkspaceCommandDef): SlashCommand {
   return {
     name: def.name,
     description: def.description,
@@ -88,18 +88,18 @@ export function useSlashCommands(context: SlashCommandContext, workspaceName: st
 
   // Fetch workspace commands whenever the workspace changes
   useEffect(() => {
-    if (!workspaceName) {
-      setWorkspaceDefs([]);
-      return;
-    }
+    if (!workspaceName) return;
+    let cancelled = false;
     apiFetch(`/workspaces/${workspaceName}/commands`)
-      .then((data) => setWorkspaceDefs(data.commands ?? []))
-      .catch(() => setWorkspaceDefs([]));
+      .then((data) => { if (!cancelled) setWorkspaceDefs(data.commands ?? []); })
+      .catch(() => { if (!cancelled) setWorkspaceDefs([]); });
+    return () => { cancelled = true; };
   }, [workspaceName]);
 
   const allCommands: SlashCommand[] = [
     ...BUILTIN_COMMANDS,
-    ...workspaceDefs.map((def) => buildWorkspaceCommand(def, context)),
+    // Only include workspace commands when a workspace is active
+    ...(workspaceName ? workspaceDefs.map((def) => buildWorkspaceCommand(def)) : []),
   ];
 
   const filteredCommands = query

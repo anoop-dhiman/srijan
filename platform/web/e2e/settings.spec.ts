@@ -18,13 +18,13 @@ test.describe('Settings', () => {
   test('admin sees Users section', async ({ page }) => {
     await loginAs(page, 'admin', ADMIN_PASSWORD);
     await page.getByRole('button', { name: /settings/i }).click();
-    await expect(page.getByText(/Users/i)).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText(/Users/i).first()).toBeVisible({ timeout: 5000 });
   });
 
   test('admin sees Spending section', async ({ page }) => {
     await loginAs(page, 'admin', ADMIN_PASSWORD);
     await page.getByRole('button', { name: /settings/i }).click();
-    await expect(page.getByText(/Spending/i)).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText(/Spending/i).first()).toBeVisible({ timeout: 5000 });
   });
 
   test('Spending section shows user spending limits', async ({ page }) => {
