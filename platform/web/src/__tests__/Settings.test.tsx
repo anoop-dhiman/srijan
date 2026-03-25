@@ -117,8 +117,9 @@ describe('Settings', () => {
     await waitFor(() => {
       const input = screen.getByPlaceholderText('sk-ant-...') as HTMLInputElement;
       expect(input.value).toBe('sk-ant-loaded');
-      const select = screen.getByRole('combobox') as HTMLSelectElement;
-      expect(select.value).toBe('claude-opus-4-6');
+      const selects = screen.getAllByRole('combobox') as HTMLSelectElement[];
+      const modelSelect = selects.find(s => s.querySelector('option[value="claude-opus-4-6"]'))!;
+      expect(modelSelect.value).toBe('claude-opus-4-6');
     });
   });
 
@@ -527,7 +528,7 @@ describe('Settings', () => {
 
     await waitFor(() => {
       expect(screen.getByText('memory')).toBeInTheDocument();
-      expect(screen.getByText('npx')).toBeInTheDocument();
+      expect(screen.getByText(/npx/)).toBeInTheDocument();
     });
   });
 

@@ -591,23 +591,35 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
   ];
 
   return (
-    <div className="flex-1 flex flex-col min-h-0">
-      <div className="flex flex-col md:flex-row flex-1 min-h-0">
-        {/* Single responsive nav: horizontal scrollable on mobile, vertical sidebar on desktop */}
-        <nav className="flex overflow-x-auto border-b border-border shrink-0 md:flex-col md:overflow-x-visible md:border-b-0 md:border-r md:w-48">
-          <div className="hidden md:block px-5 py-5 border-b border-border shrink-0">
+    <div className="flex-1 flex flex-col min-h-0 min-w-0 overflow-hidden">
+      <div className="flex flex-col md:flex-row flex-1 min-h-0 min-w-0">
+        {/* Mobile: compact select dropdown */}
+        <div className="md:hidden px-4 py-3 border-b border-border shrink-0 bg-muted/50">
+          <select
+            value={activeSection}
+            onChange={(e) => setActiveSection(e.target.value as SettingsSection)}
+            className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary"
+          >
+            {navItems.map(({ key, label }) => (
+              <option key={key} value={key}>{label}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Desktop: vertical sidebar nav */}
+        <nav className="hidden md:flex md:flex-col md:border-r md:w-48 shrink-0">
+          <div className="px-5 py-5 border-b border-border shrink-0">
             <h2 className="font-semibold text-base">Settings</h2>
           </div>
-          <div className="flex md:flex-col md:gap-0.5 md:py-3 md:px-2">
+          <div className="flex flex-col gap-0.5 py-3 px-2">
           {navItems.map(({ key, label, icon }) => (
             <button
               key={key}
               onClick={() => setActiveSection(key)}
-              style={{ touchAction: 'manipulation' }}
-              className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors border-b-2 md:border-b-0 md:w-full md:rounded-lg md:px-3 md:py-2 md:gap-2.5 md:text-left ${
+              className={`flex items-center gap-2.5 w-full rounded-lg px-3 py-2 text-sm font-medium text-left transition-colors ${
                 activeSection === key
-                  ? 'border-primary text-primary md:border-transparent md:bg-muted md:text-foreground'
-                  : 'border-transparent text-muted-foreground hover:text-foreground md:hover:bg-muted/50'
+                  ? 'bg-muted text-foreground'
+                  : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
               }`}
             >
               {icon}
@@ -617,16 +629,16 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
           </div>
         </nav>
 
-        {/* Right content panel */}
-        <div className="flex-1 w-full overflow-y-auto py-4 md:py-6 px-4 md:px-6">
-          <div className="max-w-5xl mx-auto space-y-6">
+        {/* Content panel */}
+        <div className="flex-1 min-w-0 overflow-x-hidden overflow-y-auto py-4 md:py-6 px-4 md:px-6">
+          <div className="max-w-3xl mx-auto space-y-6 min-w-0">
 
         {/* AI Provider section */}
         {activeSection === 'ai-provider' && <>
           <section className="space-y-4">
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">LLM Provider</h3>
             {/* Provider toggle */}
-            <div className="grid grid-cols-2 sm:flex rounded-xl border border-border bg-muted p-1 gap-1">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:flex rounded-xl border border-border bg-muted p-1 gap-1">
               <button
                 type="button"
                 onClick={() => setProvider('anthropic')}
@@ -788,8 +800,8 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
                 <div className="text-sm font-medium">Claude Account</div>
                 {oauthStatus?.connected ? (
                   <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
-                      <span>Connected: {oauthStatus.email}</span>
+                    <div className="flex flex-wrap items-center gap-2 text-sm text-green-600 dark:text-green-400">
+                      <span className="break-all">Connected: {oauthStatus.email}</span>
                       {oauthStatus.subscriptionType && <span className="text-xs text-muted-foreground">({oauthStatus.subscriptionType})</span>}
                     </div>
                     {oauthStatus.expiresAt && (
@@ -816,7 +828,7 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
                         placeholder="Paste access token..."
                         value={oauthToken}
                         onChange={e => setOauthToken(e.target.value)}
-                        className="flex-1 rounded border border-input bg-background px-3 py-1.5 text-sm"
+                        className="flex-1 min-w-0 rounded border border-input bg-background px-3 py-1.5 text-sm"
                       />
                       <button
                         onClick={handleOAuthConnect}
@@ -1055,10 +1067,10 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
           <section className="space-y-4">
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Notifications</h3>
             <div className="border border-border rounded-lg p-4">
-              <div className="flex items-center justify-between">
-                <div>
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
                   <div className="font-medium text-sm">Desktop Notifications</div>
-                  <div className="text-sm text-muted-foreground">
+                  <div className="text-xs sm:text-sm text-muted-foreground">
                     Get notified when an agent completes or needs approval
                   </div>
                 </div>
@@ -1132,8 +1144,8 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
                       </div>
                     )}
                     <p className="text-xs text-muted-foreground">Or enter this key manually:</p>
-                    <div className="flex items-center gap-2">
-                      <code className="flex-1 rounded-xl border border-border bg-muted px-4 py-3 text-sm font-mono break-all">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <code className="flex-1 min-w-0 rounded-xl border border-border bg-muted px-3 py-2.5 text-xs sm:text-sm font-mono break-all">
                         {totpSecretVisible ? totpSetupSecret : '••••••••••••••••••••••••••••••••'}
                       </code>
                       <button
@@ -1199,7 +1211,7 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
                   key={s.id}
                   className="flex items-center justify-between rounded-xl border border-border px-4 py-3"
                 >
-                  <span className="text-base font-mono">{s.name}</span>
+                  <span className="text-sm font-mono truncate min-w-0">{s.name}</span>
                   <button
                     onClick={() => deleteSecret(s.id)}
                     className="p-1.5 text-muted-foreground hover:text-destructive transition-colors"
@@ -1260,8 +1272,8 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
                   key={u.id}
                   className="flex items-center justify-between rounded-xl border border-border px-4 py-3"
                 >
-                  <div className="flex items-center gap-3">
-                    <span className="text-base font-mono">{u.username}</span>
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <span className="text-sm font-mono truncate">{u.username}</span>
                     <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${
                       u.role === 'admin'
                         ? 'border-primary/40 text-primary bg-primary/10'
@@ -1307,7 +1319,7 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
                   />
                 </div>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex flex-col sm:flex-row items-start sm:items-end gap-3">
                 <div className="flex flex-col gap-1">
                   <label className="text-xs font-medium text-muted-foreground">Role</label>
                   <select
@@ -1322,7 +1334,7 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
                 <button
                   onClick={handleAddUser}
                   disabled={!newUserName || !newUserPassword}
-                  className="mt-auto flex items-center gap-2 rounded-xl bg-secondary px-4 py-2.5 text-sm font-medium text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 transition-colors"
+                  className="flex items-center gap-2 rounded-xl bg-secondary px-4 py-2.5 text-sm font-medium text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 transition-colors"
                 >
                   <Plus size={16} />
                   Add User
@@ -1337,7 +1349,7 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
         {/* Plugins section — admin only */}
         {activeSection === 'plugins' && isAdmin && <>
           <section className="space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
                 <Package size={13} />
                 Claude Code Plugins
@@ -1357,7 +1369,7 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
                   }
                 }}
                 disabled={pluginRefreshing}
-                className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50 transition-colors"
+                className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50 transition-colors self-start"
                 title="Refresh marketplace catalog from GitHub"
               >
                 <RotateCcw size={12} className={pluginRefreshing ? 'animate-spin' : ''} />
@@ -1482,9 +1494,9 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
             {/* Role list */}
             <div className="space-y-2">
               {roles.map(role => (
-                <div key={role.id} className="flex items-start justify-between rounded-lg border border-border p-3">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
+                <div key={role.id} className="flex items-start justify-between gap-2 rounded-lg border border-border p-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                       <span className="text-sm font-medium font-mono">@{role.name}</span>
                       <span className="text-xs text-muted-foreground">{role.display_name}</span>
                       {role.is_default === 1 && (
@@ -1602,35 +1614,22 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
 
             {/* Servers table */}
             {!mcpLoading && mcpServers.length > 0 && (
-              <div className="rounded-xl border border-border overflow-x-auto">
-                <table className="w-full text-sm min-w-[400px]">
-                  <thead>
-                    <tr className="bg-muted border-b border-border">
-                      <th className="text-left px-4 py-2 font-medium text-muted-foreground">Name</th>
-                      <th className="text-left px-4 py-2 font-medium text-muted-foreground">Command</th>
-                      <th className="text-left px-4 py-2 font-medium text-muted-foreground">Args</th>
-                      <th className="px-4 py-2" />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {mcpServers.map((srv) => (
-                      <tr key={srv.name} className="border-b border-border last:border-0">
-                        <td className="px-4 py-2 font-mono">{srv.name}</td>
-                        <td className="px-4 py-2 font-mono text-muted-foreground">{srv.command}</td>
-                        <td className="px-4 py-2 font-mono text-muted-foreground text-xs">{(srv.args || []).join(' ')}</td>
-                        <td className="px-4 py-2 text-right">
-                          <button
-                            onClick={() => handleRemoveMcp(srv.name)}
-                            className="p-1.5 text-muted-foreground hover:text-destructive transition-colors"
-                            title="Remove server"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="space-y-2">
+                {mcpServers.map((srv) => (
+                  <div key={srv.name} className="flex items-start justify-between gap-3 rounded-xl border border-border px-4 py-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-mono font-medium truncate">{srv.name}</div>
+                      <div className="text-xs text-muted-foreground font-mono mt-0.5 truncate">{srv.command} {(srv.args || []).join(' ')}</div>
+                    </div>
+                    <button
+                      onClick={() => handleRemoveMcp(srv.name)}
+                      className="p-1.5 text-muted-foreground hover:text-destructive transition-colors shrink-0"
+                      title="Remove server"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                ))}
               </div>
             )}
 
@@ -1641,7 +1640,7 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
             {/* Add server form */}
             <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-3">
               <p className="text-sm font-medium text-muted-foreground">Add MCP server</p>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-muted-foreground">Name</label>
                   <input
@@ -1697,25 +1696,29 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
             </h3>
             <div className="space-y-2">
               {spendingUsers.map((u) => (
-                <div key={u.id} className="flex flex-wrap items-center gap-3 rounded-xl border border-border px-4 py-3">
-                  <span className="flex-1 min-w-0 text-sm font-mono truncate">{u.username}</span>
-                  <span className="text-xs text-muted-foreground shrink-0">${u.spent_usd.toFixed(4)} spent</span>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    placeholder="No limit"
-                    value={spendingUserLimits[u.id] ?? ''}
-                    onChange={(e) => setSpendingUserLimits((prev) => ({ ...prev, [u.id]: e.target.value }))}
-                    className="w-24 rounded-lg border border-border bg-muted px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary shrink-0"
-                  />
-                  <button
-                    onClick={() => saveUserSpendingLimit(u.id)}
-                    className="flex items-center gap-1 rounded-lg bg-secondary px-3 py-1.5 text-xs font-medium text-secondary-foreground hover:bg-secondary/80 transition-colors shrink-0"
-                  >
-                    <Save size={12} />
-                    Save
-                  </button>
+                <div key={u.id} className="rounded-xl border border-border px-4 py-3 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-mono truncate min-w-0">{u.username}</span>
+                    <span className="text-xs text-muted-foreground shrink-0">${u.spent_usd.toFixed(4)} spent</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="No limit"
+                      value={spendingUserLimits[u.id] ?? ''}
+                      onChange={(e) => setSpendingUserLimits((prev) => ({ ...prev, [u.id]: e.target.value }))}
+                      className="flex-1 min-w-0 rounded-lg border border-border bg-muted px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                    />
+                    <button
+                      onClick={() => saveUserSpendingLimit(u.id)}
+                      className="flex items-center gap-1 rounded-lg bg-secondary px-3 py-1.5 text-xs font-medium text-secondary-foreground hover:bg-secondary/80 transition-colors shrink-0"
+                    >
+                      <Save size={12} />
+                      Save
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -1728,25 +1731,29 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
             </h3>
             <div className="space-y-2">
               {spendingWorkspaces.map((w) => (
-                <div key={w.workspace_name} className="flex flex-wrap items-center gap-3 rounded-xl border border-border px-4 py-3">
-                  <span className="flex-1 min-w-0 text-sm font-mono truncate">{w.workspace_name}</span>
-                  <span className="text-xs text-muted-foreground shrink-0">${w.spent_usd.toFixed(4)} spent</span>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    placeholder="No limit"
-                    value={spendingWsLimits[w.workspace_name] ?? ''}
-                    onChange={(e) => setSpendingWsLimits((prev) => ({ ...prev, [w.workspace_name]: e.target.value }))}
-                    className="w-24 rounded-lg border border-border bg-muted px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary shrink-0"
-                  />
-                  <button
-                    onClick={() => saveWsSpendingLimit(w.workspace_name)}
-                    className="flex items-center gap-1 rounded-lg bg-secondary px-3 py-1.5 text-xs font-medium text-secondary-foreground hover:bg-secondary/80 transition-colors shrink-0"
-                  >
-                    <Save size={12} />
-                    Save
-                  </button>
+                <div key={w.workspace_name} className="rounded-xl border border-border px-4 py-3 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-mono truncate min-w-0">{w.workspace_name}</span>
+                    <span className="text-xs text-muted-foreground shrink-0">${w.spent_usd.toFixed(4)} spent</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="No limit"
+                      value={spendingWsLimits[w.workspace_name] ?? ''}
+                      onChange={(e) => setSpendingWsLimits((prev) => ({ ...prev, [w.workspace_name]: e.target.value }))}
+                      className="flex-1 min-w-0 rounded-lg border border-border bg-muted px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                    />
+                    <button
+                      onClick={() => saveWsSpendingLimit(w.workspace_name)}
+                      className="flex items-center gap-1 rounded-lg bg-secondary px-3 py-1.5 text-xs font-medium text-secondary-foreground hover:bg-secondary/80 transition-colors shrink-0"
+                    >
+                      <Save size={12} />
+                      Save
+                    </button>
+                  </div>
                 </div>
               ))}
               {spendingWorkspaces.length === 0 && (
