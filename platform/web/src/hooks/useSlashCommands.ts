@@ -114,27 +114,17 @@ export function useSlashCommands(context: SlashCommandContext, workspaceName: st
   const processInput = useCallback(
     (rawInput: string): string | null => {
       if (!rawInput.startsWith('/')) return rawInput;
-      const [token, ...rest] = rawInput.trim().split(/\s+/);
-      const commandName = token.slice(1);
+      const commandName = rawInput.trim().split(/\s+/)[0].slice(1);
 
-      // Builtin side-effect commands
+      // UI-only side effects — not sent to the AI
       if (commandName === 'clear') { context.clearMessages(); return null; }
       if (commandName === 'new')   { context.newSession();    return null; }
-      if (commandName === 'compact') {
-        return 'Please summarize our conversation so far concisely, then continue from where we left off.';
-      }
-      if (commandName === 'help') return '/help';
 
-      // Workspace template commands
-      const def = workspaceDefs.find((d) => d.name === commandName);
-      if (def) {
-        const args = rest.join(' ');
-        return def.content.replace(/\$ARGUMENTS/g, args);
-      }
-
+      // Everything else (including /compact, /help, workspace commands) is
+      // sent as-is; Claude CLI handles the resolution
       return rawInput;
     },
-    [context, workspaceDefs]
+    [context]
   );
 
   /**

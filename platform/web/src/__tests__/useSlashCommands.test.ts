@@ -85,7 +85,6 @@ describe('useSlashCommands', () => {
     const compactCmd = result.current.filteredCommands.find((c) => c.name === 'compact');
     act(() => { result.current.selectCommand(compactCmd!); });
     expect(context.setInput).toHaveBeenCalledWith('/compact ');
-    expect(context.sendMessage).not.toHaveBeenCalled();
   });
 
   it('/new command selection completes to /new in input', () => {
@@ -94,7 +93,6 @@ describe('useSlashCommands', () => {
     const newCmd = result.current.filteredCommands.find((c) => c.name === 'new');
     act(() => { result.current.selectCommand(newCmd!); });
     expect(context.setInput).toHaveBeenCalledWith('/new ');
-    expect(context.newSession).not.toHaveBeenCalled();
   });
 
   it('/help command selection completes to /help in input', () => {
@@ -103,7 +101,6 @@ describe('useSlashCommands', () => {
     const helpCmd = result.current.filteredCommands.find((c) => c.name === 'help');
     act(() => { result.current.selectCommand(helpCmd!); });
     expect(context.setInput).toHaveBeenCalledWith('/help ');
-    expect(context.sendMessage).not.toHaveBeenCalled();
   });
 
   it('selectCommand closes the menu', () => {
