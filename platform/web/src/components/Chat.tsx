@@ -8,7 +8,7 @@ import {
 import type { ChatMessage, Session, WorkspaceInfo, SessionActivity } from '../hooks/useChat';
 import ReactMarkdown from 'react-markdown';
 import rehypeSanitize from 'rehype-sanitize';
-import { apiFetch, getRoles, type AgentRole } from '../lib/api';
+import { apiFetch } from '../lib/api';
 import { BashOutput } from './BashOutput';
 import { PlanCard } from './PlanCard';
 import { AgentSidebar, type SessionAgent, getAgentColor } from './AgentSidebar';
@@ -246,9 +246,6 @@ export function Chat({
   const [input, setInput] = useState('');
   const [thinkingMode, setThinkingMode] = useState<ThinkingMode>('none');
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-  const [roles, setRoles] = useState<AgentRole[]>([]);
-  const [mentionDropdown, setMentionDropdown] = useState(false);
-  const [mentionQuery, setMentionQuery] = useState('');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_WIDTH);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -266,10 +263,6 @@ export function Chat({
         setSpendingWarning(null);
       }
     }).catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    getRoles().then(setRoles).catch(() => {});
   }, []);
 
   const isPendingApproval = currentSession
@@ -391,34 +384,6 @@ export function Chat({
 
     // Sync slash command menu
     slashHandleInputChange(val);
-
-    // Detect @mention at end of current word (role mentions for AgentSidebar)
-    const lastWord = val.split(/\s/).pop() || '';
-    if (lastWord.startsWith('@') && lastWord.length > 1) {
-      setMentionQuery(lastWord.slice(1).toLowerCase());
-      setMentionDropdown(true);
-    } else if (lastWord === '@') {
-      setMentionQuery('');
-      setMentionDropdown(true);
-    } else {
-      setMentionDropdown(false);
-    }
-  };
-
-  const handleRoleSelect = (role: AgentRole) => {
-    // Replace the partial @mention with the full @rolename followed by a space
-    const words = input.split(/(\s+)/);
-    const lastWordIdx = words.length - 1;
-    words[lastWordIdx] = `@${role.name} `;
-    const newInput = words.join('');
-    setInput(newInput);
-    setMentionDropdown(false);
-    // Restore textarea height after value change
-    if (inputRef.current) {
-      inputRef.current.style.height = 'auto';
-      inputRef.current.style.height = Math.min(inputRef.current.scrollHeight, 200) + 'px';
-      inputRef.current.focus();
-    }
   };
 
   // Sessions filtered to the current workspace
@@ -709,27 +674,6 @@ export function Chat({
                   onClose={closeFileMention}
                 />
               )}
-              {mentionDropdown && roles.length > 0 && (() => {
-                const filtered = roles.filter(
-                  r =>
-                    r.name.startsWith(mentionQuery) ||
-                    r.display_name.toLowerCase().includes(mentionQuery)
-                );
-                return filtered.length > 0 ? (
-                  <div className="absolute bottom-full left-0 mb-1 z-50 w-64 rounded-lg border border-border bg-popover shadow-lg overflow-hidden">
-                    {filtered.map(role => (
-                      <button
-                        key={role.id}
-                        onMouseDown={e => { e.preventDefault(); handleRoleSelect(role); }}
-                        className="w-full flex flex-col px-3 py-2 text-left hover:bg-muted transition-colors"
-                      >
-                        <span className="text-sm font-medium">@{role.name}</span>
-                        <span className="text-xs text-muted-foreground">{role.description}</span>
-                      </button>
-                    ))}
-                  </div>
-                ) : null;
-              })()}
               <div className="rounded-2xl border border-border bg-muted focus-within:ring-2 focus-within:ring-primary">
                 <textarea
                   ref={inputRef}
