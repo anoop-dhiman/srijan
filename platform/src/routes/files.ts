@@ -138,6 +138,42 @@ router.get('/:name/file', (req: Request, res: Response) => {
   }
 });
 
+router.get('/:name/commands', (req: Request, res: Response) => {
+  const name = req.params.name as string;
+  const workspaceBase = resolve(join(getWorkspaceRoot(), name));
+  const commandsDir = resolve(workspaceBase, '.claude', 'commands');
+
+  if (!isUnderBase(commandsDir, workspaceBase)) {
+    res.status(400).json({ error: { code: 'PATH_TRAVERSAL', message: 'Path traversal not allowed' } });
+    return;
+  }
+
+  try {
+    const files = readdirSync(commandsDir).filter((f) => f.endsWith('.md'));
+    const commands = files.map((f) => {
+      try {
+        const content = readFileSync(join(commandsDir, f), 'utf-8');
+        const firstLine = content.split('\n').find((l) => l.trim())?.replace(/^#+\s*/, '').trim() ?? '';
+        return {
+          name: f.replace(/\.md$/, ''),
+          description: firstLine || f.replace(/\.md$/, ''),
+          content,
+          hasArguments: content.includes('$ARGUMENTS'),
+        };
+      } catch {
+        return null;
+      }
+    }).filter(Boolean);
+    res.json({ commands });
+  } catch (err: any) {
+    if (err.code === 'ENOENT') {
+      res.json({ commands: [] });
+      return;
+    }
+    res.status(500).json({ error: { code: 'IO_ERROR', message: err.message } });
+  }
+});
+
 router.put('/:name/file', (req: Request, res: Response) => {
   const name = req.params.name as string;
   const requestedPath = (req.query.path as string) || '';

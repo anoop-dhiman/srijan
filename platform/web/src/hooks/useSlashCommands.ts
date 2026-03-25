@@ -1,8 +1,10 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
+import { apiFetch } from '../lib/api';
 
 export interface SlashCommand {
   name: string;
   description: string;
+  type: 'builtin' | 'workspace';
   action: (context: SlashCommandContext) => void;
 }
 
@@ -13,10 +15,11 @@ export interface SlashCommandContext {
   setInput: (val: string) => void;
 }
 
-const COMMANDS: SlashCommand[] = [
+const BUILTIN_COMMANDS: SlashCommand[] = [
   {
     name: 'clear',
     description: 'Clear all messages in the current session',
+    type: 'builtin',
     action: (ctx) => {
       ctx.clearMessages();
       ctx.setInput('');
@@ -25,6 +28,7 @@ const COMMANDS: SlashCommand[] = [
   {
     name: 'compact',
     description: 'Summarize and compact the conversation',
+    type: 'builtin',
     action: (ctx) => {
       ctx.sendMessage(
         'Please summarize our conversation so far concisely, then continue from where we left off.'
@@ -35,6 +39,7 @@ const COMMANDS: SlashCommand[] = [
   {
     name: 'new',
     description: 'Start a new session',
+    type: 'builtin',
     action: (ctx) => {
       ctx.newSession();
       ctx.setInput('');
@@ -43,6 +48,7 @@ const COMMANDS: SlashCommand[] = [
   {
     name: 'help',
     description: 'Show available commands',
+    type: 'builtin',
     action: (ctx) => {
       ctx.sendMessage('/help');
       ctx.setInput('');
@@ -50,14 +56,55 @@ const COMMANDS: SlashCommand[] = [
   },
 ];
 
-export function useSlashCommands(context: SlashCommandContext) {
+interface WorkspaceCommandDef {
+  name: string;
+  description: string;
+  content: string;
+  hasArguments: boolean;
+}
+
+function buildWorkspaceCommand(def: WorkspaceCommandDef, context: SlashCommandContext): SlashCommand {
+  return {
+    name: def.name,
+    description: def.description,
+    type: 'workspace',
+    action: (ctx) => {
+      if (def.hasArguments) {
+        // Let user type arguments after the command name
+        ctx.setInput(`/${def.name} `);
+      } else {
+        ctx.sendMessage(def.content);
+        ctx.setInput('');
+      }
+    },
+  };
+}
+
+export function useSlashCommands(context: SlashCommandContext, workspaceName: string | null) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [workspaceDefs, setWorkspaceDefs] = useState<WorkspaceCommandDef[]>([]);
+
+  // Fetch workspace commands whenever the workspace changes
+  useEffect(() => {
+    if (!workspaceName) {
+      setWorkspaceDefs([]);
+      return;
+    }
+    apiFetch(`/workspaces/${workspaceName}/commands`)
+      .then((data) => setWorkspaceDefs(data.commands ?? []))
+      .catch(() => setWorkspaceDefs([]));
+  }, [workspaceName]);
+
+  const allCommands: SlashCommand[] = [
+    ...BUILTIN_COMMANDS,
+    ...workspaceDefs.map((def) => buildWorkspaceCommand(def, context)),
+  ];
 
   const filteredCommands = query
-    ? COMMANDS.filter((cmd) => cmd.name.toLowerCase().includes(query.toLowerCase()))
-    : COMMANDS;
+    ? allCommands.filter((cmd) => cmd.name.toLowerCase().includes(query.toLowerCase()))
+    : allCommands;
 
   const openMenu = useCallback((q: string) => {
     setQuery(q);
@@ -80,14 +127,37 @@ export function useSlashCommands(context: SlashCommandContext) {
   );
 
   /**
+   * If the raw input matches a workspace command with $ARGUMENTS, substitute
+   * the template and return the processed content. Otherwise return as-is.
+   * Call this before sending a message.
+   */
+  const processInput = useCallback(
+    (rawInput: string): string => {
+      if (!rawInput.startsWith('/')) return rawInput;
+      const [token, ...rest] = rawInput.trim().split(/\s+/);
+      const commandName = token.slice(1);
+      const def = workspaceDefs.find((d) => d.name === commandName);
+      if (!def || !def.hasArguments) return rawInput;
+      const args = rest.join(' ');
+      return def.content.replace(/\$ARGUMENTS/g, args);
+    },
+    [workspaceDefs]
+  );
+
+  /**
    * Call this from the textarea's onChange handler with the current input value
    * to keep menu state in sync.
    */
   const handleInputChange = useCallback(
     (value: string) => {
       if (value.startsWith('/')) {
-        const q = value.slice(1);
-        openMenu(q);
+        // Only show menu when there's no space yet (still typing command name)
+        const hasSpace = value.includes(' ');
+        if (!hasSpace) {
+          openMenu(value.slice(1));
+        } else {
+          closeMenu();
+        }
       } else {
         closeMenu();
       }
@@ -141,5 +211,6 @@ export function useSlashCommands(context: SlashCommandContext) {
     handleInputChange,
     selectCommand,
     closeMenu,
+    processInput,
   };
 }

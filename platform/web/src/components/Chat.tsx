@@ -288,7 +288,8 @@ export function Chat({
     handleInputChange: slashHandleInputChange,
     selectCommand,
     closeMenu: closeSlashMenu,
-  } = useSlashCommands(slashCtx);
+    processInput,
+  } = useSlashCommands(slashCtx, currentWorkspace);
 
   // File mention dropdown — reuse inputRef as textareaRef
   const {
@@ -353,7 +354,7 @@ export function Chat({
     e.preventDefault();
     if (!input.trim() || isLoading || noWorkspace || isPendingApproval) return;
     isAtBottom.current = true;
-    onSendMessage(input.trim(), THINKING_BUDGETS[thinkingMode]);
+    onSendMessage(processInput(input.trim()), THINKING_BUDGETS[thinkingMode]);
     setInput('');
     if (inputRef.current) {
       inputRef.current.style.height = 'auto';

@@ -7,10 +7,10 @@ import type { SlashCommand } from '../hooks/useSlashCommands';
 window.HTMLElement.prototype.scrollIntoView = vi.fn();
 
 const mockCommands: SlashCommand[] = [
-  { name: 'clear', description: 'Clear all messages', action: vi.fn() },
-  { name: 'compact', description: 'Compact the conversation', action: vi.fn() },
-  { name: 'new', description: 'Start a new session', action: vi.fn() },
-  { name: 'help', description: 'Show available commands', action: vi.fn() },
+  { name: 'clear', description: 'Clear all messages', type: 'builtin', action: vi.fn() },
+  { name: 'compact', description: 'Compact the conversation', type: 'builtin', action: vi.fn() },
+  { name: 'new', description: 'Start a new session', type: 'builtin', action: vi.fn() },
+  { name: 'help', description: 'Show available commands', type: 'builtin', action: vi.fn() },
 ];
 
 describe('CommandMenu', () => {
