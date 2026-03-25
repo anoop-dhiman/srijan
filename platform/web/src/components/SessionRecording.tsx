@@ -63,11 +63,11 @@ function ToolPill({ event }: { event: RecordingEvent }) {
             <CheckCircle2 size={14} className="text-green-500 shrink-0" />
           </>
         )}
-        <span className="truncate max-w-md">{label}</span>
+        <span className="truncate max-w-[60vw] sm:max-w-md">{label}</span>
         {hasDetails && (expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />)}
       </button>
       {expanded && hasDetails && (
-        <div className="ml-2 w-full max-w-2xl rounded-lg border border-border/50 bg-background text-xs font-mono overflow-hidden">
+        <div className="ml-2 max-w-[calc(100%-0.5rem)] sm:max-w-2xl rounded-lg border border-border/50 bg-background text-xs font-mono overflow-hidden">
           {event.data?.input && (
             <div className="px-3 py-2 border-b border-border/30">
               <div className="text-muted-foreground mb-1 text-[10px] uppercase tracking-wider">Input</div>
@@ -97,8 +97,8 @@ function renderEvent(event: RecordingEvent, idx: number) {
     case 'user_message':
       return (
         <div key={idx} className="flex justify-end">
-          <div className="max-w-[80%] rounded-2xl px-4 py-3 text-base bg-primary text-primary-foreground">
-            <p className="whitespace-pre-wrap">{event.data?.content}</p>
+          <div className="max-w-[80%] rounded-2xl px-4 py-3 text-base bg-primary text-primary-foreground break-words">
+            <p className="whitespace-pre-wrap break-words">{event.data?.content}</p>
           </div>
         </div>
       );
@@ -108,7 +108,7 @@ function renderEvent(event: RecordingEvent, idx: number) {
       return (
         <div key={idx} className="flex justify-start">
           <div className="max-w-[80%] rounded-2xl px-4 py-3 text-base bg-muted border border-border">
-            <div className="prose prose-invert prose-base max-w-none [&_pre]:bg-background [&_pre]:rounded-lg [&_pre]:p-3 [&_code]:text-secondary-foreground">
+            <div className="prose prose-invert prose-base max-w-none break-words overflow-hidden [&_pre]:bg-background [&_pre]:rounded-lg [&_pre]:p-3 [&_pre]:overflow-x-auto [&_pre]:max-w-full [&_code]:text-secondary-foreground [&_code]:break-all">
               <ReactMarkdown rehypePlugins={[rehypeSanitize]}>{event.data?.content || ''}</ReactMarkdown>
             </div>
           </div>

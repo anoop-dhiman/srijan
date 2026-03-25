@@ -51,7 +51,7 @@ export function BashOutput({ content }: BashOutputProps) {
     <div
       ref={containerRef}
       className="rounded-b-lg overflow-hidden"
-      style={{ height: '180px', background: '#09090b' }}
+      style={{ height: 'clamp(120px, 25vh, 180px)', background: '#09090b' }}
     />
   );
 }

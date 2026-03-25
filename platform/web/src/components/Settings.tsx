@@ -739,7 +739,7 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
                     </button>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Leave blank to use Application Default Credentials (<code className="font-mono">gcloud auth application-default login</code>)
+                    Leave blank to use Application Default Credentials (<code className="font-mono break-all">gcloud auth application-default login</code>)
                   </p>
                 </div>
               </div>
@@ -805,10 +805,10 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
                   <div className="space-y-3">
                     <div className="text-xs text-muted-foreground space-y-1">
                       <p>Connect using your Claude Pro/Team subscription.</p>
-                      <p>1. Open the Terminal tab and run: <code className="font-mono bg-muted px-1 rounded">claude auth login</code></p>
+                      <p>1. Open the Terminal tab and run: <code className="font-mono bg-muted px-1 rounded break-all">claude auth login</code></p>
                       <p>2. Complete the browser login flow.</p>
-                      <p>3. Run: <code className="font-mono bg-muted px-1 rounded">cat ~/.claude/.credentials.json</code></p>
-                      <p>4. Copy the <code className="font-mono bg-muted px-1 rounded">accessToken</code> value and paste it below:</p>
+                      <p>3. Run: <code className="font-mono bg-muted px-1 rounded break-all">cat ~/.claude/.credentials.json</code></p>
+                      <p>4. Copy the <code className="font-mono bg-muted px-1 rounded break-all">accessToken</code> value and paste it below:</p>
                     </div>
                     <div className="flex flex-col sm:flex-row gap-2">
                       <input
@@ -1426,7 +1426,7 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
             <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-3">
               <p className="text-sm font-medium text-muted-foreground">Install plugin</p>
               <p className="text-xs text-muted-foreground">
-                Enter a plugin ID from the official marketplace, e.g. <code className="font-mono bg-muted px-1 rounded">frontend-design@claude-plugins-official</code>
+                Enter a plugin ID from the official marketplace, e.g. <code className="font-mono bg-muted px-1 rounded break-all">frontend-design@claude-plugins-official</code>
               </p>
               <div className="flex flex-col sm:flex-row gap-2">
                 <input

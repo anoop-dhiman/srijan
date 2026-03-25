@@ -58,10 +58,10 @@ export function PlanCard({ title, steps, onExecuteAll, onCancel }: PlanCardProps
                     {step.title}
                   </div>
                   {step.description && (
-                    <div className="text-xs text-muted-foreground mt-0.5">{step.description}</div>
+                    <div className="text-xs text-muted-foreground mt-0.5 break-words">{step.description}</div>
                   )}
                   {step.dependencies && step.dependencies.length > 0 && (
-                    <div className="text-xs text-muted-foreground/70 mt-0.5">
+                    <div className="text-xs text-muted-foreground/70 mt-0.5 break-words">
                       Needs: {step.dependencies.join(', ')}
                     </div>
                   )}

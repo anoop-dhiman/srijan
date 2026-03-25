@@ -73,7 +73,7 @@ export function CommandMenu({ commands, selectedIndex, onSelect, onClose }: Comm
   return (
     <div
       data-command-menu
-      className="absolute bottom-full left-0 z-50 mb-1 w-80 overflow-hidden rounded-lg border border-border bg-background shadow-lg max-h-72 overflow-y-auto"
+      className="absolute bottom-full left-0 z-50 mb-1 w-[calc(100vw-2rem)] sm:w-80 overflow-hidden rounded-lg border border-border bg-background shadow-lg max-h-72 overflow-y-auto"
     >
       <div ref={listRef} role="listbox" aria-label="Slash commands">
         {builtins.length > 0 && (

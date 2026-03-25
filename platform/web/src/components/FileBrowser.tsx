@@ -88,7 +88,7 @@ function TreeItem({
             ? 'bg-primary/10 text-primary'
             : 'text-foreground hover:bg-muted'
         }`}
-        style={{ paddingLeft: `${8 + depth * 16}px` }}
+        style={{ paddingLeft: `${Math.min(8 + depth * 16, 128)}px` }}
       >
         {node.type === 'dir' ? (
           <>

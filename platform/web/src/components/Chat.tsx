@@ -89,12 +89,12 @@ function ToolMessage({ msg }: { msg: ChatMessage }) {
             <CheckCircle2 size={14} className="text-green-500 shrink-0" />
           </>
         )}
-        <span className="truncate max-w-md">{msg.content}</span>
+        <span className="truncate max-w-[60vw] sm:max-w-md">{msg.content}</span>
         {hasDetails && (expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />)}
       </button>
 
       {expanded && hasDetails && (
-        <div className="ml-2 w-full max-w-full sm:max-w-2xl rounded-lg border border-border/50 bg-background text-xs font-mono overflow-hidden">
+        <div className="ml-2 max-w-[calc(100%-0.5rem)] sm:max-w-2xl rounded-lg border border-border/50 bg-background text-xs font-mono overflow-hidden">
           {msg.toolInput && (
             <div className="px-3 py-2 border-b border-border/30">
               <div className="text-muted-foreground mb-1 text-[10px] uppercase tracking-wider">Input</div>

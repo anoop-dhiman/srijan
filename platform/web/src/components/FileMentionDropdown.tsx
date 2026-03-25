@@ -44,7 +44,7 @@ export function FileMentionDropdown({
   return (
     <div
       data-file-mention-dropdown
-      className="absolute bottom-full left-0 z-50 mb-1 w-80 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg"
+      className="absolute bottom-full left-0 z-50 mb-1 w-[calc(100vw-2rem)] sm:w-80 overflow-hidden rounded-lg border border-border bg-background shadow-lg"
     >
       <ul ref={listRef} role="listbox" aria-label="File suggestions">
         {suggestions.slice(0, 8).map((entry, i) => {
@@ -64,17 +64,17 @@ export function FileMentionDropdown({
               }}
               className={`flex cursor-pointer items-center gap-2 px-3 py-2 text-sm transition-colors ${
                 i === selectedIndex
-                  ? 'bg-blue-50 text-blue-700'
-                  : 'text-gray-700 hover:bg-gray-50'
+                  ? 'bg-primary/10 text-primary'
+                  : 'text-foreground hover:bg-muted'
               }`}
             >
               <FileText
                 size={14}
-                className={`shrink-0 ${i === selectedIndex ? 'text-blue-500' : 'text-gray-400'}`}
+                className={`shrink-0 ${i === selectedIndex ? 'text-primary' : 'text-muted-foreground'}`}
               />
               <span className="flex-1 truncate font-medium text-sm">{fileName}</span>
               {dirPath && (
-                <span className="shrink-0 text-xs text-gray-400 font-normal">{dirPath}</span>
+                <span className="shrink-0 text-xs text-muted-foreground font-normal">{dirPath}</span>
               )}
             </li>
           );

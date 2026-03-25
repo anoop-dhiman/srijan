@@ -256,10 +256,10 @@ function ContainerRow({ container, app, workspaceName, onAction, onRegistered, o
                   href={app.path}
                   target="_blank"
                   rel="noreferrer"
-                  className="flex items-center gap-0.5 text-xs text-primary hover:underline"
+                  className="flex items-center gap-0.5 text-xs text-primary hover:underline truncate min-w-0"
                 >
-                  <ExternalLink size={11} />
-                  {app.path}
+                  <ExternalLink size={11} className="shrink-0" />
+                  <span className="truncate">{app.path}</span>
                 </a>
                 <button
                   onClick={() => onDeregister(app.id)}
@@ -272,7 +272,7 @@ function ContainerRow({ container, app, workspaceName, onAction, onRegistered, o
               </>
             )}
           </div>
-          <div className="text-xs text-muted-foreground mt-0.5">{container.Image} · {container.Status}</div>
+          <div className="text-xs text-muted-foreground mt-0.5 truncate">{container.Image} · {container.Status}</div>
         </div>
         {!app && isRunning && (
           <button
@@ -1039,16 +1039,16 @@ function WorkspaceCard({ workspace, onViewSessions, onDeleteWorkspace, spendingI
             <p className="text-sm text-muted-foreground text-center py-2">No published routes for this workspace.</p>
           ) : (
             workspaceApps.map(app => (
-              <div key={app.id} className="flex items-center gap-3 px-3 py-2 rounded-lg border border-border bg-background">
+              <div key={app.id} className="flex items-center gap-3 px-3 py-2 rounded-lg border border-border bg-background min-w-0">
                 <Globe size={13} className="text-muted-foreground shrink-0" />
                 <a
                   href={app.path}
                   target="_blank"
                   rel="noreferrer"
-                  className="flex items-center gap-1 text-sm text-primary hover:underline font-mono"
+                  className="flex items-center gap-1 text-sm text-primary hover:underline font-mono truncate min-w-0 flex-1"
                 >
-                  <ExternalLink size={12} />
-                  {app.path}
+                  <ExternalLink size={12} className="shrink-0" />
+                  <span className="truncate">{app.path}</span>
                 </a>
                 <span className="text-xs text-muted-foreground border border-border rounded px-1.5 py-0.5">
                   :{app.port}
