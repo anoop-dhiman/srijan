@@ -226,7 +226,7 @@ function App() {
           </button>
           <button
             onClick={logout}
-            className="hidden md:block text-base px-4 py-2 rounded-lg border border-border hover:bg-background/60 transition-colors font-medium"
+            className="hidden md:block text-sm px-4 py-2 rounded-lg border border-border hover:bg-background/60 transition-colors font-medium"
           >
             Logout
           </button>

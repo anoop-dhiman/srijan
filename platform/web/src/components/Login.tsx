@@ -94,7 +94,7 @@ export function Login({ onLogin }: LoginProps) {
               autoComplete="current-password"
             />
 
-            {error && <p className="text-base text-destructive">{error}</p>}
+            {error && <p className="text-sm text-destructive">{error}</p>}
 
             <button
               type="submit"
@@ -128,7 +128,7 @@ export function Login({ onLogin }: LoginProps) {
               autoFocus
             />
 
-            {error && <p className="text-base text-destructive">{error}</p>}
+            {error && <p className="text-sm text-destructive">{error}</p>}
 
             <button
               type="submit"

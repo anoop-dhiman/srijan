@@ -207,12 +207,12 @@ describe('Chat', () => {
       expect(defaultProps.onSendMessage).toHaveBeenCalledWith('hello world', undefined);
     });
 
-    it('Enter key submits the form', async () => {
+    it('Enter key adds a newline instead of submitting', async () => {
       render(<Chat {...defaultProps} />);
       const textarea = screen.getByPlaceholderText('Type a message...');
       await userEvent.type(textarea, 'hello');
       await userEvent.keyboard('{Enter}');
-      expect(defaultProps.onSendMessage).toHaveBeenCalledWith('hello', undefined);
+      expect(defaultProps.onSendMessage).not.toHaveBeenCalled();
     });
 
     it('Shift+Enter does not submit the form', async () => {

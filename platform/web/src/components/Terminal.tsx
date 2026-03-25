@@ -105,7 +105,7 @@ export function Terminal({ sessionId }: TerminalProps) {
   return (
     <div className="flex-1 flex flex-col min-h-0 min-w-0 overflow-hidden bg-[#09090b]">
       <div className="px-4 py-3 border-b border-border shrink-0">
-        <h2 className="font-semibold text-sm text-muted-foreground">Terminal</h2>
+        <h2 className="font-semibold text-base text-muted-foreground">Terminal</h2>
       </div>
       <div ref={containerRef} className="flex-1 min-h-0 min-w-0 overflow-hidden p-1" />
     </div>

@@ -372,10 +372,7 @@ export function Chat({
       const handled = fileMentionKeyDownRaw(e);
       if (handled) { e.preventDefault(); return; }
     }
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSubmit(e);
-    }
+    // Enter always inserts newline (default behavior); send only via button
   };
 
   const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {

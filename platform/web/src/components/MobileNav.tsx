@@ -43,7 +43,7 @@ export function MobileNav({ activeView, onViewChange, sessionActivity = {}, hasW
             aria-label={label}
             aria-current={isActive ? 'page' : undefined}
             aria-disabled={disabled}
-            className={`relative flex flex-col items-center gap-0.5 px-3 py-2.5 rounded-lg transition-colors ${
+            className={`relative flex-1 flex flex-col items-center gap-0.5 py-2.5 transition-colors ${
               disabled
                 ? 'opacity-40 cursor-not-allowed'
                 : isActive

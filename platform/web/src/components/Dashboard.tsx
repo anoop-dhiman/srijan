@@ -656,7 +656,7 @@ function GitSection({ workspaceName }: { workspaceName: string }) {
               value={commitMsg}
               onChange={e => setCommitMsg(e.target.value)}
               placeholder="Commit message..."
-              className="flex-1 text-xs px-2 py-1 rounded border bg-background"
+              className="flex-1 text-sm px-2 py-1 rounded border bg-background"
               aria-label="Commit message"
             />
             <button
@@ -695,7 +695,7 @@ function GitSection({ workspaceName }: { workspaceName: string }) {
               value={linkUrl}
               onChange={e => setLinkUrl(e.target.value)}
               placeholder="https://github.com/user/repo.git"
-              className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+              className="w-full text-sm px-2.5 py-1.5 rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
               onKeyDown={e => { if (e.key === 'Enter') handleLink(); if (e.key === 'Escape') setShowLinkPanel(false); }}
               autoFocus
             />
@@ -716,7 +716,7 @@ function GitSection({ workspaceName }: { workspaceName: string }) {
           <button
             onClick={handleLink}
             disabled={!linkUrl.trim() || linking}
-            className="w-full py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors flex items-center justify-center gap-1.5"
+            className="w-full py-1.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors flex items-center justify-center gap-1.5"
           >
             {linking && <RefreshCw size={11} className="animate-spin" />}
             Link Remote
@@ -741,18 +741,18 @@ function GitSection({ workspaceName }: { workspaceName: string }) {
               <label className="text-xs text-muted-foreground mb-1 block">Author Name</label>
               <input type="text" value={idName} onChange={e => setIdName(e.target.value)}
                 placeholder="Jane Doe"
-                className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary" />
+                className="w-full text-sm px-2.5 py-1.5 rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary" />
             </div>
             <div>
               <label className="text-xs text-muted-foreground mb-1 block">Author Email</label>
               <input type="email" value={idEmail} onChange={e => setIdEmail(e.target.value)}
                 placeholder="jane@example.com"
-                className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary" />
+                className="w-full text-sm px-2.5 py-1.5 rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary" />
             </div>
           </div>
           {identityError && <p className="text-xs text-destructive">{identityError}</p>}
           <button onClick={handleSaveIdentity} disabled={savingIdentity || (!idName.trim() && !idEmail.trim())}
-            className="w-full py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors flex items-center justify-center gap-1.5">
+            className="w-full py-1.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors flex items-center justify-center gap-1.5">
             {savingIdentity && <RefreshCw size={11} className="animate-spin" />}
             Save Identity
           </button>
@@ -796,7 +796,7 @@ function GitSection({ workspaceName }: { workspaceName: string }) {
               onClick={handleSaveAuth}
               disabled={!authToken.trim() || savingAuth}
               style={{ touchAction: 'manipulation' }}
-              className="flex-1 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors flex items-center justify-center gap-1.5"
+              className="flex-1 py-1.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors flex items-center justify-center gap-1.5"
             >
               {savingAuth && <RefreshCw size={11} className="animate-spin" />}
               Save Credentials

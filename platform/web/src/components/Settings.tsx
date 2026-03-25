@@ -694,7 +694,7 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
                     value={apiKey}
                     onChange={(e) => setApiKey(e.target.value)}
                     placeholder="sk-ant-..."
-                    className="w-full rounded-xl border border-border bg-muted px-4 py-3 pr-11 text-base focus:outline-none focus:ring-2 focus:ring-primary"
+                    className="w-full rounded-xl border border-border bg-muted px-4 py-3 pr-11 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                   />
                   <button
                     type="button"
@@ -716,7 +716,7 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
                     value={vertexProjectId}
                     onChange={(e) => setVertexProjectId(e.target.value)}
                     placeholder="my-gcp-project"
-                    className="w-full rounded-xl border border-border bg-muted px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-primary"
+                    className="w-full rounded-xl border border-border bg-muted px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                   />
                 </div>
 
@@ -727,7 +727,7 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
                     value={vertexRegion}
                     onChange={(e) => setVertexRegion(e.target.value)}
                     placeholder="global"
-                    className="w-full rounded-xl border border-border bg-muted px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-primary"
+                    className="w-full rounded-xl border border-border bg-muted px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                   />
                 </div>
 
@@ -766,7 +766,7 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
                     value={litellmBaseUrl}
                     onChange={(e) => setLitellmBaseUrl(e.target.value)}
                     placeholder="http://localhost:4000"
-                    className="w-full rounded-xl border border-border bg-muted px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-primary"
+                    className="w-full rounded-xl border border-border bg-muted px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -776,7 +776,7 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
                     value={litellmApiKey}
                     onChange={(e) => setLitellmApiKey(e.target.value)}
                     placeholder="Proxy master key"
-                    className="w-full rounded-xl border border-border bg-muted px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-primary"
+                    className="w-full rounded-xl border border-border bg-muted px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -786,7 +786,7 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
                     value={litellmModel}
                     onChange={(e) => setLitellmModel(e.target.value)}
                     placeholder="gpt-4o, ollama/llama3, bedrock/claude-3-5-sonnet"
-                    className="w-full rounded-xl border border-border bg-muted px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-primary"
+                    className="w-full rounded-xl border border-border bg-muted px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                   />
                 </div>
                 <div className="rounded-xl border border-border bg-muted/30 px-4 py-3 text-xs text-muted-foreground">
@@ -851,7 +851,7 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
               <select
                 value={model}
                 onChange={(e) => setModel(e.target.value)}
-                className="w-full rounded-xl border border-border bg-muted px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-primary"
+                className="w-full rounded-xl border border-border bg-muted px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
               >
                 <option value="claude-sonnet-4-6">Claude Sonnet 4.6</option>
                 <option value="claude-opus-4-6">Claude Opus 4.6</option>
@@ -863,7 +863,7 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
             <button
               onClick={saveConfig}
               disabled={saving}
-              className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-base font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+              className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
             >
               <Save size={16} />
               {saving ? 'Saving…' : 'Save'}
@@ -891,7 +891,7 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
                 onClick={saveSystemPrompt}
                 disabled={savingPrompt}
                 style={{ touchAction: 'manipulation' }}
-                className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-base font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
               >
                 <Save size={16} />
                 {savingPrompt ? 'Saving…' : 'Save Prompt'}
@@ -961,7 +961,7 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
             <button
               onClick={saveSecuritySettings}
               disabled={savingMode}
-              className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-base font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+              className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
             >
               <Save size={16} />
               {savingMode ? 'Saving…' : 'Save Agent Settings'}
@@ -997,7 +997,7 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
             <button
               onClick={saveSdkSettings}
               disabled={savingSdk}
-              className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-base font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+              className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
             >
               <Save size={16} />
               {savingSdk ? 'Saving…' : 'Save SDK'}
@@ -1021,7 +1021,7 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
                   value={gitName}
                   onChange={(e) => setGitName(e.target.value)}
                   placeholder="Jane Doe"
-                  className="w-full rounded-xl border border-border bg-muted px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-primary"
+                  className="w-full rounded-xl border border-border bg-muted px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                 />
               </div>
               <div className="space-y-1.5">
@@ -1031,7 +1031,7 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
                   value={gitEmail}
                   onChange={(e) => setGitEmail(e.target.value)}
                   placeholder="jane@example.com"
-                  className="w-full rounded-xl border border-border bg-muted px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-primary"
+                  className="w-full rounded-xl border border-border bg-muted px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                 />
               </div>
             </div>
@@ -1053,7 +1053,7 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
                 }
               }}
               disabled={savingGit}
-              className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-base font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+              className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
             >
               <Save size={16} />
               {savingGit ? 'Saving…' : 'Save Git Identity'}
@@ -1106,7 +1106,7 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
                     placeholder="000000"
                     value={totpCode}
                     onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, ''))}
-                    className="w-32 rounded-xl border border-border bg-muted px-3 py-2 text-base font-mono text-center focus:outline-none focus:ring-2 focus:ring-primary"
+                    className="w-32 rounded-xl border border-border bg-muted px-3 py-2 text-sm font-mono text-center focus:outline-none focus:ring-2 focus:ring-primary"
                   />
                   <button
                     onClick={handleDisable2FA}
@@ -1127,7 +1127,7 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
                     <button
                       onClick={handleSetup2FA}
                       disabled={totpLoading}
-                      className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-base font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                      className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
                     >
                       <Lock size={16} />
                       Enable 2FA
@@ -1175,7 +1175,7 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
                         placeholder="000000"
                         value={totpCode}
                         onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, ''))}
-                        className="w-32 rounded-xl border border-border bg-muted px-3 py-2 text-base font-mono text-center focus:outline-none focus:ring-2 focus:ring-primary"
+                        className="w-32 rounded-xl border border-border bg-muted px-3 py-2 text-sm font-mono text-center focus:outline-none focus:ring-2 focus:ring-primary"
                       />
                       <button
                         onClick={handleEnable2FA}
@@ -1485,7 +1485,7 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
         {activeSection === 'roles' && (
           <div className="space-y-4">
             <div>
-              <h3 className="text-sm font-semibold mb-1">Agent Roles</h3>
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Agent Roles</h3>
               <p className="text-xs text-muted-foreground">
                 Define specialized agent modes. Use @rolename in chat to activate a role.
               </p>
@@ -1608,7 +1608,7 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
         {/* MCP Servers section */}
         {activeSection === 'mcp' && (
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold mb-4">MCP Servers</h3>
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">MCP Servers</h3>
             {mcpLoading && <p className="text-sm text-muted-foreground">Loading…</p>}
             {mcpError && <p className="text-sm text-destructive">{mcpError}</p>}
 
