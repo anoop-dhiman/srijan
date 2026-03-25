@@ -683,17 +683,17 @@ export function Chat({
                   value={input}
                   onChange={handleInput}
                   onKeyDown={handleKeyDown}
-                  enterKeyHint="send"
+                  enterKeyHint="enter"
                   disabled={noWorkspace || isPendingApproval}
                   placeholder={noWorkspace ? 'Select a workspace to start chatting…' : isPendingApproval ? 'Approve or deny above before continuing…' : 'Type a message...'}
-                  rows={2}
-                  className="w-full bg-transparent resize-none px-4 pt-4 pb-14 max-h-[200px] outline-none text-base placeholder:text-muted-foreground disabled:opacity-50 disabled:cursor-not-allowed"
+                  rows={1}
+                  className="w-full bg-transparent resize-none px-4 py-3 pr-14 max-h-[200px] outline-none text-base placeholder:text-muted-foreground disabled:opacity-50 disabled:cursor-not-allowed"
                 />
                 {isLoading ? (
                   <button
                     type="button"
                     onClick={onAbortSession}
-                    className="absolute bottom-3 right-3 rounded-xl bg-destructive p-2.5 text-destructive-foreground hover:bg-destructive/90 transition-colors"
+                    className="absolute bottom-2 right-2 rounded-xl bg-destructive p-2 text-destructive-foreground hover:bg-destructive/90 transition-colors"
                     title="Stop agent"
                   >
                     <Square size={18} />
@@ -702,7 +702,7 @@ export function Chat({
                   <button
                     type="submit"
                     disabled={!input.trim() || noWorkspace || isPendingApproval}
-                    className="absolute bottom-3 right-3 rounded-xl bg-primary p-2.5 text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                    className="absolute bottom-2 right-2 rounded-xl bg-primary p-2 text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
                   >
                     <Send size={18} />
                   </button>
