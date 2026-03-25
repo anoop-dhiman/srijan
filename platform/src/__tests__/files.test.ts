@@ -125,6 +125,40 @@ describe('Files API', () => {
     });
   });
 
+  describe('GET /api/workspaces/:name/files/tree', () => {
+    it('returns all files recursively in a single call', async () => {
+      const res = await request(app)
+        .get('/api/workspaces/myapp/files/tree')
+        .set('Authorization', `Bearer ${token}`);
+      expect(res.status).toBe(200);
+      expect(res.body.files).toBeDefined();
+      const paths = res.body.files.map((f: any) => f.path);
+      expect(paths).toContain('subdir/nested.txt');
+    });
+
+    it('respects maxDepth query param', async () => {
+      const res = await request(app)
+        .get('/api/workspaces/myapp/files/tree?maxDepth=0')
+        .set('Authorization', `Bearer ${token}`);
+      expect(res.status).toBe(200);
+      // depth 0 = only root-level files, no subdirectory contents
+      const paths = res.body.files.map((f: any) => f.path);
+      expect(paths).not.toContain('subdir/nested.txt');
+    });
+
+    it('returns 404 for non-existent workspace', async () => {
+      const res = await request(app)
+        .get('/api/workspaces/nonexistent/files/tree')
+        .set('Authorization', `Bearer ${token}`);
+      expect(res.status).toBe(404);
+    });
+
+    it('requires authentication', async () => {
+      const res = await request(app).get('/api/workspaces/myapp/files/tree');
+      expect(res.status).toBe(401);
+    });
+  });
+
   describe('GET /api/workspaces/:name/file', () => {
     it('returns file content', async () => {
       const res = await request(app)

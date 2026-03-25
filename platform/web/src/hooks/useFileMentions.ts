@@ -26,39 +26,16 @@ interface UseFileMentionsReturn {
   closeMention: () => void;
 }
 
-const MAX_DEPTH = 3;
-
-async function fetchFilesRecursive(
-  workspaceName: string,
-  dirPath: string,
-  depth: number
-): Promise<FileEntry[]> {
-  if (depth > MAX_DEPTH) return [];
+async function fetchFileTree(workspaceName: string): Promise<FileEntry[]> {
   try {
-    const encodedPath = encodeURIComponent(dirPath);
-    const res = await apiFetch(
-      `/workspaces/${workspaceName}/files?path=${encodedPath}`
-    );
-    const entries: { name: string; type: string; size?: number; modified?: string }[] =
-      res?.entries ?? [];
-
-    const results: FileEntry[] = [];
-    for (const entry of entries) {
-      const fullPath = dirPath ? `${dirPath}/${entry.name}` : entry.name;
-      if (entry.type === 'dir' && depth < MAX_DEPTH) {
-        const children = await fetchFilesRecursive(workspaceName, fullPath, depth + 1);
-        results.push(...children);
-      } else if (entry.type === 'file') {
-        results.push({
-          name: entry.name,
-          type: 'file',
-          size: entry.size,
-          modified: entry.modified,
-          path: fullPath,
-        });
-      }
-    }
-    return results;
+    const res = await apiFetch(`/workspaces/${encodeURIComponent(workspaceName)}/files/tree?maxDepth=3`);
+    return (res?.files ?? []).map((f: { name: string; path: string; size?: number; modified?: string }) => ({
+      name: f.name,
+      type: 'file' as const,
+      size: f.size,
+      modified: f.modified,
+      path: f.path,
+    }));
   } catch {
     return [];
   }
@@ -91,15 +68,16 @@ export function useFileMentions({
   const mentionOpen = detectedQuery !== null && input !== dismissedInput;
   const mentionQuery = detectedQuery ?? '';
 
-  // Fetch file list when workspace changes
+  // Fetch file list lazily — only when @ mention is first triggered
   useEffect(() => {
-    if (!workspaceName || fetchedWorkspace.current === workspaceName) return;
+    if (!mentionOpen || !workspaceName) return;
+    if (fetchedWorkspace.current === workspaceName) return;
     fetchedWorkspace.current = workspaceName;
 
-    fetchFilesRecursive(workspaceName, '', 0).then((files) => {
+    fetchFileTree(workspaceName).then((files) => {
       setAllFiles(files);
     });
-  }, [workspaceName]);
+  }, [mentionOpen, workspaceName]);
 
   const suggestions = mentionQuery
     ? allFiles.filter((f) => f.path.toLowerCase().includes(mentionQuery.toLowerCase())).slice(0, 8)

@@ -83,6 +83,56 @@ router.get('/:name/files', (req: Request, res: Response) => {
   }
 });
 
+router.get('/:name/files/tree', (req: Request, res: Response) => {
+  const name = req.params.name as string;
+  const rawDepth = req.query.maxDepth !== undefined ? Number(req.query.maxDepth) : 3;
+  const maxDepth = Math.min(Number.isNaN(rawDepth) ? 3 : rawDepth, 5);
+
+  const workspaceBase = resolve(join(getWorkspaceRoot(), name));
+
+  interface TreeFile { name: string; path: string; type: 'file'; size?: number; modified?: string }
+
+  function walkDir(dirPath: string, relPath: string, depth: number): TreeFile[] {
+    if (depth > maxDepth) return [];
+    try {
+      const names = readdirSync(dirPath).filter((n) => !HIDDEN_ENTRIES.has(n) && !n.startsWith('.'));
+      const results: TreeFile[] = [];
+      for (const n of names) {
+        const fullPath = join(dirPath, n);
+        try {
+          const ls = lstatSync(fullPath);
+          if (ls.isSymbolicLink()) continue;
+          const s = statSync(fullPath);
+          const entryRel = relPath ? `${relPath}/${n}` : n;
+          if (s.isDirectory()) {
+            results.push(...walkDir(fullPath, entryRel, depth + 1));
+          } else if (s.isFile()) {
+            results.push({ name: n, path: entryRel, type: 'file', size: s.size, modified: s.mtime.toISOString() });
+          }
+        } catch { /* skip unreadable entries */ }
+      }
+      return results;
+    } catch { return []; }
+  }
+
+  try {
+    const stat = statSync(workspaceBase);
+    if (!stat.isDirectory()) {
+      res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Workspace not found' } });
+      return;
+    }
+    const files = walkDir(workspaceBase, '', 0);
+    res.json({ files });
+  } catch (err: unknown) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code === 'ENOENT') {
+      res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Workspace not found' } });
+      return;
+    }
+    res.status(500).json({ error: { code: 'IO_ERROR', message: (err as Error).message } });
+  }
+});
+
 router.get('/:name/file', (req: Request, res: Response) => {
   const name = req.params.name as string;
   const requestedPath = (req.query.path as string) || '';
