@@ -241,6 +241,8 @@ export function FileBrowser({ workspaces, currentWorkspace, theme = 'dark' }: Fi
     setLoadingFile(true);
     setFileContent(null);
     setError(null);
+    // Auto-collapse tree on mobile when selecting a file
+    if (window.innerWidth < 768) setTreeVisible(false);
     try {
       const data = await apiFetch(`/workspaces/${encodeURIComponent(workspace)}/file?path=${encodeURIComponent(path)}`, { signal: controller.signal });
       setFileContent(data.content);
@@ -308,7 +310,7 @@ export function FileBrowser({ workspaces, currentWorkspace, theme = 'dark' }: Fi
   const language = selectedFile ? detectLanguage(selectedFile.split('/').pop() ?? '') : 'plaintext';
 
   return (
-    <div className="flex flex-1 min-h-0">
+    <div className="flex flex-1 min-h-0 min-w-0 overflow-hidden">
       {/* Left panel — tree */}
       <div className={`${treeVisible ? 'flex' : 'hidden'} md:flex w-60 shrink-0 flex-col border-r border-border bg-muted`}>
         {/* Workspace selector */}
@@ -355,7 +357,7 @@ export function FileBrowser({ workspaces, currentWorkspace, theme = 'dark' }: Fi
       </div>
 
       {/* Right panel — file content */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
         {!selectedFile && (
           <>
             <div className="md:hidden px-4 py-2 border-b border-border shrink-0 bg-muted flex items-center gap-2">
@@ -378,7 +380,7 @@ export function FileBrowser({ workspaces, currentWorkspace, theme = 'dark' }: Fi
         {selectedFile && (
           <>
             {/* Breadcrumb + action buttons */}
-            <div className="px-4 py-2 border-b border-border shrink-0 bg-muted flex items-center justify-between gap-3">
+            <div className="px-3 py-2 border-b border-border shrink-0 bg-muted space-y-1.5">
               <div className="flex items-center gap-2 min-w-0">
                 <button
                   onClick={() => setTreeVisible(v => !v)}
@@ -388,11 +390,11 @@ export function FileBrowser({ workspaces, currentWorkspace, theme = 'dark' }: Fi
                 >
                   <Menu size={14} />
                 </button>
-                <p className="text-xs font-mono text-muted-foreground truncate">
+                <p className="text-xs font-mono text-muted-foreground truncate flex-1 min-w-0">
                   {workspace} / {selectedFile}{isDirty ? ' •' : ''}
                 </p>
               </div>
-              <div className="flex items-center gap-1.5 shrink-0">
+              <div className="flex items-center gap-1.5 flex-wrap">
                 <button
                   onClick={handleToggleDiff}
                   disabled={fileContent === null || loadingFile || loadingDiff}
@@ -444,7 +446,7 @@ export function FileBrowser({ workspaces, currentWorkspace, theme = 'dark' }: Fi
             )}
 
             {/* Content */}
-            <div className="flex-1 overflow-hidden">
+            <div className="flex-1 min-h-0 min-w-0 overflow-auto">
               {loadingFile && (
                 <div className="flex items-center justify-center h-full gap-2 text-sm text-muted-foreground">
                   <Loader2 size={16} className="animate-spin" /> Loading…
@@ -487,7 +489,7 @@ export function FileBrowser({ workspaces, currentWorkspace, theme = 'dark' }: Fi
                         fontSize: 13,
                         lineNumbers: 'on',
                         scrollBeyondLastLine: false,
-                        wordWrap: 'on',
+                        wordWrap: 'off',
                       }}
                     />
                   )}
