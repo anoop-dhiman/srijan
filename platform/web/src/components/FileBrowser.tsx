@@ -160,7 +160,7 @@ export function FileBrowser({ workspaces, currentWorkspace, theme = 'dark' }: Fi
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const fileAbortRef = useRef<AbortController | null>(null);
-  const editorRef = useRef<any>(null);
+  const editorRef = useRef<{ getDomNode(): HTMLElement | null } | null>(null);
 
   // Prevent mobile keyboard when not editing
   useEffect(() => {
