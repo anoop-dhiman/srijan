@@ -669,7 +669,7 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
                     : 'text-muted-foreground hover:bg-background hover:text-foreground'
                 }`}
               >
-                Claude OAuth
+                Claude Account
               </button>
             </div>
 

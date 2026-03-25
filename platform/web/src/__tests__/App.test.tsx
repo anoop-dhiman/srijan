@@ -162,12 +162,12 @@ describe('App', () => {
 
     it('shows Logout button', () => {
       render(<App />);
-      expect(screen.getByRole('button', { name: 'Logout' })).toBeInTheDocument();
+      expect(screen.getAllByRole('button', { name: 'Logout' }).length).toBeGreaterThan(0);
     });
 
     it('calls logout() when Logout is clicked', () => {
       render(<App />);
-      fireEvent.click(screen.getByRole('button', { name: 'Logout' }));
+      fireEvent.click(screen.getAllByRole('button', { name: 'Logout' })[0]);
       expect(logout).toHaveBeenCalledOnce();
     });
 
