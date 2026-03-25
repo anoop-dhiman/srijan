@@ -13,9 +13,9 @@ test.describe('MCP Server Management', () => {
   test('MCP Servers section visible in settings', async ({ page }) => {
     // Click the MCP Servers nav item in the settings sidebar
     await page.getByRole('button', { name: /mcp servers/i }).click();
-    // The section heading or related content should appear
+    // The section heading should appear (h3 with uppercase text)
     await expect(
-      page.getByText(/mcp server/i).first()
+      page.locator('h3', { hasText: /mcp servers/i })
     ).toBeVisible({ timeout: 5000 });
   });
 

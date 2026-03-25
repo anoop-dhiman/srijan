@@ -12,19 +12,19 @@ test.describe('Settings', () => {
   test('AI Provider section is visible for admin', async ({ page }) => {
     await loginAs(page, 'admin', ADMIN_PASSWORD);
     await page.getByRole('button', { name: /settings/i }).click();
-    await expect(page.getByText(/AI Provider|LLM Provider/i).first()).toBeVisible({ timeout: 5000 });
+    await expect(page.getByRole('button', { name: /ai provider/i })).toBeVisible({ timeout: 5000 });
   });
 
   test('admin sees Users section', async ({ page }) => {
     await loginAs(page, 'admin', ADMIN_PASSWORD);
     await page.getByRole('button', { name: /settings/i }).click();
-    await expect(page.getByText(/Users/i).first()).toBeVisible({ timeout: 5000 });
+    await expect(page.getByRole('button', { name: /users/i })).toBeVisible({ timeout: 5000 });
   });
 
   test('admin sees Spending section', async ({ page }) => {
     await loginAs(page, 'admin', ADMIN_PASSWORD);
     await page.getByRole('button', { name: /settings/i }).click();
-    await expect(page.getByText(/Spending/i).first()).toBeVisible({ timeout: 5000 });
+    await expect(page.getByRole('button', { name: /spending/i })).toBeVisible({ timeout: 5000 });
   });
 
   test('Spending section shows user spending limits', async ({ page }) => {
