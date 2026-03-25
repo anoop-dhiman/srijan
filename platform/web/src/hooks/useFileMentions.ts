@@ -3,7 +3,7 @@ import { apiFetch } from '../lib/api';
 
 interface FileEntry {
   name: string;
-  type: 'file' | 'directory';
+  type: 'file' | 'dir';
   size?: number;
   modified?: string;
   path: string; // relative path within workspace
@@ -45,7 +45,7 @@ async function fetchFilesRecursive(
     const results: FileEntry[] = [];
     for (const entry of entries) {
       const fullPath = dirPath ? `${dirPath}/${entry.name}` : entry.name;
-      if (entry.type === 'directory' && depth < MAX_DEPTH) {
+      if (entry.type === 'dir' && depth < MAX_DEPTH) {
         const children = await fetchFilesRecursive(workspaceName, fullPath, depth + 1);
         results.push(...children);
       } else if (entry.type === 'file') {
