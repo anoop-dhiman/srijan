@@ -160,6 +160,19 @@ export function FileBrowser({ workspaces, currentWorkspace, theme = 'dark' }: Fi
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const fileAbortRef = useRef<AbortController | null>(null);
+  const editorRef = useRef<any>(null);
+
+  // Prevent mobile keyboard when not editing
+  useEffect(() => {
+    const ta = editorRef.current?.getDomNode()?.querySelector('textarea');
+    if (ta) {
+      if (isEditing) {
+        ta.removeAttribute('inputmode');
+      } else {
+        ta.setAttribute('inputmode', 'none');
+      }
+    }
+  }, [isEditing]);
 
   // Diff state
   const [diffMode, setDiffMode] = useState(false);
@@ -480,6 +493,13 @@ export function FileBrowser({ workspaces, currentWorkspace, theme = 'dark' }: Fi
                         if (isEditing) {
                           setEditContent(val ?? '');
                           setIsDirty(true);
+                        }
+                      }}
+                      onMount={(editor) => {
+                        editorRef.current = editor;
+                        const ta = editor.getDomNode()?.querySelector('textarea');
+                        if (ta && !isEditing) {
+                          ta.setAttribute('inputmode', 'none');
                         }
                       }}
                       options={{
