@@ -626,7 +626,7 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
           <section className="space-y-4">
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">LLM Provider</h3>
             {/* Provider toggle */}
-            <div className="flex rounded-xl border border-border bg-muted p-1 gap-1">
+            <div className="grid grid-cols-2 sm:flex rounded-xl border border-border bg-muted p-1 gap-1">
               <button
                 type="button"
                 onClick={() => setProvider('anthropic')}
@@ -669,7 +669,7 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
                     : 'text-muted-foreground hover:bg-background hover:text-foreground'
                 }`}
               >
-                Claude Account (OAuth)
+                Claude OAuth
               </button>
             </div>
 
@@ -1602,8 +1602,8 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
 
             {/* Servers table */}
             {!mcpLoading && mcpServers.length > 0 && (
-              <div className="rounded-xl border border-border overflow-hidden">
-                <table className="w-full text-sm">
+              <div className="rounded-xl border border-border overflow-x-auto">
+                <table className="w-full text-sm min-w-[400px]">
                   <thead>
                     <tr className="bg-muted border-b border-border">
                       <th className="text-left px-4 py-2 font-medium text-muted-foreground">Name</th>
@@ -1697,9 +1697,9 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
             </h3>
             <div className="space-y-2">
               {spendingUsers.map((u) => (
-                <div key={u.id} className="flex items-center gap-3 rounded-xl border border-border px-4 py-3">
-                  <span className="flex-1 text-sm font-mono">{u.username}</span>
-                  <span className="text-xs text-muted-foreground">${u.spent_usd.toFixed(4)} spent</span>
+                <div key={u.id} className="flex flex-wrap items-center gap-3 rounded-xl border border-border px-4 py-3">
+                  <span className="flex-1 min-w-0 text-sm font-mono truncate">{u.username}</span>
+                  <span className="text-xs text-muted-foreground shrink-0">${u.spent_usd.toFixed(4)} spent</span>
                   <input
                     type="number"
                     min="0"
@@ -1707,11 +1707,11 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
                     placeholder="No limit"
                     value={spendingUserLimits[u.id] ?? ''}
                     onChange={(e) => setSpendingUserLimits((prev) => ({ ...prev, [u.id]: e.target.value }))}
-                    className="w-28 rounded-lg border border-border bg-muted px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                    className="w-24 rounded-lg border border-border bg-muted px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary shrink-0"
                   />
                   <button
                     onClick={() => saveUserSpendingLimit(u.id)}
-                    className="flex items-center gap-1 rounded-lg bg-secondary px-3 py-1.5 text-xs font-medium text-secondary-foreground hover:bg-secondary/80 transition-colors"
+                    className="flex items-center gap-1 rounded-lg bg-secondary px-3 py-1.5 text-xs font-medium text-secondary-foreground hover:bg-secondary/80 transition-colors shrink-0"
                   >
                     <Save size={12} />
                     Save
@@ -1728,9 +1728,9 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
             </h3>
             <div className="space-y-2">
               {spendingWorkspaces.map((w) => (
-                <div key={w.workspace_name} className="flex items-center gap-3 rounded-xl border border-border px-4 py-3">
-                  <span className="flex-1 text-sm font-mono">{w.workspace_name}</span>
-                  <span className="text-xs text-muted-foreground">${w.spent_usd.toFixed(4)} spent</span>
+                <div key={w.workspace_name} className="flex flex-wrap items-center gap-3 rounded-xl border border-border px-4 py-3">
+                  <span className="flex-1 min-w-0 text-sm font-mono truncate">{w.workspace_name}</span>
+                  <span className="text-xs text-muted-foreground shrink-0">${w.spent_usd.toFixed(4)} spent</span>
                   <input
                     type="number"
                     min="0"
@@ -1738,11 +1738,11 @@ export function Settings({ open, isAdmin = false }: SettingsProps) {
                     placeholder="No limit"
                     value={spendingWsLimits[w.workspace_name] ?? ''}
                     onChange={(e) => setSpendingWsLimits((prev) => ({ ...prev, [w.workspace_name]: e.target.value }))}
-                    className="w-28 rounded-lg border border-border bg-muted px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                    className="w-24 rounded-lg border border-border bg-muted px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary shrink-0"
                   />
                   <button
                     onClick={() => saveWsSpendingLimit(w.workspace_name)}
-                    className="flex items-center gap-1 rounded-lg bg-secondary px-3 py-1.5 text-xs font-medium text-secondary-foreground hover:bg-secondary/80 transition-colors"
+                    className="flex items-center gap-1 rounded-lg bg-secondary px-3 py-1.5 text-xs font-medium text-secondary-foreground hover:bg-secondary/80 transition-colors shrink-0"
                   >
                     <Save size={12} />
                     Save

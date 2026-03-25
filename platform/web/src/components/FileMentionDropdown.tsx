@@ -3,7 +3,7 @@ import { FileText } from 'lucide-react';
 
 interface FileEntry {
   name: string;
-  type: 'file' | 'directory';
+  type: 'file' | 'dir';
   path: string;
 }
 

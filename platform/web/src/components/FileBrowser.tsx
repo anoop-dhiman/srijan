@@ -482,6 +482,7 @@ export function FileBrowser({ workspaces, currentWorkspace, theme = 'dark' }: Fi
                       }}
                       options={{
                         readOnly: !isEditing,
+                        domReadOnly: !isEditing,
                         minimap: { enabled: false },
                         fontSize: 13,
                         lineNumbers: 'on',

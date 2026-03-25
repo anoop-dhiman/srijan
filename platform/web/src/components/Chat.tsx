@@ -601,10 +601,10 @@ export function Chat({
               return (
                 <div
                   key={msg.id}
-                  className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                  className={`flex w-full min-w-0 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
                   <div
-                    className={`max-w-[80%] min-w-0 rounded-2xl px-4 py-3 text-base break-words ${
+                    className={`max-w-[85%] min-w-0 overflow-hidden rounded-2xl px-4 py-3 text-base break-words ${
                       msg.role === 'user'
                         ? 'bg-primary text-primary-foreground'
                         : msg.role === 'system'
@@ -619,7 +619,7 @@ export function Chat({
                       </div>
                     )}
                     {msg.role === 'assistant' ? (
-                      <div className="prose prose-invert prose-base max-w-none break-words [&_pre]:bg-background [&_pre]:rounded-lg [&_pre]:p-3 [&_pre]:overflow-x-auto [&_code]:text-secondary-foreground">
+                      <div className="prose prose-invert prose-base max-w-none break-words overflow-hidden [&_pre]:bg-background [&_pre]:rounded-lg [&_pre]:p-3 [&_pre]:overflow-x-auto [&_pre]:max-w-full [&_code]:text-secondary-foreground [&_code]:break-all">
                         <ReactMarkdown rehypePlugins={[rehypeSanitize]}>{msg.content}</ReactMarkdown>
                         {msg.streaming && (
                           <span className="inline-block w-2 h-4 bg-primary animate-pulse ml-0.5" />

@@ -1,5 +1,5 @@
 import { useState, useEffect, lazy, Suspense, Component, type ReactNode } from 'react';
-import { Sun, Moon } from 'lucide-react';
+import { Sun, Moon, LogOut } from 'lucide-react';
 import { Login } from './components/Login';
 import { Chat } from './components/Chat';
 import { Dashboard } from './components/Dashboard';
@@ -181,7 +181,7 @@ function App() {
 
   return (
     <ErrorBoundary>
-    <div className="flex flex-col h-dvh">
+    <div className="flex flex-col h-dvh overflow-x-hidden">
       <header className="h-12 md:h-16 flex items-center justify-between px-6 bg-muted border-b-2 border-primary/40 shadow-md shrink-0 z-10">
         <div className="flex items-center gap-5">
           <span className="font-bold text-xl tracking-tight">Srijan</span>
@@ -219,6 +219,13 @@ function App() {
           <span className="hidden md:block text-base text-muted-foreground font-medium">{username}</span>
           <button
             onClick={logout}
+            aria-label="Logout"
+            className="p-2 rounded-lg border border-border hover:bg-background/60 transition-colors md:hidden"
+          >
+            <LogOut size={18} />
+          </button>
+          <button
+            onClick={logout}
             className="hidden md:block text-base px-4 py-2 rounded-lg border border-border hover:bg-background/60 transition-colors font-medium"
           >
             Logout
@@ -226,7 +233,7 @@ function App() {
         </div>
       </header>
 
-      <div className="flex flex-1 min-h-0 pb-16 md:pb-0">
+      <div className="flex flex-1 min-h-0 min-w-0 overflow-hidden pb-16 md:pb-0">
         {renderMain()}
       </div>
 
