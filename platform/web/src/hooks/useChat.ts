@@ -106,6 +106,7 @@ export function useChat() {
   );
   const [activeRole, setActiveRole] = useState<{ name: string; displayName: string } | null>(null);
   const [agents, setAgents] = useState<SessionAgent[]>([]);
+  const [isSessionReady, setIsSessionReady] = useState(true);
 
   const wsRef = useRef<WebSocket | null>(null);
   const streamBufferRef = useRef('');
@@ -113,6 +114,8 @@ export function useChat() {
   const currentWorkspaceRef = useRef<string | null>(currentWorkspace);
   const reconnectAttemptRef = useRef(0);
   const connectRef = useRef<() => void>(() => {});
+  // Ref mirrors isSessionReady state for sync reads inside sendMessage (no closure staleness).
+  const sessionReadyRef = useRef(true);
 
   // Keep refs in sync with state (via effect to comply with react-hooks/refs)
   useEffect(() => {
@@ -143,14 +146,16 @@ export function useChat() {
     const ws = createChatSocket();
     wsRef.current = ws;
 
+    const savedSessionId = localStorage.getItem('srijan_session_id');
+
     ws.onopen = () => {
       setIsConnected(true);
       reconnectAttemptRef.current = 0;
+      // If there's a session to rejoin, block sends until session_joined confirms it.
+      if (savedSessionId) { sessionReadyRef.current = false; setIsSessionReady(false); }
       ws.send(JSON.stringify({ type: 'list_sessions' }));
       fetchWorkspaces();
     };
-
-    const savedSessionId = localStorage.getItem('srijan_session_id');
 
     ws.onmessage = (event) => {
       const msg = JSON.parse(event.data);
@@ -174,12 +179,16 @@ export function useChat() {
         }
 
         case 'session_created':
+          sessionReadyRef.current = true;
+          setIsSessionReady(true);
           setCurrentSession(msg.data);
           setSessions((prev) => [msg.data, ...prev]);
           localStorage.setItem('srijan_session_id', msg.data.id);
           break;
 
         case 'session_joined': {
+          sessionReadyRef.current = true;
+          setIsSessionReady(true);
           setCurrentSession(msg.data.session);
           localStorage.setItem('srijan_session_id', msg.data.session.id);
           // R8: clear any in-progress stream buffer from the previous session
@@ -519,6 +528,8 @@ export function useChat() {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
     // Require a workspace when no session exists yet — prevents orphaned sessions
     if (!currentSessionRef.current && !currentWorkspaceRef.current) return;
+    // Block sends while waiting for server to confirm session join after reconnect
+    if (!sessionReadyRef.current) return;
 
     const userMsg: ChatMessage = {
       id: genId(),
@@ -599,6 +610,7 @@ export function useChat() {
     sessions,
     currentSession,
     isConnected,
+    isSessionReady,
     isLoading: currentActivity.isLoading,
     agentStatus: currentActivity.agentStatus,
     sessionActivity,

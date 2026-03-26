@@ -142,6 +142,7 @@ function App() {
             sessions={chat.sessions}
             currentSession={chat.currentSession}
             isLoading={chat.isLoading}
+            isSessionReady={chat.isSessionReady}
             agentStatus={chat.agentStatus}
             sessionActivity={chat.sessionActivity}
             sessionCosts={chat.sessionCosts}

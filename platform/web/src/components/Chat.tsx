@@ -29,6 +29,7 @@ interface ChatProps {
   sessions: Session[];
   currentSession: Session | null;
   isLoading: boolean;
+  isSessionReady?: boolean;
   agentStatus: string;
   sessionActivity: Record<string, SessionActivity>;
   sessionCosts: Record<string, number>;
@@ -227,6 +228,7 @@ export function Chat({
   sessions,
   currentSession,
   isLoading,
+  isSessionReady = true,
   agentStatus,
   sessionActivity,
   sessionCosts,
@@ -360,7 +362,7 @@ export function Chat({
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || isLoading || noWorkspace || isPendingApproval) return;
+    if (!input.trim() || isLoading || noWorkspace || isPendingApproval || !isSessionReady) return;
     const processed = processInput(input.trim());
     if (processed === null) { setInput(''); return; } // side-effect command (e.g. /clear, /new)
     isAtBottom.current = true;
@@ -689,8 +691,8 @@ export function Chat({
                   onChange={handleInput}
                   onKeyDown={handleKeyDown}
                   enterKeyHint="enter"
-                  disabled={noWorkspace || isPendingApproval}
-                  placeholder={noWorkspace ? 'Select a workspace to start chatting…' : isPendingApproval ? 'Approve or deny above before continuing…' : 'Type a message...'}
+                  disabled={noWorkspace || isPendingApproval || !isSessionReady}
+                  placeholder={noWorkspace ? 'Select a workspace to start chatting…' : isPendingApproval ? 'Approve or deny above before continuing…' : !isSessionReady ? 'Reconnecting session…' : 'Type a message...'}
                   rows={1}
                   className="w-full bg-transparent resize-none px-4 py-3 pr-14 max-h-[200px] outline-none text-base placeholder:text-muted-foreground disabled:opacity-50 disabled:cursor-not-allowed"
                 />
@@ -706,7 +708,7 @@ export function Chat({
                 ) : (
                   <button
                     type="submit"
-                    disabled={!input.trim() || noWorkspace || isPendingApproval}
+                    disabled={!input.trim() || noWorkspace || isPendingApproval || !isSessionReady}
                     className="absolute bottom-2 right-2 rounded-xl bg-primary p-2 text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
                   >
                     <Send size={18} />
