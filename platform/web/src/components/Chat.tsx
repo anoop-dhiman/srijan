@@ -10,7 +10,6 @@ import ReactMarkdown from 'react-markdown';
 import rehypeSanitize from 'rehype-sanitize';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
-import 'highlight.js/styles/github-dark.css';
 import { apiFetch } from '../lib/api';
 import { BashOutput } from './BashOutput';
 import { PlanCard } from './PlanCard';
