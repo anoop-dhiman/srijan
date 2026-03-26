@@ -8,6 +8,9 @@ import {
 import type { ChatMessage, Session, WorkspaceInfo, SessionActivity } from '../hooks/useChat';
 import ReactMarkdown from 'react-markdown';
 import rehypeSanitize from 'rehype-sanitize';
+import remarkGfm from 'remark-gfm';
+import rehypeHighlight from 'rehype-highlight';
+import 'highlight.js/styles/github-dark.css';
 import { apiFetch } from '../lib/api';
 import { BashOutput } from './BashOutput';
 import { PlanCard } from './PlanCard';
@@ -622,8 +625,8 @@ export function Chat({
                       </div>
                     )}
                     {msg.role === 'assistant' ? (
-                      <div className="prose prose-invert prose-base max-w-none break-words overflow-hidden [&_pre]:bg-background [&_pre]:rounded-lg [&_pre]:p-3 [&_pre]:overflow-x-auto [&_pre]:max-w-full [&_code]:text-secondary-foreground [&_code]:break-all">
-                        <ReactMarkdown rehypePlugins={[rehypeSanitize]}>{msg.content}</ReactMarkdown>
+                      <div className="prose prose-invert prose-base max-w-none break-words overflow-hidden [&_pre]:bg-background [&_pre]:rounded-lg [&_pre]:p-3 [&_pre]:overflow-x-auto [&_pre]:max-w-full [&_code]:text-secondary-foreground [&_code]:break-all [&_table]:block [&_table]:overflow-x-auto [&_table]:w-full">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize, rehypeHighlight]}>{msg.content}</ReactMarkdown>
                         {msg.streaming && (
                           <span className="inline-block w-2 h-4 bg-primary animate-pulse ml-0.5" />
                         )}

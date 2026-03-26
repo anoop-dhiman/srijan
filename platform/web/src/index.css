@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@plugin "@tailwindcss/typography";
 
 @custom-variant dark (&:where(.dark, .dark *));
 
@@ -73,3 +74,20 @@ html {
 * {
   -webkit-tap-highlight-color: transparent;
 }
+
+/* Markdown prose overrides */
+.prose :where(code):not(:where(pre code)) {
+  background-color: var(--color-muted);
+  color: var(--color-secondary-foreground);
+  padding: 0.15em 0.4em;
+  border-radius: 0.25rem;
+  font-size: 0.875em;
+  font-weight: 400;
+}
+.prose :where(code):not(:where(pre code))::before,
+.prose :where(code):not(:where(pre code))::after { content: none; }
+
+.prose :where(a) { color: var(--color-accent); }
+.prose :where(blockquote) { border-left-color: var(--color-border); }
+.prose :where(hr) { border-color: var(--color-border); }
+.prose :where(th) { background-color: var(--color-muted); }
