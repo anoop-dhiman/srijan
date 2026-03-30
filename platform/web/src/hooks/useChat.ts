@@ -158,7 +158,12 @@ export function useChat() {
     };
 
     ws.onmessage = (event) => {
-      const msg = JSON.parse(event.data);
+      let msg: any; // eslint-disable-line @typescript-eslint/no-explicit-any
+      try {
+        msg = JSON.parse(event.data);
+      } catch {
+        return;
+      }
 
       switch (msg.type) {
         case 'sessions': {
@@ -179,6 +184,7 @@ export function useChat() {
         }
 
         case 'session_created':
+          if (!msg.data?.id) break;
           sessionReadyRef.current = true;
           setIsSessionReady(true);
           setCurrentSession(msg.data);
@@ -187,6 +193,7 @@ export function useChat() {
           break;
 
         case 'session_joined': {
+          if (!msg.data?.session?.id) break;
           sessionReadyRef.current = true;
           setIsSessionReady(true);
           setCurrentSession(msg.data.session);
@@ -251,6 +258,7 @@ export function useChat() {
         }
 
         case 'session_updated': {
+          if (!msg.data?.id) break;
           const updated = msg.data as Session;
           setSessions((prev) => prev.map((s) => s.id === updated.id ? { ...s, ...updated } : s));
           setCurrentSession((prev) => prev?.id === updated.id ? { ...prev, ...updated } : prev);
@@ -258,6 +266,7 @@ export function useChat() {
         }
 
         case 'session_deleted': {
+          if (!msg.data?.sessionId) break;
           const deletedId = msg.data.sessionId;
           setSessions((prev) => prev.filter((s) => s.id !== deletedId));
           setCurrentSession((prev) => {
@@ -273,6 +282,7 @@ export function useChat() {
 
         case 'agent_event': {
           const evt = msg.data;
+          if (!evt?.sessionId || !evt.type) break;
           const sid: string = evt.sessionId;
 
           // Update agent running status
@@ -548,11 +558,16 @@ export function useChat() {
       }));
     }
 
+    const budget =
+      typeof thinkingBudget === 'number' && thinkingBudget > 0 && thinkingBudget <= 100000
+        ? Math.floor(thinkingBudget)
+        : undefined;
+
     wsRef.current.send(JSON.stringify({
       type: 'message',
       content,
       workspaceName: currentWorkspaceRef.current ?? undefined,
-      thinkingBudget: thinkingBudget ?? undefined,
+      thinkingBudget: budget,
     }));
   }, []);
 
