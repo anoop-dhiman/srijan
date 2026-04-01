@@ -1,0 +1,44 @@
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Databases
+*.db
+*.sqlite
+*.sqlite3
+data/
+
+# Private keys and certificates
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
+
+# Secrets and credentials
+*secret*
+*credential*
+/tmp/srijan-sa-*.json
+
+# Dependencies
+node_modules/
+
+# Build artifacts
+dist/
+build/
+
+# Runtime / generated
+workspaces/
+test-results/
+
+# IDE and local tooling
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Claude Code local settings (may contain tokens/paths)
+.claude/settings.local.json
